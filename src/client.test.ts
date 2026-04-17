@@ -177,6 +177,106 @@ describe('NfseClient', () => {
     expect(events).toContain('http.response');
   });
 
+  it('emitir: signs DPS, POSTs to /nfse and returns the parsed NFS-e on success', async () => {
+    const minimalDps = {
+      versao: '1.01',
+      infDPS: {
+        Id: 'DPS211130010057475300010000000010000000000000001',
+        tpAmb: '2',
+        dhEmi: new Date('2026-04-17T14:30:00Z'),
+        verAplic: 'test-1.0.0',
+        serie: '1',
+        nDPS: '1',
+        dCompet: new Date('2026-04-17T00:00:00Z'),
+        tpEmit: '1',
+        cLocEmi: '2111300',
+        prest: {
+          identificador: { CNPJ: '00574753000100' },
+          regTrib: { opSimpNac: '1', regEspTrib: '0' },
+        },
+        serv: {
+          locPrest: { cLocPrestacao: '2111300' },
+          cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+        },
+        valores: {
+          vServPrest: { vServ: 100 },
+          trib: {
+            tribMun: { tribISSQN: '1', tpRetISSQN: '1' },
+            totTrib: { indTotTrib: '0' },
+          },
+        },
+      },
+    } as Parameters<NfseClient['emitir']>[0];
+
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: 'SefinNacional_1.6.0',
+        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+        idDps: 'DPS211130010057475300010000000010000000000000001',
+        chaveAcesso: CHAVE,
+        nfseXmlGZipB64: gzipBase64Encode(XML_SAMPLE),
+      });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+
+    const result = await client.emitir(minimalDps);
+    expect(result.chaveAcesso).toBe(CHAVE);
+    expect(result.idDps).toBe('DPS211130010057475300010000000010000000000000001');
+    expect(result.nfse.infNFSe.chaveAcesso).toBe(CHAVE);
+    expect(result.tipoAmbiente).toBe(TipoAmbiente.Homologacao);
+  });
+
+  it('emitir({dryRun:true}) returns the signed DPS XML without hitting the network', async () => {
+    const minimalDps = {
+      versao: '1.01',
+      infDPS: {
+        Id: 'DPS211130010057475300010000000010000000000000001',
+        tpAmb: '2',
+        dhEmi: new Date('2026-04-17T14:30:00Z'),
+        verAplic: 'test-1.0.0',
+        serie: '1',
+        nDPS: '1',
+        dCompet: new Date('2026-04-17T00:00:00Z'),
+        tpEmit: '1',
+        cLocEmi: '2111300',
+        prest: {
+          identificador: { CNPJ: '00574753000100' },
+          regTrib: { opSimpNac: '1', regEspTrib: '0' },
+        },
+        serv: {
+          locPrest: { cLocPrestacao: '2111300' },
+          cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+        },
+        valores: {
+          vServPrest: { vServ: 100 },
+          trib: {
+            tribMun: { tribISSQN: '1', tpRetISSQN: '1' },
+            totTrib: { indTotTrib: '0' },
+          },
+        },
+      },
+    } as Parameters<NfseClient['emitir']>[0];
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+
+    const result = await client.emitir(minimalDps, { dryRun: true });
+    expect(result.dryRun).toBe(true);
+    expect(result.xmlDpsAssinado).toContain(
+      '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">',
+    );
+  });
+
   it('does not close an injected dispatcher on close()', async () => {
     const client = new NfseClient({
       ambiente: Ambiente.ProducaoRestrita,

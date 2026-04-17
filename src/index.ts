@@ -33,7 +33,17 @@ export {
   UnauthorizedError,
 } from './errors/http.js';
 export type { HttpStatusErrorOptions } from './errors/http.js';
-export { ReceitaRejectionError } from './errors/receita.js';
+export {
+  ReceitaRejectionError,
+  receitaRejectionFromPostError,
+  receitaRejectionFromResponseErro,
+} from './errors/receita.js';
+export type {
+  MensagemProcessamento,
+  RawNfsePostErrorBody,
+  RawResponseErroBody,
+  ReceitaRejectionErrorOptions,
+} from './errors/receita.js';
 export {
   InvalidChaveAcessoError,
   InvalidXmlError,
@@ -158,6 +168,23 @@ export {
 } from './nfse/enums.js';
 
 export { parseNfseXml } from './nfse/parse-xml.js';
+
+export { buildDpsId, InvalidDpsIdParamError } from './nfse/dps-id.js';
+export type { BuildDpsIdParams, TipoInscricaoEmitente } from './nfse/dps-id.js';
+
+export { buildDpsXml } from './nfse/build-xml.js';
+export type { BuildDpsXmlOptions } from './nfse/build-xml.js';
+
+export { signDpsXml, DpsAlreadySignedError } from './nfse/sign-xml.js';
+
+export type {
+  DpsDryRunResult,
+  EmitLoteItem,
+  EmitLoteResult,
+  EmitManyOptions,
+  EmitOptions,
+  NfseEmitResult,
+} from './nfse/emit.js';
 
 export { StatusDistribuicao, TipoDocumento, TipoEvento } from './dfe/types.js';
 export type {

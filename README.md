@@ -8,7 +8,7 @@ Cliente TypeScript/Node.js para o Padrão Nacional de NFS-e (nfse.gov.br), falan
 
 ## Status
 
-**v0.1** entrega apenas leitura: consulta de NFS-e por chave de acesso, distribuição de DF-e por NSU e parsing completo do XML (RTC v1.01) para objetos tipados. Emissão (v0.2), eventos (v0.3), DANFSe (v0.4) e parâmetros municipais (v0.5) estão no roadmap — veja [ROADMAP.md](./ROADMAP.md). A API pública pode mudar até a 1.0.
+**v0.2** entrega emissão síncrona: DTO → XML assinado (XMLDSig RSA-SHA256 / exc-c14n) → `POST /nfse` → NFS-e autorizada. Inclui também dry-run e emissão em lote com concorrência controlada. Leitura (v0.1) continua funcionando sem mudanças. Eventos (v0.3), DANFSe (v0.4) e parâmetros municipais (v0.5) estão no roadmap — veja [ROADMAP.md](./ROADMAP.md). A API pública pode mudar até a 1.0.
 
 ## Contexto
 
@@ -93,11 +93,94 @@ await cliente.close(); // libera o dispatcher mTLS
 >
 > Mesmo no caminho "caught up", a Receita inclui uma mensagem informativa em `erros` (ex. `E2220 — Nenhum documento localizado`). A fonte de verdade é o campo `status`; `erros[]` pode carregar avisos mesmo em sucesso.
 
+### Emitir NFS-e
+
+```typescript
+import { NfseClient, Ambiente, buildDpsId, ReceitaRejectionError, type DPS } from 'open-nfse';
+
+const cliente = new NfseClient({ ambiente: Ambiente.ProducaoRestrita, certificado: provider });
+
+const idDps = buildDpsId({
+  cLocEmi: '2111300',
+  tipoInsc: 'CNPJ',
+  inscricaoFederal: '00574753000100',
+  serie: '1',
+  nDPS: '1',
+});
+
+const dps: DPS = {
+  versao: '1.01',
+  infDPS: {
+    Id: idDps,
+    tpAmb: '2',                      // Homologação
+    dhEmi: new Date(),
+    verAplic: 'meu-app-1.0.0',
+    serie: '1',
+    nDPS: '1',
+    dCompet: new Date(),
+    tpEmit: '1',                     // Prestador
+    cLocEmi: '2111300',
+    prest: {
+      identificador: { CNPJ: '00574753000100' },
+      regTrib: { opSimpNac: '3', regEspTrib: '0' },
+    },
+    serv: {
+      locPrest: { cLocPrestacao: '2111300' },
+      cServ: { cTribNac: '010101', xDescServ: 'Serviço de teste' },
+    },
+    valores: {
+      vServPrest: { vServ: 100 },
+      trib: {
+        tribMun: { tribISSQN: '1', tpRetISSQN: '1' },
+        totTrib: { indTotTrib: '0' },
+      },
+    },
+  },
+};
+
+// Dry-run: monta + assina + comprime, sem enviar
+const preview = await cliente.emitir(dps, { dryRun: true });
+console.log(preview.xmlDpsAssinado);      // XML assinado pronto para inspeção
+console.log(preview.xmlDpsGZipB64);       // payload GZip+Base64 pronto para POST
+
+// Emissão real — lança ReceitaRejectionError em rejeições
+try {
+  const r = await cliente.emitir(dps);
+  console.log(r.chaveAcesso);             // 50 dígitos
+  console.log(r.nfse.infNFSe.nNFSe);      // número sequencial no município
+  console.log(r.xmlNfse);                 // XML oficial assinado pela Sefin
+} catch (err) {
+  if (err instanceof ReceitaRejectionError) {
+    console.error(`[${err.codigo}] ${err.descricao}`);
+    for (const m of err.mensagens.slice(1)) console.error(`  + [${m.codigo}] ${m.descricao}`);
+  } else {
+    throw err;
+  }
+}
+```
+
+### Emissão em lote
+
+O SEFIN não tem endpoint de batch — `emitirEmLote` paraleliza no cliente, com concorrência configurável, e nunca derruba o lote inteiro por uma falha individual:
+
+```typescript
+const r = await cliente.emitirEmLote([dps1, dps2, dps3], { concurrency: 2 });
+
+console.log(`${r.successCount} ok / ${r.failureCount} falhas / ${r.skippedCount} skips`);
+
+for (const item of r.items) {
+  if (item.status === 'success')  console.log('ok:', item.result.chaveAcesso);
+  if (item.status === 'failure')  console.log('fail:', item.error.message);
+  if (item.status === 'skipped')  console.log('skipped (stopOnError ativo)');
+}
+```
+
+Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/).
+
 ### Ainda não implementado
 
-Itens no roadmap que **ainda não existem** na v0.1:
+Itens no roadmap que **ainda não existem**:
 
-- `cliente.emitir({...})` — emissão síncrona de NFS-e (v0.2)
 - `cliente.cancelar({...})` e demais eventos (v0.3)
 - `cliente.gerarDanfse(chave)` — PDF local (v0.4)
 - Parâmetros municipais com cache (v0.5)
@@ -119,10 +202,12 @@ Itens no roadmap que **ainda não existem** na v0.1:
 ┌──────────────────────────────────────────────┐
 │            API pública (NfseClient)          │
 ├──────────────────────────────────────────────┤
-│   NFS-e                │   DF-e (distribuição)│
-│   fetch-by-chave       │   fetch-by-nsu       │
-│                        │                      │
-│   parser XML → domínio tipado (RTC v1.01)    │
+│   Leitura               │   Emissão          │
+│   fetch-by-chave        │   emitir           │
+│   fetch-by-nsu          │   emitir-em-lote   │
+│                         │                    │
+│   parse-xml ↔ build-xml (RTC v1.01 ↔ DTO)    │
+│              sign-xml (XMLDSig)              │
 ├──────────────────────────────────────────────┤
 │   HTTP client (undici + mTLS, GZip/Base64)   │
 ├──────────────────────────────────────────────┤
@@ -144,7 +229,7 @@ A API oficial está dividida em **hosts distintos** (SEFIN Nacional e ADN Contri
 Plano completo em [ROADMAP.md](./ROADMAP.md).
 
 - **v0.1** — consulta por chave, distribuição por NSU, parser RTC v1.01 *(shipped)*
-- **v0.2** — emissão síncrona de NFS-e
+- **v0.2** — emissão síncrona (builder + XMLDSig + emit + lote + dry-run) *(shipped)*
 - **v0.3** — eventos (cancelamento, substituição)
 - **v0.4** — geração local de DANFSe (PDF)
 - **v0.5** — parâmetros municipais com cache
@@ -157,14 +242,6 @@ Todo município é obrigado a aderir ao Padrão Nacional, mas a migração é gr
 ## Contribuindo
 
 Bugs e sugestões: abra uma [issue](https://github.com/fm-s/open-nfse/issues). PRs são bem-vindos — rode `npm run lint && npm run typecheck && npm test` antes de abrir.
-
-## Créditos
-
-Desenvolvido por [Felipe Souza](https://github.com/fm-s) com auxílio do [Claude Code](https://claude.com/claude-code) (Anthropic) na escrita, revisão e parsing dos XSDs do Padrão Nacional.
-
-## Licença
-
-MIT © [Felipe Souza](https://github.com/fm-s)
 
 ## Links úteis
 

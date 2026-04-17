@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.1.0 shipped** (reads-only: `fetchByChave`, `fetchByNsu`, full RTC v1.01 XML → typed DTOs). Still ahead: emission (v0.2), events (v0.3), DANFSe generation (v0.4), parâmetros municipais (v0.5). See `ROADMAP.md`.
+**v0.2.0 shipped** (emissão síncrona end-to-end: `buildDpsId`, `buildDpsXml`, `signDpsXml`, `NfseClient.emitir` / `emitirEmLote`, dry-run, typed `ReceitaRejectionError` from SEFIN bodies). v0.1 reads (`fetchByChave`, `fetchByNsu`, parse-xml) still supported unchanged. Still ahead: XSD-local validation (v0.2.x), events (v0.3), DANFSe (v0.4), parâmetros municipais (v0.5). See `ROADMAP.md`.
 
 ## Commands
 
@@ -43,7 +43,7 @@ The API is split across **two base URLs**, not one:
 
 | Service | Path on `Ambiente` | Endpoints used |
 |---|---|---|
-| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` (v0.2), `GET /nfse/{chave}`, `GET/HEAD /dps/{id}`, events on `/nfse/{chave}/eventos` (v0.3), `POST /decisao-judicial/nfse` |
+| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` (v0.2 ✓), `GET /nfse/{chave}`, `GET/HEAD /dps/{id}`, events on `/nfse/{chave}/eventos` (v0.3), `POST /decisao-judicial/nfse` |
 | **ADN Contribuintes** | `endpoints.adn` | `GET /DFe/{NSU}`, `GET /NFSe/{ChaveAcesso}/Eventos` |
 | **ADN DANFSe** | `endpoints.danfse` | `GET /{chaveAcesso}` → PDF (v0.4) |
 | **ADN Parâmetros Municipais** | `endpoints.parametrosMunicipais` | (v0.5) |
@@ -54,8 +54,11 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 ┌──────────────────────────────────────────────────────────┐
 │   Public API — NfseClient + typed NFSe/DPS domain + enums │
 ├──────────────────────────────────────────────────────────┤
-│   nfse/fetch-by-chave        │   dfe/fetch-by-nsu         │
-│   nfse/parse-xml (RTC v1.01) │   (ADN PascalCase mapping) │
+│  Leitura                     │  Emissão                   │
+│  nfse/fetch-by-chave         │  nfse/emit (→ POST /nfse)  │
+│  dfe/fetch-by-nsu            │  nfse/emit (emitMany)      │
+│  nfse/parse-xml (RTC v1.01)  │  nfse/build-xml + sign-xml │
+│                              │  nfse/dps-id (ID 45 pos.)  │
 ├──────────────────────────────────────────────────────────┤
 │   http/client (undici + mTLS, JSON + gzip/base64 codec)   │
 ├──────────────────────────────────────────────────────────┤
