@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.1.0 shipped** (reads-only: `fetchByChave`, `fetchByNsu`, full RTC v1.01 XML → typed DTOs). Still ahead: emission (v0.2), events (v0.3), DANFSe generation (v0.4), parâmetros municipais (v0.5). See `roadmap.md`.
+**v0.1.0 shipped** (reads-only: `fetchByChave`, `fetchByNsu`, full RTC v1.01 XML → typed DTOs). Still ahead: emission (v0.2), events (v0.3), DANFSe generation (v0.4), parâmetros municipais (v0.5). See `ROADMAP.md`.
 
 ## Commands
 
@@ -99,7 +99,7 @@ Public commitments — changes need explicit user sign-off:
 
 Do not add emission features to v0.1 "for convenience." The ordering is risk management, not schedule.
 
-## Scope fences (from roadmap.md)
+## Scope fences (from ROADMAP.md)
 
 Explicitly out of scope — flag if a request pushes into these:
 
