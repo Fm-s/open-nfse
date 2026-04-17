@@ -1,0 +1,17 @@
+{
+  "name": "example-fetch-nfse",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx fetch.ts",
+    "dump": "tsx dump.ts"
+  },
+  "dependencies": {
+    "open-nfse": "file:../.."
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
