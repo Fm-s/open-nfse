@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-04-17
+
+Eventos (cancelamento + substituição) com compensação automática e persistência pluggable de pendentes. Mais: validações pré-envio (XSD + CPF/CNPJ + CEP), `buildDps` ergonômico, site de documentação (VitePress + TypeDoc) para GitHub Pages.
+
+### Added
+
+- `NfseClient.cancelar(params)` — evento 101101. Constrói `<pedRegEvento>`, assina, gzip+b64, POSTa em `/nfse/{chave}/eventos`, parseia `<evento>` retornado. Lança `ReceitaRejectionError` em rejeição.
+- `NfseClient.substituir(params)` — emite a nova DPS (com `<subst>` auto-preenchido) e cancela a original via 105102. Retorna `SubstituirResult` discriminado com 4 estados: `ok`, `retry_pending`, `rolled_back`, `rollback_pending`. Lança apenas na falha do step 1 (emit).
+- `NfseClient.replayPendingEvents(store?)` — cron-friendly: itera o `RetryStore`, re-POSTa cada pendente (SEFIN deduplica via `{chave, tipoEvento, nPedRegEvento}`), remove em sucesso, mantém em falha transiente, remove + reporta em falha permanente.
+- `RetryStore` interface + `createInMemoryRetryStore()` default. Backend de produção é responsabilidade do consumidor; exemplo PostgreSQL em [`docs/guide/integracao.md`](https://fm-s.github.io/open-nfse/guide/integracao).
+- `buildCancelamentoXml`, `buildSubstituicaoXml` — construtores de `<pedRegEvento>` para 101101 e 105102. Expostos para uso standalone.
+- `buildEventoPedidoId` — ID do pedido (`PRE[0-9]{59}` per `TSIdPedRefEvt`).
+- `signPedRegEventoXml` — assina eventos; compartilha `signXmlElement` (genérico, refatorado de `signDpsXml`) em `src/xml/sign.ts`.
+- `parseEventoXml` + `postEvento` — parsing e wiring HTTP para eventos.
+- `buildDps(params)` — helper ergonômico que constrói uma `DPS` completa a partir de ~10 campos semânticos (emitente, serie/nDPS, servico, valores, tomador opcional). Preenche todo o boilerplate RTC v1.01 com defaults razoáveis.
+- `validateDpsXml(xml)` — validação XSD local (RTC v1.01, via `xmllint-wasm`). Lança `XsdValidationError` com `violations[]` carrying `message` + `line`. `scripts/generate-schemas.mjs` inlina os 10 XSDs em `src/nfse/_rtc-schemas.generated.ts` para empacotamento no npm tarball.
+- `validateCpf(cpf)` / `validateCnpj(cnpj)` — dígito verificador (algoritmo oficial da Receita). Typed `InvalidCpfError` / `InvalidCnpjError` com `reason: 'format' | 'check_digit' | 'known_invalid'`.
+- `createViaCepValidator({ cache?, timeoutMs?, dispatcher? })` + `CepValidator` interface — lookup de CEP contra ViaCEP por default, com cache em memória e provider pluggable (BrasilAPI, banco local, mock). Typed `InvalidCepError` com `reason: 'format' | 'not_found' | 'api_unavailable'`.
+- `collectCepsFromDps` / `collectIdentifiersFromDps` — extratores que caminham pela DPS e retornam todos os CEPs / CNPJ / CPF (para dashboards e pre-checks).
+- `EmitOptions.skipValidation` / `skipCepValidation` / `skipCpfCnpjValidation` + `EmitOptions.cepValidator` override. Validações são **opt-out**: ligadas por default, surfam falhas locais antes do round-trip com a Receita.
+- `NfseClientConfig.cepValidator` e `NfseClientConfig.retryStore` — defaults no nível do cliente.
+- **Novos enums**: `TipoEventoNfse`, `AmbienteGeradorEvento`, `JustificativaCancelamento`.
+- **Site de documentação** em [`fm-s.github.io/open-nfse`](https://fm-s.github.io/open-nfse/). VitePress + TypeDoc + GH Actions deploy automático. 10 guias escritos + API reference auto-gerada.
+
+### Changed
+
+- **Mudança de comportamento em `buildDpsXml`**: `dhEmi` agora é emitido em horário de Brasília (`-03:00`) sem milissegundos, conforme `TSDateTimeUTC` pattern. Antes era `Z` com `.000`, o que a RTC rejeita. Descoberto pela nova validação XSD.
+- `signDpsXml` agora delega para `signXmlElement` (genérico) em `src/xml/sign.ts`. Comportamento idêntico; `DpsAlreadySignedError` preservado para back-compat. O mesmo signer atende eventos via `signPedRegEventoXml`.
+- `ensureState()` do `NfseClient` carrega o certificado mesmo quando dispatcher é injetado — assinatura de DPS/evento precisa do par key/cert independentemente do transporte.
+- **Removed**: `ROADMAP.md` — roadmap agora fica no [site de docs](https://fm-s.github.io/open-nfse/) e no CHANGELOG.
+
+### Dependencies
+
+- `+ xmllint-wasm ^5.2.0` (runtime) — validação XSD.
+- `+ vitepress ^1.6.4` (dev) — site de docs.
+- `+ typedoc ^0.28.19`, `typedoc-plugin-markdown ^4.11.0`, `typedoc-vitepress-theme ^1.1.2` (dev) — API reference.
+
+### Shipped
+
+- **277 testes** (era 192). Nova cobertura: event-id, event XML builder, event parser, RetryStore in-memory, 4-state `substituir` machine (todas as ramificações via MockAgent), CEP validator, CPF/CNPJ DV, XSD validator.
+- **9 arquivos novos** em `src/eventos/` (ID, builder, signer, parser, post, retry-store, classify-error, cancelar com substituir, testes).
+- **Guias**: `docs/guide/` cobre introdução, getting-started, princípios, consultar, emitir, substituir-cancelar, validações, integração (schema SQL completo), erros, ambientes.
+- Exemplo atualizado em `examples/emit-nfse/` usando `buildDps`.
+
+### Not yet implemented (roadmap)
+
+- DANFSe (PDF) local — v0.4
+- Parâmetros municipais com cache — v0.5
+- `NfseClientFake` em `open-nfse/testing` — v0.6
+
 ## [0.2.0] — 2026-04-17
 
 Emissão síncrona. Pipeline completa de DTO → XML assinado → `POST /nfse` → NFS-e autorizada, com dry-run e emissão em lote. Leitura (v0.1) permanece inalterada.
@@ -80,6 +130,7 @@ First release. Reads-only scope: `fetchByChave` + `fetchByNsu` + full RTC v1.01 
 - Parâmetros municipais com cache (v0.5).
 - `NfseClientFake` para testes de consumidores (v0.6).
 
-[Unreleased]: https://github.com/fm-s/open-nfse/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/fm-s/open-nfse/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/fm-s/open-nfse/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/fm-s/open-nfse/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/fm-s/open-nfse/releases/tag/v0.1.0

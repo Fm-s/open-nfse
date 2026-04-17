@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.2.0 shipped** (emissão síncrona end-to-end: `buildDpsId`, `buildDpsXml`, `signDpsXml`, `NfseClient.emitir` / `emitirEmLote`, dry-run, typed `ReceitaRejectionError` from SEFIN bodies). v0.1 reads (`fetchByChave`, `fetchByNsu`, parse-xml) still supported unchanged. Still ahead: XSD-local validation (v0.2.x), events (v0.3), DANFSe (v0.4), parâmetros municipais (v0.5). See `ROADMAP.md`.
+**v0.3.0 shipped** — eventos completos. `cancelar` (101101) + `substituir` (105102 via emit-first → cancel) com máquina de 4 estados (`ok` / `retry_pending` / `rolled_back` / `rollback_pending`), `RetryStore` pluggable, `replayPendingEvents` cron-friendly. Plus: validações locais (XSD via `xmllint-wasm`, CPF/CNPJ DV, CEP via ViaCEP), `buildDps` ergonômico, site de docs em VitePress + TypeDoc → https://fm-s.github.io/open-nfse/. Ahead: DANFSe PDF (v0.4), parâmetros municipais (v0.5), NfseClientFake (v0.6). Roadmap agora no CHANGELOG + site.
 
 ## Commands
 
@@ -102,7 +102,7 @@ Public commitments — changes need explicit user sign-off:
 
 Do not add emission features to v0.1 "for convenience." The ordering is risk management, not schedule.
 
-## Scope fences (from ROADMAP.md)
+## Scope fences
 
 Explicitly out of scope — flag if a request pushes into these:
 

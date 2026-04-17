@@ -181,7 +181,7 @@ describe('NfseClient', () => {
     const minimalDps = {
       versao: '1.01',
       infDPS: {
-        Id: 'DPS211130010057475300010000000010000000000000001',
+        Id: 'DPS211130010057475300010000001000000000000001',
         tpAmb: '2',
         dhEmi: new Date('2026-04-17T14:30:00Z'),
         verAplic: 'test-1.0.0',
@@ -196,7 +196,7 @@ describe('NfseClient', () => {
         },
         serv: {
           locPrest: { cLocPrestacao: '2111300' },
-          cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+          cServ: { cTribNac: '250101', cNBS: '123456789', xDescServ: 'Serviço de teste' },
         },
         valores: {
           vServPrest: { vServ: 100 },
@@ -215,7 +215,7 @@ describe('NfseClient', () => {
         tipoAmbiente: 2,
         versaoAplicativo: 'SefinNacional_1.6.0',
         dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
-        idDps: 'DPS211130010057475300010000000010000000000000001',
+        idDps: 'DPS211130010057475300010000001000000000000001',
         chaveAcesso: CHAVE,
         nfseXmlGZipB64: gzipBase64Encode(XML_SAMPLE),
       });
@@ -228,7 +228,7 @@ describe('NfseClient', () => {
 
     const result = await client.emitir(minimalDps);
     expect(result.chaveAcesso).toBe(CHAVE);
-    expect(result.idDps).toBe('DPS211130010057475300010000000010000000000000001');
+    expect(result.idDps).toBe('DPS211130010057475300010000001000000000000001');
     expect(result.nfse.infNFSe.chaveAcesso).toBe(CHAVE);
     expect(result.tipoAmbiente).toBe(TipoAmbiente.Homologacao);
   });
@@ -237,7 +237,7 @@ describe('NfseClient', () => {
     const minimalDps = {
       versao: '1.01',
       infDPS: {
-        Id: 'DPS211130010057475300010000000010000000000000001',
+        Id: 'DPS211130010057475300010000001000000000000001',
         tpAmb: '2',
         dhEmi: new Date('2026-04-17T14:30:00Z'),
         verAplic: 'test-1.0.0',
@@ -252,7 +252,7 @@ describe('NfseClient', () => {
         },
         serv: {
           locPrest: { cLocPrestacao: '2111300' },
-          cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+          cServ: { cTribNac: '250101', cNBS: '123456789', xDescServ: 'Serviço de teste' },
         },
         valores: {
           vServPrest: { vServ: 100 },

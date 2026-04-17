@@ -21,6 +21,32 @@ export enum TipoAmbienteDps {
   Homologacao = '2',
 }
 
+/** Código do evento NFS-e (RTC v1.01). Subconjunto usado hoje. */
+export enum TipoEventoNfse {
+  Cancelamento = '101101',
+  SolicitacaoAnaliseFiscalCancelamento = '101103',
+  CancelamentoPorSubstituicao = '105102',
+  CancelamentoDeferidoAnaliseFiscal = '105104',
+  CancelamentoIndeferidoAnaliseFiscal = '105105',
+}
+
+/** Ambiente gerador do evento. Per XSD `TSAmbGeradorEvt`. */
+export enum AmbienteGeradorEvento {
+  Prefeitura = '1',
+  SefinNacional = '2',
+  AmbienteNacional = '3',
+}
+
+/**
+ * Códigos de justificativa para cancelamento (evento 101101). Per XSD
+ * `TSCodJustCanc`.
+ */
+export enum JustificativaCancelamento {
+  ErroEmissao = '1',
+  ServicoNaoPrestado = '2',
+  Outros = '9',
+}
+
 export enum TipoEmitenteDps {
   Prestador = '1',
   Tomador = '2',

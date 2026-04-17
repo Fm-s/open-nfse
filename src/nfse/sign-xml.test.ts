@@ -30,7 +30,7 @@ function makeSelfSignedCert(): A1Certificate {
 
 function minimalDps(): DPS {
   const infDPS: InfDPS = {
-    Id: 'DPS211130010057475300010000000010000000000000001',
+    Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPS['tpAmb'],
     dhEmi: new Date('2026-04-17T14:30:00Z'),
     verAplic: 'test-1.0.0',
@@ -45,7 +45,7 @@ function minimalDps(): DPS {
     },
     serv: {
       locPrest: { cLocPrestacao: '2111300' },
-      cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+      cServ: { cTribNac: '250101', cNBS: '123456789', xDescServ: 'Serviço de teste' },
     },
     valores: {
       vServPrest: { vServ: 100 },
@@ -95,7 +95,7 @@ describe('signDpsXml', () => {
 
   it('sets Reference URI to "#" + infDPS Id', () => {
     const signed = signDpsXml(unsignedXml, certificate);
-    expect(signed).toContain('<Reference URI="#DPS211130010057475300010000000010000000000000001">');
+    expect(signed).toContain('<Reference URI="#DPS211130010057475300010000001000000000000001">');
   });
 
   it('embeds the signing certificate in KeyInfo/X509Data/X509Certificate', () => {

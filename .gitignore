@@ -5,6 +5,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Docs — generated artifacts
+docs/api/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+
 # Test coverage
 coverage/
 

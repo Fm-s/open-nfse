@@ -6,9 +6,11 @@ Cliente TypeScript/Node.js para o Padrão Nacional de NFS-e (nfse.gov.br), falan
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 
+**📚 Documentação completa em [fm-s.github.io/open-nfse](https://fm-s.github.io/open-nfse/)** — guias, API reference auto-gerada do código, schema de integração em SQL, princípios de design.
+
 ## Status
 
-**v0.2** entrega emissão síncrona: DTO → XML assinado (XMLDSig RSA-SHA256 / exc-c14n) → `POST /nfse` → NFS-e autorizada. Inclui também dry-run e emissão em lote com concorrência controlada. Leitura (v0.1) continua funcionando sem mudanças. Eventos (v0.3), DANFSe (v0.4) e parâmetros municipais (v0.5) estão no roadmap — veja [ROADMAP.md](./ROADMAP.md). A API pública pode mudar até a 1.0.
+**v0.3** fecha o ciclo de vida fiscal: emissão síncrona, cancelamento e substituição (com compensação automática + `RetryStore` pluggable), mais validações locais (XSD, CPF/CNPJ, CEP) e o helper `buildDps`. Leitura (v0.1) e emissão (v0.2) permanecem inalteradas. DANFSe em PDF (v0.4) e parâmetros municipais (v0.5) ficam para próximas minors. A API pública pode mudar até a 1.0.
 
 ## Contexto
 
@@ -177,6 +179,10 @@ for (const item of r.items) {
 
 Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/).
 
+### Integração em serviços
+
+A lib é **sem estado** por design — banco, fila, retry e idempotência ficam com o seu serviço. O guia [Integração em serviços](https://fm-s.github.io/open-nfse/guide/integracao) traz um schema SQL completo (PostgreSQL) para persistir emitentes, contadores de `nDPS`, submissions, NFS-e autorizadas, rejeições, cursor de NSU, eventos e o backing store para o `RetryStore`, mais o fluxo recomendado de `emitir()` com reconciliação contra crashes, considerações de LGPD, retenção fiscal e monitoramento.
+
 ### Ainda não implementado
 
 Itens no roadmap que **ainda não existem**:
@@ -226,14 +232,14 @@ A API oficial está dividida em **hosts distintos** (SEFIN Nacional e ADN Contri
 
 ## Roadmap
 
-Plano completo em [ROADMAP.md](./ROADMAP.md).
-
 - **v0.1** — consulta por chave, distribuição por NSU, parser RTC v1.01 *(shipped)*
-- **v0.2** — emissão síncrona (builder + XMLDSig + emit + lote + dry-run) *(shipped)*
-- **v0.3** — eventos (cancelamento, substituição)
+- **v0.2** — emissão síncrona + emissão em lote + dry-run *(shipped)*
+- **v0.3** — validações locais (XSD/CEP/CPF/CNPJ), `buildDps`, eventos (cancelamento + substituição com retry store) *(shipped)*
 - **v0.4** — geração local de DANFSe (PDF)
 - **v0.5** — parâmetros municipais com cache
 - **v1.0** — API pública estável, cobertura do manual v1.2
+
+Histórico completo no [CHANGELOG.md](./CHANGELOG.md).
 
 ## Status dos municípios
 

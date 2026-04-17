@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import { MockAgent } from 'undici';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TipoAmbiente } from '../ambiente.js';
+import type { CepInfo, CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
+import { InvalidCepError, InvalidCnpjError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
 import type { DPS, InfDPS } from './domain.js';
@@ -43,7 +45,7 @@ function selfSignedCert(): A1Certificate {
 
 function minimalDps(): DPS {
   const infDPS: InfDPS = {
-    Id: 'DPS211130010057475300010000000010000000000000001',
+    Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPS['tpAmb'],
     dhEmi: new Date('2026-04-17T14:30:00Z'),
     verAplic: 'test-1.0.0',
@@ -58,7 +60,7 @@ function minimalDps(): DPS {
     },
     serv: {
       locPrest: { cLocPrestacao: '2111300' },
-      cServ: { cTribNac: '250101', xDescServ: 'Serviço de teste' },
+      cServ: { cTribNac: '250101', cNBS: '123456789', xDescServ: 'Serviço de teste' },
     },
     valores: {
       vServPrest: { vServ: 100 },
@@ -101,7 +103,7 @@ describe('emit', () => {
       '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">',
     );
     expect(result.xmlDpsAssinado).toContain(
-      '<infDPS Id="DPS211130010057475300010000000010000000000000001">',
+      '<infDPS Id="DPS211130010057475300010000001000000000000001">',
     );
     expect(result.xmlDpsGZipB64).toMatch(/^[A-Za-z0-9+/]+=*$/);
     // no pending interceptors consumed — we didn't hit the mock
@@ -123,7 +125,7 @@ describe('emit', () => {
             tipoAmbiente: 2,
             versaoAplicativo: 'SefinNacional_1.6.0',
             dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
-            idDps: 'DPS211130010057475300010000000010000000000000001',
+            idDps: 'DPS211130010057475300010000001000000000000001',
             chaveAcesso: chave,
             nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML),
           },
@@ -134,7 +136,7 @@ describe('emit', () => {
 
     expect(result.dryRun).toBeFalsy();
     expect(result.chaveAcesso).toBe(chave);
-    expect(result.idDps).toBe('DPS211130010057475300010000000010000000000000001');
+    expect(result.idDps).toBe('DPS211130010057475300010000001000000000000001');
     expect(result.xmlNfse).toBe(SAMPLE_XML);
     expect(result.nfse.infNFSe.chaveAcesso).toBe(chave);
     expect(result.tipoAmbiente).toBe(TipoAmbiente.Homologacao);
@@ -210,6 +212,210 @@ describe('emit', () => {
     );
   });
 
+  it('validates the DPS XSD before signing and throws XsdValidationError on bad input', async () => {
+    // no interceptor: if the call reaches POST, the test fails fast.
+    const badDps = minimalDps();
+    // strip cNBS to force a validation failure
+    const { cNBS: _omit, ...cServSemNBS } = badDps.infDPS.serv.cServ;
+    void _omit;
+    const broken: DPS = {
+      ...badDps,
+      infDPS: {
+        ...badDps.infDPS,
+        serv: { ...badDps.infDPS.serv, cServ: cServSemNBS as typeof badDps.infDPS.serv.cServ },
+      },
+    };
+    await expect(emit(httpClient, cert, broken)).rejects.toMatchObject({
+      name: 'XsdValidationError',
+    });
+  });
+
+  it('skipValidation=true bypasses XSD checks (for debugging escape hatch)', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(400, { erros: [{ codigo: 'E999', descricao: 'mock rejection' }] });
+
+    const badDps = minimalDps();
+    const { cNBS: _omit, ...cServSemNBS } = badDps.infDPS.serv.cServ;
+    void _omit;
+    const broken: DPS = {
+      ...badDps,
+      infDPS: {
+        ...badDps.infDPS,
+        serv: { ...badDps.infDPS.serv, cServ: cServSemNBS as typeof badDps.infDPS.serv.cServ },
+      },
+    };
+    // with skipValidation, the XML reaches SEFIN (mocked here as rejection)
+    await expect(emit(httpClient, cert, broken, { skipValidation: true })).rejects.toMatchObject({
+      name: 'ReceitaRejectionError',
+      codigo: 'E999',
+    });
+  });
+
+  it('validates CPF/CNPJ check digits and rejects invalid ones before hitting the network', async () => {
+    const dps = minimalDps();
+    const withBadCnpj: DPS = {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: {
+          ...dps.infDPS.prest,
+          identificador: { CNPJ: '00000000000001' }, // DV inválido
+        },
+      },
+    };
+    await expect(emit(httpClient, cert, withBadCnpj)).rejects.toBeInstanceOf(InvalidCnpjError);
+    expect(() => mockAgent.assertNoPendingInterceptors()).not.toThrow();
+  });
+
+  it('skipCpfCnpjValidation=true bypasses DV checks', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(400, { erros: [{ codigo: 'E999', descricao: 'mock' }] });
+
+    const dps = minimalDps();
+    const withBadCnpj: DPS = {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: { ...dps.infDPS.prest, identificador: { CNPJ: '00000000000001' } },
+      },
+    };
+    // skipCpfCnpjValidation lets the bad CNPJ through; it reaches the mocked SEFIN
+    await expect(
+      emit(httpClient, cert, withBadCnpj, {
+        skipCpfCnpjValidation: true,
+        skipCepValidation: true,
+      }),
+    ).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
+  it('uses the injected cepValidator for every CEP in the DPS', async () => {
+    const chave = '21113002200574753000100000000000146726037032711025';
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: '1.0.0',
+        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+        idDps: 'DPS1',
+        chaveAcesso: chave,
+        nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML),
+      });
+
+    const seen: string[] = [];
+    const mockCepValidator: CepValidator = {
+      validate: vi.fn(async (cep: string): Promise<CepInfo> => {
+        seen.push(cep);
+        return { cep, uf: 'SP' };
+      }),
+    };
+
+    const dps = minimalDps();
+    const withAddrs: DPS = {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: {
+          ...dps.infDPS.prest,
+          end: {
+            localidade: { endNac: { cMun: '2111300', CEP: '01310100' } },
+            xLgr: 'R',
+            nro: '1',
+            xBairro: 'B',
+          },
+        },
+        toma: {
+          identificador: { CPF: '01075595363' },
+          xNome: 'T',
+          end: {
+            localidade: { endNac: { cMun: '3550308', CEP: '04538133' } },
+            xLgr: 'R',
+            nro: '1',
+            xBairro: 'B',
+          },
+        },
+      },
+    };
+
+    await emit(httpClient, cert, withAddrs, { cepValidator: mockCepValidator });
+    expect(seen).toEqual(['01310100', '04538133']);
+  });
+
+  it('propagates InvalidCepError from the cepValidator and never hits SEFIN', async () => {
+    const mockCepValidator: CepValidator = {
+      validate: vi.fn(async (cep: string) => {
+        throw new InvalidCepError(cep, 'not_found');
+      }),
+    };
+    const dps = minimalDps();
+    const withAddr: DPS = {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: {
+          ...dps.infDPS.prest,
+          end: {
+            localidade: { endNac: { cMun: '2111300', CEP: '99999999' } },
+            xLgr: 'R',
+            nro: '1',
+            xBairro: 'B',
+          },
+        },
+      },
+    };
+    await expect(
+      emit(httpClient, cert, withAddr, { cepValidator: mockCepValidator }),
+    ).rejects.toBeInstanceOf(InvalidCepError);
+    expect(() => mockAgent.assertNoPendingInterceptors()).not.toThrow();
+  });
+
+  it('skipCepValidation=true bypasses the validator entirely', async () => {
+    const chave = '21113002200574753000100000000000146726037032711025';
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: '1.0.0',
+        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+        idDps: 'DPS1',
+        chaveAcesso: chave,
+        nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML),
+      });
+
+    const validator: CepValidator = {
+      validate: vi.fn(async () => {
+        throw new Error('should not be called');
+      }),
+    };
+    const dps = minimalDps();
+    const withAddr: DPS = {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: {
+          ...dps.infDPS.prest,
+          end: {
+            localidade: { endNac: { cMun: '2111300', CEP: '01310100' } },
+            xLgr: 'R',
+            nro: '1',
+            xBairro: 'B',
+          },
+        },
+      },
+    };
+    const r = await emit(httpClient, cert, withAddr, {
+      skipCepValidation: true,
+      cepValidator: validator,
+    });
+    expect(r.chaveAcesso).toBe(chave);
+    expect(validator.validate).not.toHaveBeenCalled();
+  });
+
   it('throws a fallback ReceitaRejectionError when the 400 body carries no mensagens', async () => {
     mockAgent
       .get('https://sefin.example.test')
@@ -257,14 +463,14 @@ describe('emitMany', () => {
   }
 
   it('emits all DPS in the list and returns per-item results in input order', async () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 1; i <= 5; i++) {
       mockAgent
         .get('https://sefin.example.test')
         .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
         .reply(201, successReply(String(i)));
     }
 
-    const dpsList = Array.from({ length: 5 }, (_, i) => dpsWith(String(i)));
+    const dpsList = Array.from({ length: 5 }, (_, i) => dpsWith(String(i + 1)));
     const out = await emitMany(httpClient, cert, dpsList);
 
     expect(out.items).toHaveLength(5);
@@ -275,7 +481,7 @@ describe('emitMany', () => {
       const item = out.items[i];
       expect(item?.status).toBe('success');
       if (item?.status === 'success') {
-        expect(item.dps.infDPS.nDPS).toBe(String(i));
+        expect(item.dps.infDPS.nDPS).toBe(String(i + 1));
       }
     }
   });
@@ -284,7 +490,7 @@ describe('emitMany', () => {
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
-      .reply(201, successReply('0'));
+      .reply(201, successReply('1'));
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
@@ -292,9 +498,9 @@ describe('emitMany', () => {
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
-      .reply(201, successReply('2'));
+      .reply(201, successReply('3'));
 
-    const dpsList = [dpsWith('0'), dpsWith('1'), dpsWith('2')];
+    const dpsList = [dpsWith('1'), dpsWith('2'), dpsWith('3')];
     const out = await emitMany(httpClient, cert, dpsList, { concurrency: 1 });
 
     expect(out.successCount).toBe(2);
@@ -312,7 +518,7 @@ describe('emitMany', () => {
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
-      .reply(201, successReply('0'));
+      .reply(201, successReply('1'));
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
@@ -320,7 +526,7 @@ describe('emitMany', () => {
     // the 3rd interceptor is intentionally NOT registered — if the worker tries
     // to hit it, undici would throw "MockNotMatchedError" and the test fails.
 
-    const dpsList = [dpsWith('0'), dpsWith('1'), dpsWith('2')];
+    const dpsList = [dpsWith('1'), dpsWith('2'), dpsWith('3')];
     const out = await emitMany(httpClient, cert, dpsList, {
       concurrency: 1,
       stopOnError: true,
@@ -338,7 +544,7 @@ describe('emitMany', () => {
     let inFlight = 0;
     let maxInFlight = 0;
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 1; i <= 8; i++) {
       mockAgent
         .get('https://sefin.example.test')
         .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
@@ -362,7 +568,7 @@ describe('emitMany', () => {
       }
     };
 
-    const dpsList = Array.from({ length: 8 }, (_, i) => dpsWith(String(i)));
+    const dpsList = Array.from({ length: 8 }, (_, i) => dpsWith(String(i + 1)));
     await emitMany(httpClient, cert, dpsList, { concurrency: 3 });
 
     expect(maxInFlight).toBeGreaterThan(1);

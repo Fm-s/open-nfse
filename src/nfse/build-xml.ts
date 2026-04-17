@@ -600,7 +600,14 @@ function buildSignature(s: Signature): object {
 }
 
 function formatDateTime(d: Date): string {
-  return d.toISOString();
+  // RTC v1.01 TSDateTimeUTC pattern requires `YYYY-MM-DDTHH:MM:SS±HH:00` with
+  // whole-hour offsets and no milliseconds. We emit the instant in Brazil
+  // local time (UTC-03:00, sem horário de verão desde 2019) since this lib
+  // targets a Brazilian audience — matches what the Receita itself emits in
+  // its own samples and is what contadores expect to read.
+  const BR_OFFSET_MIN = -180;
+  const shifted = new Date(d.getTime() + BR_OFFSET_MIN * 60_000);
+  return `${shifted.toISOString().slice(0, 19)}-03:00`;
 }
 
 function formatDate(d: Date): string {

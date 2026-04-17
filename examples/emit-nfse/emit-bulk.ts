@@ -1,10 +1,12 @@
 import {
   Ambiente,
-  buildDpsId,
+  buildDps,
   type DPS,
   NfseClient,
+  OpcaoSimplesNacional,
   providerFromFile,
   ReceitaRejectionError,
+  RegimeEspecialTributacao,
 } from 'open-nfse';
 
 const certPath = process.env.NFSE_CERT_PATH;
@@ -30,52 +32,25 @@ if (!certPath || !password || !cnpj || !codMun) {
 function montarDps(indice: number): DPS {
   const base = Math.floor(Date.now() / 1000) * 10;
   const nDPS = String(base + indice);
-  const idDps = buildDpsId({
-    cLocEmi: codMun!,
-    tipoInsc: 'CNPJ',
-    inscricaoFederal: cnpj!,
-    serie: '1',
-    nDPS,
-  });
-  const agora = new Date();
-  return {
-    versao: '1.01',
-    infDPS: {
-      Id: idDps,
-      tpAmb: '2' as DPS['infDPS']['tpAmb'],
-      dhEmi: agora,
-      verAplic: 'example-emit-bulk-0.0.0',
-      serie: '1',
-      nDPS,
-      dCompet: new Date(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()),
-      tpEmit: '1' as DPS['infDPS']['tpEmit'],
-      cLocEmi: codMun!,
-      prest: {
-        identificador: { CNPJ: cnpj! },
-        regTrib: {
-          opSimpNac: '3' as DPS['infDPS']['prest']['regTrib']['opSimpNac'],
-          regEspTrib: '0' as DPS['infDPS']['prest']['regTrib']['regEspTrib'],
-        },
-      },
-      serv: {
-        locPrest: { cLocPrestacao: codMun! },
-        cServ: {
-          cTribNac: '010101',
-          xDescServ: `Serviço em lote #${indice + 1}`,
-        },
-      },
-      valores: {
-        vServPrest: { vServ: 1.0 + indice },
-        trib: {
-          tribMun: {
-            tribISSQN: '1' as DPS['infDPS']['valores']['trib']['tribMun']['tribISSQN'],
-            tpRetISSQN: '1' as DPS['infDPS']['valores']['trib']['tribMun']['tpRetISSQN'],
-          },
-          totTrib: { indTotTrib: '0' as never },
-        },
+  return buildDps({
+    emitente: {
+      cnpj: cnpj!,
+      codMunicipio: codMun!,
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },
-  };
+    serie: '1',
+    nDPS,
+    verAplic: 'example-emit-bulk-0.0.0',
+    servico: {
+      cTribNac: '010101',
+      cNBS: '123456789',
+      descricao: `Serviço em lote #${indice + 1}`,
+    },
+    valores: { vServ: 1.0 + indice },
+  });
 }
 
 async function main() {

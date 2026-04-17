@@ -1,16 +1,20 @@
 import { TipoAmbiente } from '../ambiente.js';
+import type { CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
 import {
   type MensagemProcessamento,
   ReceitaRejectionError,
   receitaRejectionFromPostError,
 } from '../errors/receita.js';
+import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import type { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDpsXml } from './build-xml.js';
+import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, NFSe } from './domain.js';
 import { parseNfseXml } from './parse-xml.js';
 import { signDpsXml } from './sign-xml.js';
+import { validateDpsXml } from './validate-xml.js';
 
 export interface EmitOptions {
   /**
@@ -18,6 +22,31 @@ export interface EmitOptions {
    * Receita. Útil para previews, testes locais e inspeção offline.
    */
   readonly dryRun?: boolean;
+  /**
+   * Pula a validação XSD local (RTC v1.01) antes de assinar. Default `false`.
+   * A validação roda antes da assinatura: se o XML estiver malformado, o erro
+   * aparece localmente com linha + descrição ao invés de virar rejeição da
+   * Receita depois de um round-trip. Só desligue para debugging ou quando
+   * estiver intencionalmente gerando XML fora do padrão.
+   */
+  readonly skipValidation?: boolean;
+  /**
+   * Pula a validação de CEP (formato + lookup na API externa). Default
+   * `false`. Quando habilitada, cada endereço da DPS (prest/toma/interm/obra/
+   * atvEvento/RTC-dest/fornec) é verificado — a API default é o ViaCEP.
+   */
+  readonly skipCepValidation?: boolean;
+  /**
+   * Pula a validação de dígito verificador de CPF/CNPJ. Default `false`.
+   * Apenas identificadores do tipo CNPJ e CPF são validados; NIF e cNaoNIF
+   * são ignorados (não têm DV brasileiro).
+   */
+  readonly skipCpfCnpjValidation?: boolean;
+  /**
+   * Validador de CEP custom. Se omitido, o validador default (ViaCEP) é
+   * usado. Passe um custom para usar outra API, banco local ou mock em tests.
+   */
+  readonly cepValidator?: CepValidator;
 }
 
 /** Resultado do modo dry-run — retorna o XML assinado sem enviar. */
@@ -64,13 +93,13 @@ export async function emit(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
-  options: { dryRun: true },
+  options: EmitOptions & { dryRun: true },
 ): Promise<DpsDryRunResult>;
 export async function emit(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
-  options?: { dryRun?: false },
+  options?: EmitOptions & { dryRun?: false },
 ): Promise<NfseEmitResult>;
 export async function emit(
   httpClient: HttpClient,
@@ -78,7 +107,19 @@ export async function emit(
   dps: DPS,
   options?: EmitOptions,
 ): Promise<NfseEmitResult | DpsDryRunResult> {
+  // Pré-validações, em ordem de custo crescente: primeiro as sync baratas
+  // (CPF/CNPJ DV), depois as locais pesadas (XSD contra a RTC v1.01), por
+  // último o lookup externo de CEP — que pode bater em viacep.com.br.
+  if (!options?.skipCpfCnpjValidation) {
+    runIdentifierValidation(dps);
+  }
   const xmlUnsigned = buildDpsXml(dps);
+  if (!options?.skipValidation) {
+    await validateDpsXml(xmlUnsigned);
+  }
+  if (!options?.skipCepValidation) {
+    await runCepValidation(dps, options?.cepValidator);
+  }
   const xmlSigned = signDpsXml(xmlUnsigned, certificate);
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
 
@@ -138,6 +179,17 @@ export interface EmitManyOptions {
    * todas e deixar o caller decidir como reagir).
    */
   readonly stopOnError?: boolean;
+  /** Propagado para cada `emit()` do lote. Ver `EmitOptions.skipValidation`. */
+  readonly skipValidation?: boolean;
+  /** Propagado. Ver `EmitOptions.skipCepValidation`. */
+  readonly skipCepValidation?: boolean;
+  /** Propagado. Ver `EmitOptions.skipCpfCnpjValidation`. */
+  readonly skipCpfCnpjValidation?: boolean;
+  /**
+   * Validador de CEP compartilhado pelo lote. Crie uma instância única com
+   * cache externo para deduplicar lookups entre as DPS. Ver `createViaCepValidator`.
+   */
+  readonly cepValidator?: CepValidator;
 }
 
 export type EmitLoteItem =
@@ -162,6 +214,17 @@ export async function emitMany(
 ): Promise<EmitLoteResult> {
   const concurrency = Math.max(1, Math.floor(options?.concurrency ?? DEFAULT_CONCURRENCY));
   const stopOnError = options?.stopOnError ?? false;
+  const perEmitOptions: EmitOptions & { dryRun: false } = {
+    dryRun: false,
+    ...(options?.skipValidation !== undefined ? { skipValidation: options.skipValidation } : {}),
+    ...(options?.skipCepValidation !== undefined
+      ? { skipCepValidation: options.skipCepValidation }
+      : {}),
+    ...(options?.skipCpfCnpjValidation !== undefined
+      ? { skipCpfCnpjValidation: options.skipCpfCnpjValidation }
+      : {}),
+    ...(options?.cepValidator !== undefined ? { cepValidator: options.cepValidator } : {}),
+  };
   const items: EmitLoteItem[] = new Array(dpsList.length);
   let nextIndex = 0;
   let aborted = false;
@@ -173,7 +236,7 @@ export async function emitMany(
       if (i >= dpsList.length) return;
       const dps = dpsList[i] as DPS;
       try {
-        const result = await emit(httpClient, certificate, dps);
+        const result = await emit(httpClient, certificate, dps, perEmitOptions);
         items[i] = { status: 'success', dps, result };
       } catch (cause) {
         const error = cause instanceof Error ? cause : new Error(String(cause));
@@ -199,6 +262,34 @@ export async function emitMany(
     else skippedCount++;
   }
   return { items, successCount, failureCount, skippedCount };
+}
+
+function runIdentifierValidation(dps: DPS): void {
+  for (const { type, value } of collectIdentifiersFromDps(dps)) {
+    if (type === 'CNPJ') validateCnpj(value);
+    else validateCpf(value);
+  }
+}
+
+let _defaultCepValidator: CepValidator | undefined;
+
+async function runCepValidation(dps: DPS, override?: CepValidator): Promise<void> {
+  const ceps = collectCepsFromDps(dps);
+  if (ceps.length === 0) return;
+  const validator = override ?? (await getDefaultCepValidator());
+  // sequencial — o cache interno no validator garante que CEPs repetidos
+  // custam O(1). Paralelizar aqui pode violar rate-limit do ViaCEP em lote.
+  for (const { cep } of ceps) {
+    await validator.validate(cep);
+  }
+}
+
+async function getDefaultCepValidator(): Promise<CepValidator> {
+  if (!_defaultCepValidator) {
+    const { createViaCepValidator } = await import('../cep/viacep.js');
+    _defaultCepValidator = createViaCepValidator();
+  }
+  return _defaultCepValidator;
 }
 
 function normalizeAlerta(raw: Partial<MensagemProcessamento>): MensagemProcessamento[] {

@@ -17,7 +17,7 @@ const SAMPLE_PATH = join(
 
 function minimalInfDPS(overrides: Partial<InfDPS> = {}): InfDPS {
   return {
-    Id: 'DPS211130010057475300010000000010000000000000001',
+    Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPS['tpAmb'],
     dhEmi: new Date('2026-04-17T14:30:00Z'),
     verAplic: 'test-1.0.0',
@@ -98,13 +98,13 @@ describe('buildDpsXml', () => {
         dCompet: new Date('2026-04-17T00:00:00Z'),
       }),
     );
-    expect(xml).toContain('<dhEmi>2026-04-17T14:30:00.000Z</dhEmi>');
+    expect(xml).toContain('<dhEmi>2026-04-17T11:30:00-03:00</dhEmi>');
     expect(xml).toContain('<dCompet>2026-04-17</dCompet>');
   });
 
   it('places Id as an attribute on <infDPS>, not as a child element', () => {
-    const xml = buildDpsXml(minimalDps({ Id: 'DPS211130010057475300010000000010000000000000001' }));
-    expect(xml).toContain('<infDPS Id="DPS211130010057475300010000000010000000000000001">');
+    const xml = buildDpsXml(minimalDps({ Id: 'DPS211130010057475300010000001000000000000001' }));
+    expect(xml).toContain('<infDPS Id="DPS211130010057475300010000001000000000000001">');
     expect(xml).not.toContain('<Id>');
   });
 

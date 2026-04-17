@@ -1,11 +1,13 @@
 import {
   Ambiente,
-  buildDpsId,
+  buildDps,
   type DPS,
   type Logger,
   NfseClient,
+  OpcaoSimplesNacional,
   providerFromFile,
   ReceitaRejectionError,
+  RegimeEspecialTributacao,
 } from 'open-nfse';
 
 process.on('uncaughtException', (err) => {
@@ -50,56 +52,25 @@ const valorServico = Number(process.env.NFSE_VALOR ?? '1.00');
 const confirmaEmissao = process.env.NFSE_CONFIRMA_EMISSAO === 'yes';
 
 function montarDps(): DPS {
-  const idDps = buildDpsId({
-    cLocEmi: codMun!,
-    tipoInsc: 'CNPJ',
-    inscricaoFederal: cnpj!,
-    serie,
-    nDPS,
-  });
-
-  const agora = new Date();
-
-  return {
-    versao: '1.01',
-    infDPS: {
-      Id: idDps,
-      tpAmb: '2' as DPS['infDPS']['tpAmb'], // Homologação
-      dhEmi: agora,
-      verAplic: 'example-emit-nfse-0.0.0',
-      serie,
-      nDPS,
-      dCompet: new Date(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate()),
-      tpEmit: '1' as DPS['infDPS']['tpEmit'], // Prestador
-      cLocEmi: codMun!,
-      prest: {
-        identificador: { CNPJ: cnpj! },
-        regTrib: {
-          opSimpNac: '3' as DPS['infDPS']['prest']['regTrib']['opSimpNac'], // ME/EPP
-          regEspTrib: '0' as DPS['infDPS']['prest']['regTrib']['regEspTrib'], // Nenhum
-        },
-      },
-      serv: {
-        locPrest: { cLocPrestacao: codMun! },
-        cServ: {
-          cTribNac: '010101', // ajuste para seu serviço real
-          xDescServ: 'Serviço de teste emitido pelo exemplo open-nfse',
-        },
-      },
-      valores: {
-        vServPrest: { vServ: valorServico },
-        trib: {
-          tribMun: {
-            tribISSQN: '1' as DPS['infDPS']['valores']['trib']['tribMun']['tribISSQN'],
-            tpRetISSQN: '1' as DPS['infDPS']['valores']['trib']['tribMun']['tpRetISSQN'],
-          },
-          totTrib: {
-            indTotTrib: '0' as never, // 0 = não informado
-          },
-        },
+  return buildDps({
+    emitente: {
+      cnpj: cnpj!,
+      codMunicipio: codMun!,
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp, // ajuste para seu regime real
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },
-  };
+    serie,
+    nDPS,
+    verAplic: 'example-emit-nfse-0.0.0',
+    servico: {
+      cTribNac: '010101',        // ajuste para o código real do serviço
+      cNBS: '123456789',          // required — consulte o Anexo B da RTC
+      descricao: 'Serviço de teste emitido pelo exemplo open-nfse',
+    },
+    valores: { vServ: valorServico },
+  });
 }
 
 async function main() {

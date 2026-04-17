@@ -45,10 +45,15 @@ export type {
   ReceitaRejectionErrorOptions,
 } from './errors/receita.js';
 export {
+  InvalidCepError,
   InvalidChaveAcessoError,
+  InvalidCnpjError,
+  InvalidCpfError,
   InvalidXmlError,
   ValidationError,
+  XsdValidationError,
 } from './errors/validation.js';
+export type { XsdViolation } from './errors/validation.js';
 
 export type { NfseQueryResult } from './nfse/types.js';
 
@@ -137,8 +142,11 @@ export type {
 
 export {
   AmbienteGerador,
+  AmbienteGeradorEvento,
   CodigoNaoNif,
   CST,
+  JustificativaCancelamento,
+  TipoEventoNfse,
   EnvioMDIC,
   FinalidadeNFSe,
   IndicadorFinal,
@@ -175,7 +183,80 @@ export type { BuildDpsIdParams, TipoInscricaoEmitente } from './nfse/dps-id.js';
 export { buildDpsXml } from './nfse/build-xml.js';
 export type { BuildDpsXmlOptions } from './nfse/build-xml.js';
 
+export { buildDps } from './nfse/build-dps.js';
+export type {
+  BuildDpsParams,
+  EmitenteInput,
+  EnderecoBr,
+  RegimeTributario,
+  ServicoInput,
+  TomadorInput,
+  ValoresInput,
+} from './nfse/build-dps.js';
+
 export { signDpsXml, DpsAlreadySignedError } from './nfse/sign-xml.js';
+
+// v0.3 — eventos (cancelamento + substituição)
+export {
+  buildCancelamentoXml,
+  buildSubstituicaoXml,
+} from './eventos/build-event-xml.js';
+export type {
+  AutorEvento,
+  BuildCancelamentoXmlParams,
+  BuildEventoXmlOptions,
+  BuildSubstituicaoXmlParams,
+} from './eventos/build-event-xml.js';
+export { cancelar, substituir } from './eventos/cancelar.js';
+export type {
+  CancelarParams,
+  SubstituirParams,
+  SubstituirResult,
+} from './eventos/cancelar.js';
+export { defaultIsTransient } from './eventos/classify-error.js';
+export {
+  buildEventoPedidoId,
+  InvalidEventoPedidoIdParamError,
+} from './eventos/event-id.js';
+export type { BuildEventoPedidoIdParams } from './eventos/event-id.js';
+export { parseEventoXml } from './eventos/parse-event.js';
+export type {
+  AutorEventoParsed,
+  DetalheEvento,
+  EventoProcessado,
+  InfEvento,
+  InfPedRegEvento,
+  PedRegEvento,
+} from './eventos/parse-event.js';
+export { postEvento } from './eventos/post-evento.js';
+export type { EventoResult } from './eventos/post-evento.js';
+export {
+  createInMemoryRetryStore,
+  MissingRetryStoreError,
+  pendingEventId,
+} from './eventos/retry-store.js';
+export type { PendingEvent, PendingEventKind, RetryStore } from './eventos/retry-store.js';
+export { signPedRegEventoXml } from './eventos/sign-event.js';
+export type { ReplayItem } from './client.js';
+
+export { validateDpsXml } from './nfse/validate-xml.js';
+
+export { validateCnpj, validateCpf } from './fiscal/validate-cpf-cnpj.js';
+export { createViaCepValidator } from './cep/viacep.js';
+export type { ViaCepOptions } from './cep/viacep.js';
+export type { CepInfo, CepValidator } from './cep/types.js';
+export {
+  collectCepsFromDps,
+  collectIdentifiersFromDps,
+} from './nfse/collect-from-dps.js';
+export type {
+  CollectedCep,
+  CollectedIdentifier,
+} from './nfse/collect-from-dps.js';
+export type {
+  ValidateDpsXmlOptions,
+  ValidateDpsXmlResult,
+} from './nfse/validate-xml.js';
 
 export type {
   DpsDryRunResult,
