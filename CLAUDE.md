@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.3.0 shipped** — eventos completos. `cancelar` (101101) + `substituir` (105102 via emit-first → cancel) com máquina de 4 estados (`ok` / `retry_pending` / `rolled_back` / `rollback_pending`), `RetryStore` pluggable, `replayPendingEvents` cron-friendly. Plus: validações locais (XSD via `xmllint-wasm`, CPF/CNPJ DV, CEP via ViaCEP), `buildDps` ergonômico, site de docs em VitePress + TypeDoc → https://fm-s.github.io/open-nfse/. Ahead: DANFSe PDF (v0.4), parâmetros municipais (v0.5), NfseClientFake (v0.6). Roadmap agora no CHANGELOG + site.
+**v0.7.0 shipped — feature-complete.** Full fiscal lifecycle covered:
+
+- **v0.1** — `fetchByChave`, `fetchByNsu`, parser RTC v1.01.
+- **v0.2** — `emitirDpsPronta` / `emitirEmLote`, dry-run, XMLDSig, XSD WASM, CPF/CNPJ DV, ViaCEP, `buildDps`.
+- **v0.3** — `cancelar` (101101) + `substituir` (105102) with 4-state compensation machine (`ok` / `retry_pending` / `rolled_back` / `rollback_pending`), pluggable `RetryStore`, `replayPendingEvents`.
+- **v0.4** — safe emit flow: `emitir(params)` with `DpsCounter`. Counter only consumes after offline validations pass; transient errors go to `RetryStore` instead of throwing. Old API preserved as `emitirDpsPronta(dps)` escape hatch.
+- **v0.5** — 6 `consultar*` methods against ADN `/parametrizacao`, with pluggable `ParametrosCache` (default in-memory + TTL).
+- **v0.6** — `NfseClientFake` in `open-nfse/testing` subpath, structurally compatible via `NfseClientLike`.
+- **v0.7** — DANFSe PDF: `gerarDanfse(nfse, options)` with strategy `'auto' | 'online' | 'local'` (default `'auto'` = ADN online + fallback to local pdfkit renderer); `fetchDanfse(chave)` online-only.
+
+Docs site: VitePress + TypeDoc → https://fm-s.github.io/open-nfse/. Roadmap ahead: stabilization until 1.0 — public API may still receive tweaks. Details per-version in CHANGELOG.
 
 ## Commands
 
@@ -43,27 +53,32 @@ The API is split across **two base URLs**, not one:
 
 | Service | Path on `Ambiente` | Endpoints used |
 |---|---|---|
-| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` (v0.2 ✓), `GET /nfse/{chave}`, `GET/HEAD /dps/{id}`, events on `/nfse/{chave}/eventos` (v0.3), `POST /decisao-judicial/nfse` |
-| **ADN Contribuintes** | `endpoints.adn` | `GET /DFe/{NSU}`, `GET /NFSe/{ChaveAcesso}/Eventos` |
-| **ADN DANFSe** | `endpoints.danfse` | `GET /{chaveAcesso}` → PDF (v0.4) |
-| **ADN Parâmetros Municipais** | `endpoints.parametrosMunicipais` | (v0.5) |
+| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` ✓, `GET /nfse/{chave}` ✓, events on `/nfse/{chave}/eventos` ✓, plus (not yet wrapped) `GET/HEAD /dps/{id}`, `POST /decisao-judicial/nfse` |
+| **ADN Contribuintes** | `endpoints.adn` | `GET /DFe/{NSU}` ✓, `GET /NFSe/{ChaveAcesso}/Eventos` (not yet wrapped) |
+| **ADN DANFSe** | `endpoints.danfse` | `GET /{chaveAcesso}` → PDF ✓ |
+| **ADN Parâmetros Municipais** | `endpoints.parametrosMunicipais` | `GET /aliquotas/{cMun}/{cServ}/{competencia}` + 5 more ✓ |
 
 Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses PascalCase + string `TipoAmbiente`** — wire-format types stay private per module and the public DTOs normalize to a single convention. Don't ever "unify" the wire formats at the HTTP layer; they're genuinely different contracts.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│   Public API — NfseClient + typed NFSe/DPS domain + enums │
-├──────────────────────────────────────────────────────────┤
-│  Leitura                     │  Emissão                   │
-│  nfse/fetch-by-chave         │  nfse/emit (→ POST /nfse)  │
-│  dfe/fetch-by-nsu            │  nfse/emit (emitMany)      │
-│  nfse/parse-xml (RTC v1.01)  │  nfse/build-xml + sign-xml │
-│                              │  nfse/dps-id (ID 45 pos.)  │
-├──────────────────────────────────────────────────────────┤
-│   http/client (undici + mTLS, JSON + gzip/base64 codec)   │
-├──────────────────────────────────────────────────────────┤
-│   certificate (ICP-Brasil A1, node-forge, pluggable)      │
-└──────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│  Public API — NfseClient + open-nfse/testing (NfseClientFake)  │
+├────────────────────────────────────────────────────────────────┤
+│  Leitura                │  Emissão seg.     │  Eventos          │
+│  nfse/fetch-by-chave    │  nfse/emit        │  eventos/cancelar │
+│  dfe/fetch-by-nsu       │  (emitSeguro,     │  (substituir 4-st)│
+│  nfse/parse-xml         │   emitDpsPronta,  │  eventos/post-ev  │
+│                         │   emitMany)       │  eventos/retry-st │
+│                                                                │
+│  Helpers: buildDps · buildDpsXml · signDpsXml · dps-id         │
+│  Validations: validate-xml (XSD WASM) · fiscal DV · cep/viacep │
+│  Parâmetros: parametros-municipais/{fetch, cache, parse}       │
+│  DANFSe: danfse/{fetch ADN, gerar pdfkit+qrcode}               │
+├────────────────────────────────────────────────────────────────┤
+│  http/client (undici + mTLS + HTTP/1.1, JSON/gzip/base64, PDF) │
+├────────────────────────────────────────────────────────────────┤
+│  certificate (ICP-Brasil A1, node-forge, pluggable)            │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 **Invariants that are easy to accidentally break**:
@@ -90,17 +105,17 @@ Public commitments — changes need explicit user sign-off:
 
 1. **DTO in, DTO out.** Callers never see XML, GZip, Base64, mTLS plumbing, or XMLDSig. Everything is plain typed objects. (The raw `xmlNfse` string is still exposed on `NfseQueryResult` as an escape hatch, not a replacement.)
 2. **Typed errors, one class per failure mode.** `ExpiredCertificateError`, `NotFoundError`, `ReceitaRejectionError`, etc. Three-level hierarchy: `Error` → `OpenNfseError` → intermediate group (`HttpError`, `CertificateError`, `ValidationError`) → concrete.
-3. **Stateless.** No database, no framework, no hidden global state.
+3. **No internal state, but yes to orchestration/retry primitives.** No database, no hidden cache, no singleton — but `emitirEmLote` orchestrates concurrency, `substituir` runs a 4-state compensation machine, and `RetryStore` + `replayPendingEvents` provide pluggable retry infrastructure. Durable persistence is the consumer's job.
 4. **Schema-driven types.** Every TS interface in `src/nfse/domain.ts` maps to a TCxxx complex type in the XSD. When a Nota Técnica lands, walk the XSD diff → update domain types + parser + add fixture → bump MINOR.
 5. **DPS builder (v0.2) will be separable from transport.** A caller must be able to build + validate + get signed XML without sending (dry-run / preview / offline tests).
 6. **Pluggable certificate provider.** `CertificateProvider` is an interface; concrete providers (file, buffer, and future KMS/Vault/env) implement it. `NfseClientConfig.certificado` also accepts the simple `{ pfx, password }` shape for the common case.
 
-## Roadmap ordering — why reads come before writes
+## Roadmap ordering — why reads came before writes (historical)
 
 - **v0.1 (shipped) = consulta/distribuição only.** A broken read just needs a retry.
-- **v0.2 = emissão síncrona** (write-side). A broken emission can produce invalid fiscal documents in production, so it ships only after reads, mTLS, cert loading, and error typing are proven.
+- **v0.2 = emissão síncrona** (write-side). A broken emission can produce invalid fiscal documents in production, so it shipped only after reads, mTLS, cert loading, and error typing were proven.
 
-Do not add emission features to v0.1 "for convenience." The ordering is risk management, not schedule.
+The ordering was risk management, not schedule. All versions through v0.7 are now shipped — focus until 1.0 is stabilization, not new features. New features warrant explicit scope discussion.
 
 ## Scope fences
 

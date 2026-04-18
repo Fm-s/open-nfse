@@ -123,6 +123,8 @@ await cliente.fetchByNsu({
 `/DFe/{NSU}` devolve **HTTP 404 com body** quando caught up e **HTTP 400 com body** em rejeição — nenhum dos dois é erro HTTP. A lib trata automaticamente (`acceptedStatuses: [400, 404]`) e retorna `NsuQueryResult` normalmente. **Você nunca vê `NotFoundError` em `fetchByNsu`** — veja `status === 'NENHUM_DOCUMENTO_LOCALIZADO'`.
 
 Mesmo no caminho "caught up", a Receita inclui uma mensagem em `erros` (ex: `E2220`). A fonte de verdade é `status`; `erros[]` é informativo.
+
+**Guarda de sanidade:** se o response 400/404 não trouxer o campo `StatusProcessamento` (por exemplo, um proxy/WAF na frente do ADN devolveu um HTML genérico), a lib lança `NetworkError` ao invés de silenciosamente parsear como "nenhum documento". Assim você vê o problema de infra em vez de cursor parado.
 :::
 
 ### Tipos de documento

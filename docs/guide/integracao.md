@@ -1,8 +1,15 @@
 # Guia de integração
 
-`open-nfse` é **sem estado** por design — não tem banco, fila, retry ou orquestração. Esses são trabalho do seu serviço. Este documento descreve as estruturas de persistência mínimas para integrar a lib em produção.
+`open-nfse` **não tem estado interno** — zero banco, cache global ou singleton escondido — mas oferece primitives prontos:
 
-> **Prerequisito mental:** a cada `cliente.emitir()` você gera um documento fiscal oficial. Se o processo cai entre o POST e a resposta, você precisa saber se a NFS-e foi autorizada ou não — sem duplicá-la. A única forma de descobrir é consultar a Receita depois pelo `chaveAcesso` derivado do seu `idDps`. Tudo no schema abaixo existe para tornar isso confiável.
+- **Orquestração**: `emitirEmLote` (worker pool client-side, sem batch no SEFIN), `substituir` (máquina de 4 estados com rollback automático).
+- **Retry**: `RetryStore` pluggable + `replayPendingEvents` — a lib define a interface e o fluxo; você pluga seu banco.
+- **`DpsCounter`**: interface pluggable que fornece `nDPS` atômico para `emitir(params)`. A lib só chama depois das validações offline passarem.
+- **`ParametrosCache`**: interface pluggable para respostas da API `/parametrizacao` (TTLs sensatos embutidos).
+
+O que **fica com o seu serviço** é a **persistência durável** — as impls concretas dessas interfaces contra seu DB, mais as tabelas para guardar NFS-e autorizadas, cursor de NSU e eventos. Este documento descreve as estruturas SQL sugeridas para isso.
+
+> **Prerequisito mental:** a cada `cliente.emitir(params)` você gera um documento fiscal oficial. A lib roda validações offline primeiro e **só consome o counter** depois que tudo passa — então uma DPS quebrada não queima `nDPS`. Falhas de rede após o POST viram `retry_pending` no `RetryStore`, com replay idempotente (SEFIN deduplica via `infDPS.Id`). Rejeições permanentes lançam `ReceitaRejectionError` — aí o `nDPS` foi consumido de fato.
 
 ## Sumário
 
@@ -60,7 +67,7 @@ RETURNING proximo_ndps - 1 AS ndps;
 
 ### 1.3. `dps_submissions` — cada chamada de `emitir()`
 
-Crie a linha **antes** de chamar a lib, com `id_dps` e o payload. Isso vira sua chave de idempotência: se o processo morre no meio de um POST, no retry você consulta por `id_dps` e decide se reenvia ou consulta o resultado via `fetchByChave`.
+Opcional mas recomendado: uma linha por `emitir()` chamado, como log fiscal auditável. A lib **não exige isso** para funcionar (o `DpsCounter` + `RetryStore` já dão idempotência), mas você tipicamente quer histórico por nota.
 
 ```sql
 CREATE TABLE dps_submissions (
@@ -72,17 +79,15 @@ CREATE TABLE dps_submissions (
   dh_emi           TIMESTAMPTZ NOT NULL,
   dcompet          DATE NOT NULL,
   valor_servico    NUMERIC(15, 2) NOT NULL,
-  xml_dps_assinado TEXT,                           -- preenchido após buildDpsXml + signDpsXml
+  xml_dps_assinado TEXT,                           -- preenchido após o emit (success OR retry_pending)
   status           TEXT NOT NULL CHECK (status IN (
-                     'pending',                   -- linha criada, POST ainda não tentado
-                     'in_flight',                 -- POST em andamento
-                     'authorized',                -- 201 + NFS-e autorizada
-                     'rejected',                  -- 400 com erros de regra
-                     'error'                      -- falha de rede / 5xx / timeout
+                     'authorized',                -- r.status === 'ok'
+                     'retry_pending',             -- r.status === 'retry_pending' — no retryStore
+                     'rejected'                   -- throw ReceitaRejectionError (nDPS foi consumido)
                    )),
   chave_acesso     CHAR(50),                       -- preenchido em 'authorized'
+  pending_id       TEXT,                           -- FK lógico para nfse_pending_events.id
   http_status      SMALLINT,
-  started_at       TIMESTAMPTZ,
   finished_at      TIMESTAMPTZ,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -196,30 +201,58 @@ CREATE TABLE nfse_eventos (
 
 ### 1.9. `nfse_pending_events` — backing store para `RetryStore`
 
-Quando `cliente.substituir()` cai em `retry_pending` ou `rollback_pending`, a lib persiste o evento pendente via `RetryStore`. Esta tabela é o backing store típico — o consumidor implementa `save`/`list`/`delete` mapeando para ela.
+O `RetryStore` cobre **dois tipos** de pendentes (`PendingEvent` é discriminated union com `kind`):
+
+| `kind`                          | Quando                                                                       |
+|---------------------------------|------------------------------------------------------------------------------|
+| `emission`                      | `cliente.emitir(params)` falhou transitoriamente (rede/5xx/timeout)          |
+| `cancelamento_simples`          | `cliente.cancelar()` falhou transitoriamente                                 |
+| `cancelamento_por_substituicao` | `cliente.substituir()` emit ok, mas cancel 105102 falhou transitoriamente    |
+| `rollback_cancelamento`         | `cliente.substituir()` rollback do emit (via 101101) falhou transitoriamente |
+
+Uma única tabela com colunas nullable cobre tudo:
 
 ```sql
 CREATE TABLE nfse_pending_events (
-  id                TEXT PRIMARY KEY,            -- {chaveNfse}:{tipoEvento}:{nPedRegEvento}
+  id                TEXT PRIMARY KEY,
   kind              TEXT NOT NULL CHECK (kind IN (
+                      'emission',
+                      'cancelamento_simples',
                       'cancelamento_por_substituicao',
                       'rollback_cancelamento'
                     )),
-  chave_nfse        CHAR(50) NOT NULL,
-  chave_substituta  CHAR(50),                    -- preenchido apenas em 105102
-  tipo_evento       VARCHAR(10) NOT NULL,
-  n_ped_reg_evento  VARCHAR(3) NOT NULL,
-  c_motivo          VARCHAR(2) NOT NULL,
+
+  -- campos só de emission:
+  id_dps            CHAR(45),
+  emitente_cnpj     CHAR(14),
+  serie             VARCHAR(5),
+  ndps              BIGINT,
+
+  -- campos só de evento (cancelamento/rollback):
+  chave_nfse        CHAR(50),
+  chave_substituta  CHAR(50),
+  tipo_evento       VARCHAR(10),
+  n_ped_reg_evento  VARCHAR(3),
+  c_motivo          VARCHAR(2),
   x_motivo          TEXT,
-  xml_pedido        TEXT NOT NULL,                -- XML do pedRegEvento já assinado; re-POST idempotente
+
+  -- comum a ambos:
+  xml_assinado      TEXT NOT NULL,                 -- re-POST idempotente
   first_attempt_at  TIMESTAMPTZ NOT NULL,
   last_attempt_at   TIMESTAMPTZ NOT NULL,
   last_error_msg    TEXT NOT NULL,
   last_error_name   TEXT NOT NULL,
-  last_error_transient BOOLEAN NOT NULL
+  last_error_transient BOOLEAN NOT NULL,
+
+  CHECK (
+    (kind = 'emission' AND id_dps IS NOT NULL AND emitente_cnpj IS NOT NULL)
+    OR (kind <> 'emission' AND chave_nfse IS NOT NULL AND tipo_evento IS NOT NULL)
+  )
 );
 
-CREATE INDEX ix_pending_chave ON nfse_pending_events (chave_nfse);
+CREATE INDEX ix_pending_kind ON nfse_pending_events (kind);
+CREATE INDEX ix_pending_chave ON nfse_pending_events (chave_nfse) WHERE chave_nfse IS NOT NULL;
+CREATE INDEX ix_pending_emitente ON nfse_pending_events (emitente_cnpj) WHERE emitente_cnpj IS NOT NULL;
 CREATE INDEX ix_pending_last_attempt ON nfse_pending_events (last_attempt_at);
 ```
 
@@ -227,50 +260,63 @@ Implementação `RetryStore`:
 
 ```typescript
 import type { RetryStore, PendingEvent } from 'open-nfse';
+import { isPendingEmission } from 'open-nfse';
 
 const pgStore: RetryStore = {
   async save(e: PendingEvent) {
-    await db.query(
-      `INSERT INTO nfse_pending_events (id, kind, chave_nfse, chave_substituta,
-         tipo_evento, n_ped_reg_evento, c_motivo, x_motivo, xml_pedido,
-         first_attempt_at, last_attempt_at,
-         last_error_msg, last_error_name, last_error_transient)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-       ON CONFLICT (id) DO UPDATE SET
-         last_attempt_at = EXCLUDED.last_attempt_at,
-         last_error_msg = EXCLUDED.last_error_msg,
-         last_error_name = EXCLUDED.last_error_name,
-         last_error_transient = EXCLUDED.last_error_transient`,
-      [
-        e.id, e.kind, e.chaveNfse, e.chaveSubstituta ?? null,
-        e.tipoEvento, e.nPedRegEvento, e.cMotivo, e.xMotivo ?? null,
-        e.xmlPedidoAssinado,
-        e.firstAttemptAt, e.lastAttemptAt,
-        e.lastError.message, e.lastError.errorName, e.lastError.transient,
-      ],
-    );
+    const common = {
+      id: e.id, kind: e.kind, xml_assinado: e.xmlAssinado,
+      first_attempt_at: e.firstAttemptAt, last_attempt_at: e.lastAttemptAt,
+      last_error_msg: e.lastError.message,
+      last_error_name: e.lastError.errorName,
+      last_error_transient: e.lastError.transient,
+    };
+    const row = isPendingEmission(e)
+      ? { ...common, id_dps: e.idDps, emitente_cnpj: e.emitenteCnpj, serie: e.serie, ndps: e.nDPS }
+      : {
+          ...common,
+          chave_nfse: e.chaveNfse, chave_substituta: e.chaveSubstituta ?? null,
+          tipo_evento: e.tipoEvento, n_ped_reg_evento: e.nPedRegEvento,
+          c_motivo: e.cMotivo, x_motivo: e.xMotivo ?? null,
+        };
+    await db.insertOrUpdate('nfse_pending_events', row, { onConflict: 'id' });
   },
 
   async list() {
     const { rows } = await db.query(`SELECT * FROM nfse_pending_events`);
-    return rows.map((r): PendingEvent => ({
-      id: r.id,
-      kind: r.kind,
-      chaveNfse: r.chave_nfse,
-      ...(r.chave_substituta ? { chaveSubstituta: r.chave_substituta } : {}),
-      tipoEvento: r.tipo_evento,
-      nPedRegEvento: r.n_ped_reg_evento,
-      cMotivo: r.c_motivo,
-      ...(r.x_motivo ? { xMotivo: r.x_motivo } : {}),
-      xmlPedidoAssinado: r.xml_pedido,
-      firstAttemptAt: r.first_attempt_at,
-      lastAttemptAt: r.last_attempt_at,
-      lastError: {
-        message: r.last_error_msg,
-        errorName: r.last_error_name,
-        transient: r.last_error_transient,
-      },
-    }));
+    return rows.map((r): PendingEvent => {
+      const common = {
+        id: r.id,
+        xmlAssinado: r.xml_assinado,
+        firstAttemptAt: r.first_attempt_at,
+        lastAttemptAt: r.last_attempt_at,
+        lastError: {
+          message: r.last_error_msg,
+          errorName: r.last_error_name,
+          transient: r.last_error_transient,
+        },
+      };
+      if (r.kind === 'emission') {
+        return {
+          ...common,
+          kind: 'emission',
+          idDps: r.id_dps,
+          emitenteCnpj: r.emitente_cnpj,
+          serie: r.serie,
+          nDPS: r.ndps,
+        };
+      }
+      return {
+        ...common,
+        kind: r.kind,
+        chaveNfse: r.chave_nfse,
+        ...(r.chave_substituta ? { chaveSubstituta: r.chave_substituta } : {}),
+        tipoEvento: r.tipo_evento,
+        nPedRegEvento: r.n_ped_reg_evento,
+        cMotivo: r.c_motivo,
+        ...(r.x_motivo ? { xMotivo: r.x_motivo } : {}),
+      };
+    });
   },
 
   async delete(id: string) {
@@ -281,86 +327,122 @@ const pgStore: RetryStore = {
 const cliente = new NfseClient({..., retryStore: pgStore});
 ```
 
+### 1.10. `dps_counters` — provider de `nDPS` (para `emitir(params)`)
+
+Já definido em §1.2. A interface `DpsCounter` da lib pede um método `next({ emitenteCnpj, serie })` que **deve ser atômico** (único caller ganha cada número). Impl mínima sobre a tabela:
+
+```typescript
+import type { DpsCounter } from 'open-nfse';
+
+const pgDpsCounter: DpsCounter = {
+  async next({ emitenteCnpj, serie }) {
+    const { rows: [emit] } = await db.query(
+      `SELECT id FROM emitentes WHERE cnpj = $1`, [emitenteCnpj],
+    );
+    const { rows: [row] } = await db.query(
+      `INSERT INTO dps_counters (emitente_id, serie, proximo_ndps)
+       VALUES ($1, $2, 2)
+       ON CONFLICT (emitente_id, serie) DO UPDATE
+         SET proximo_ndps = dps_counters.proximo_ndps + 1
+       RETURNING proximo_ndps - 1 AS ndps`,
+      [emit.id, serie],
+    );
+    return String(row.ndps);
+  },
+};
+
+const cliente = new NfseClient({..., dpsCounter: pgDpsCounter});
+```
+
+::: warning Atomicidade é obrigatória
+Se dois processos lerem o mesmo `proximo_ndps` e incrementarem, ambos tentarão emitir com o mesmo número — a Receita rejeita o segundo. Use sempre `UPDATE ... RETURNING` (ou `SELECT ... FOR UPDATE`), nunca `SELECT` + `UPDATE`.
+:::
+
 ---
 
 ## 2. Fluxo recomendado de emissão
 
-Para garantir idempotência contra crashes e retries:
+A partir de v0.4 a lib gerencia a maior parte do ciclo por você: o `DpsCounter` resolve a atomicidade do `nDPS`, o `RetryStore` absorve falhas transientes, e `cliente.emitir(params)` retorna um resultado discriminado. Você fica responsável por persistir o resultado.
 
-```
-1. BEGIN
-2. UPDATE dps_counters SET proximo_ndps = proximo_ndps + 1
-     WHERE emitente_id = $1 AND serie = $2
-     RETURNING proximo_ndps - 1 AS ndps;
-3. INSERT dps_submissions (emitente_id, id_dps, serie, ndps, dh_emi, dcompet,
-                           valor_servico, status)
-     VALUES (..., 'pending');
-4. COMMIT
+```typescript
+const r = await cliente.emitir({
+  emitente: {...}, serie: '1',
+  servico: {...}, valores: {...}, tomador: {...},
+});
 
-5. const dry = await cliente.emitir(dps, { dryRun: true });
-6. UPDATE dps_submissions
-     SET xml_dps_assinado = $1, status = 'in_flight', started_at = now()
-     WHERE id = $2;
-
-7. try {
-     const result = await cliente.emitir(dps);
-     // 8a — sucesso
-     BEGIN
-     UPDATE dps_submissions
-       SET status = 'authorized', chave_acesso = $1, http_status = 201,
-           finished_at = now()
-       WHERE id = $2;
-     INSERT INTO nfse_autorizadas (chave_acesso, submission_id, emitente_id,
-                                   id_dps, nnfse, xml_nfse, ...) VALUES (...);
-     INSERT INTO nfse_alertas (...) VALUES (...);  -- loop em result.alertas
-     COMMIT
-
-   } catch (err) {
-     if (err instanceof ReceitaRejectionError) {
-       // 8b — rejeição
-       BEGIN
-       UPDATE dps_submissions
-         SET status = 'rejected', http_status = 400, finished_at = now()
-         WHERE id = $1;
-       INSERT INTO nfse_rejeicoes (...) VALUES (...);  -- loop em err.mensagens
-       COMMIT
-
-     } else {
-       // 8c — falha de rede / 5xx / timeout: ESTADO INCERTO
-       UPDATE dps_submissions
-         SET status = 'error', finished_at = now()
-         WHERE id = $1;
-       // um job de reconciliação resolve isso depois (ver seção 3)
-     }
-   }
+if (r.status === 'ok') {
+  // 1. Sucesso — persista a NFS-e autorizada
+  await db.tx(async tx => {
+    await tx.insert('nfse_autorizadas', {
+      chave_acesso: r.nfse.chaveAcesso,
+      id_dps: r.nfse.idDps,
+      xml_nfse: r.nfse.xmlNfse,
+      nnfse: r.nfse.nfse.infNFSe.nNFSe,
+      dh_proc: r.nfse.dataHoraProcessamento,
+      tipo_ambiente: r.nfse.tipoAmbiente,
+      ...
+    });
+    for (const a of r.nfse.alertas) await tx.insert('nfse_alertas', { chave: r.nfse.chaveAcesso, ...a });
+  });
+} else if (r.status === 'retry_pending') {
+  // 2. Transiente — já foi salvo em retryStore pela lib. Opcionalmente registre
+  //    uma submission pra rastrear o ciclo de vida:
+  await db.insert('dps_submissions', {
+    id_dps: r.pending.idDps,
+    ndps: r.pending.nDPS,
+    serie: r.pending.serie,
+    status: 'retry_pending',
+    pending_id: r.pending.id,
+  });
+}
 ```
 
-### Job de reconciliação
+Rejeições permanentes lançam `ReceitaRejectionError` — o nDPS **foi consumido** (o counter avançou) mas a nota foi definitivamente rejeitada:
 
-**Crítico**: em `status = 'error'` ou `'in_flight'` com `started_at > 60s`, **você não sabe** se a NFS-e foi autorizada ou não. A lib já fez o POST, talvez a Receita tenha processado. Rodar `emitir()` de novo duplica a nota.
-
-A forma correta é consultar pelo `chaveAcesso` derivável do `id_dps`:
-
-```
-// Uma vez por minuto:
-SELECT id, id_dps FROM dps_submissions
- WHERE status IN ('error', 'in_flight')
-   AND finished_at IS NULL
-   AND started_at < now() - interval '60 seconds';
-
-// Para cada:
+```typescript
 try {
-  const r = await cliente.fetchByChave(chave_derivada_do_idDps);
-  // achou → move para 'authorized' e popula nfse_autorizadas
+  await cliente.emitir(params);
 } catch (err) {
-  if (err instanceof NotFoundError) {
-    // não foi autorizada — pode reemitir com um novo id_dps
-    UPDATE dps_submissions SET status = 'pending' WHERE id = ...;
+  if (err instanceof ReceitaRejectionError) {
+    // Persista a rejeição para auditoria
+    await db.insert('nfse_rejeicoes', {
+      id_dps: err.idDps,
+      codigo: err.codigo,
+      descricao: err.descricao,
+      mensagens: err.mensagens,
+    });
+  } else {
+    throw err;
   }
 }
 ```
 
-A lib expõe a chave via `NfseEmitResult.chaveAcesso` apenas em caso de sucesso. Em erro de rede, você precisa derivar a chave do `idDps` + metadados do emitente (a regra de formação é a mesma do `buildDpsId`, mas para a chave: `TSChaveNFSe` — planejado para v0.3). Até lá, **prefira timeouts generosos** (60s+) e trate `error` como "consultar mais tarde e se não achar, reemitir".
+### Job de retry (cron-friendly)
+
+`replayPendingEvents` re-POSTa tudo que ficou em `retry_pending` ou `rollback_pending`. SEFIN deduplica via `infDPS.Id` (emissões) e `{chave, tipoEvento, nPedRegEvento}` (eventos), então chamar N vezes é seguro:
+
+```typescript
+// Cron a cada 1–5 min:
+const results = await cliente.replayPendingEvents();
+for (const r of results) {
+  if (r.status === 'success_emission') {
+    await db.insert('nfse_autorizadas', { ...r.emission });
+  } else if (r.status === 'success') {
+    await db.insert('nfse_eventos', { ...r.evento });
+  } else if (r.status === 'failed_permanent') {
+    logger.error('replay permanent fail', r.id, r.error);
+  }
+  // status === 'still_pending' fica no store para próxima rodada
+}
+```
+
+### Quando ainda preciso reconciliar manualmente?
+
+Pouco — mas há um cenário residual: se o processo **cair entre o `emitir()` resolver com `status:'ok'` e o seu `INSERT INTO nfse_autorizadas` commitar**, a lib já não tem como saber. Estratégias:
+
+- **Bracket a chamada**: antes de `emitir()`, marque a intenção (`INSERT dps_submissions (id_dps, status='in_flight')` — ou similar). No startup, varra linhas em `in_flight` sem `finished_at` e consulte `cliente.fetchByChave` pela chave derivada — se existe, complete para `authorized`; se 404, reemita com um novo `idDps`.
+- **A chave é derivável do `idDps`**: `chaveAcesso = cLocEmi(7) + AA(2) + MM(2) + tpInsc(1) + inscFederal(14 pad) + serie(5 pad) + nDPS(15 pad) + tpEmis(1) + cDV(1)`. A lib não expõe um helper dedicado ainda — por ora use `buildDpsId` para referência do layout e calcule o DV via módulo-11.
+- **Ou simplesmente aceite o log fragmentado**: se seu `nfse_autorizadas` cai assíncrono de outra fila, o ciclo se fecha naturalmente quando a fila drena.
 
 ---
 
@@ -430,3 +512,12 @@ Antes de ligar em produção real:
 2. `examples/emit-nfse/` como smoke test do pipeline inteiro.
 3. Cenários-chave para testar: emissão normal, rejeição por CNPJ inválido, timeout simulado, NSU com paginação real.
 4. Só passe para `Ambiente.Producao` depois de fechar o ciclo completo em Produção Restrita — cada nota em Produção é documento fiscal com valor legal.
+
+### 3.9. Caps defensivos no transporte
+
+A lib aplica dois limites defensivos embutidos (não configuráveis) na camada de transporte:
+
+- **Response body: 10 MB.** O reader lê em chunks e aborta se o total passar do limite, lançando `NetworkError`. NFS-e e respostas do ADN têm ~5-15 KB no pior caso; o teto serve contra proxy/WAF mal configurado retornando HTML gigante ou responses corrompidas.
+- **Gunzip output: 50 MB.** `gunzipSync` usa `maxOutputLength` para blindar contra gzip-bomb (1 KB compacto → 1 GB expandido). Payloads reais ficam abaixo disso ordens de grandeza.
+
+Ambos são "nunca acontecem em operação normal" — se dispararem, investigue a infra entre seu serviço e a Receita (proxy transparente, WAF com interceptação, MITM inesperado). Nenhum knob para aumentar: a intenção é justamente falhar alto.

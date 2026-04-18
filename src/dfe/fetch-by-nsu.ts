@@ -1,4 +1,5 @@
 import type { TipoAmbiente } from '../ambiente.js';
+import { NetworkError } from '../errors/http.js';
 import type { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText } from '../http/encoding.js';
 import type {
@@ -48,6 +49,15 @@ export async function fetchByNsu(
   const raw = await httpClient.get<AdnLoteDistribuicaoResponse>(buildPath(ultimoNsu, options), {
     acceptedStatuses: [400, 404],
   });
+  // Sanity-check the body shape. Se um proxy/WAF na frente do ADN responder
+  // 400/404 com um HTML/JSON genérico, os campos obrigatórios não vêm — tratar
+  // como "caught up" silenciosamente esconderia um problema de infra. Ao
+  // invés, lança `NetworkError` para o caller ver.
+  if (raw === null || typeof raw !== 'object' || typeof raw.StatusProcessamento !== 'string') {
+    throw new NetworkError(
+      'response do ADN sem campo `StatusProcessamento` — provavelmente proxy/WAF respondeu no lugar do serviço',
+    );
+  }
   const documentos = (raw.LoteDFe ?? []).map(mapDocument);
 
   return {

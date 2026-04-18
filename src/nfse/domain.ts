@@ -487,7 +487,14 @@ export interface RtcInfoReeRepRes {
 }
 
 export interface RtcInfoTributosTribRegular {
+  /**
+   * CST do IBS/CBS para tributação regular (3 dígitos). Valores definidos pela
+   * Reforma Tributária — distinto do `CST` PIS/COFINS do enum homônimo. O
+   * XSD valida contra o pattern `[0-9]{3}`; os valores semânticos específicos
+   * estão no Manual do Contribuinte e evoluem a cada NT.
+   */
   readonly CSTReg: string;
+  /** Código de classificação tributária (6 dígitos) — `TSRTCCodClassTrib`. */
   readonly cClassTribReg: string;
 }
 
@@ -498,8 +505,18 @@ export interface RtcInfoTributosDif {
 }
 
 export interface RtcInfoTributosSitClas {
+  /**
+   * CST do IBS/CBS (3 dígitos, `TSRTCCodSitTrib` pattern `[0-9]{3}`).
+   *
+   * **NÃO é o mesmo CST do enum `CST` exportado** — aquele é de PIS/COFINS
+   * (`TSTipoCST`, valores `'00'`-`'09'`). O CST da Reforma Tributária tem
+   * um valuespace próprio (3 dígitos) que evolui via Nota Técnica; por isso
+   * fica como `string` em vez de enum.
+   */
   readonly CST: string;
+  /** Código de classificação tributária do IBS/CBS (6 dígitos, `TSRTCCodClassTrib`). */
   readonly cClassTrib: string;
+  /** Código de crédito presumido (2 dígitos, `TSRTCCodCredPres`), quando aplicável. */
   readonly cCredPres?: string;
   readonly gTribRegular?: RtcInfoTributosTribRegular;
   readonly gDif?: RtcInfoTributosDif;

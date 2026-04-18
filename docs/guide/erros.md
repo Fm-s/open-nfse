@@ -29,9 +29,12 @@ Error
       │    ├─ InvalidDpsIdParamError
       │    ├─ InvalidEventoPedidoIdParamError
       │    ├─ DpsAlreadySignedError
-      │    └─ MissingRetryStoreError
-      └─ ReceitaRejectionError      (concreto)
-           └─ com mensagens[], idDps, codigo, descricao
+      │    ├─ MissingRetryStoreError
+      │    └─ MissingDpsCounterError
+      ├─ ReceitaRejectionError      (concreto)
+      │    └─ com mensagens[], idDps, codigo, descricao
+      └─ ClientClosedError           (concreto)
+           └─ lançado ao chamar métodos após cliente.close()
 ```
 
 ## Reagindo por categoria
@@ -51,7 +54,7 @@ import {
 } from 'open-nfse';
 
 try {
-  await cliente.emitir(dps);
+  await cliente.emitir(params);
 } catch (err) {
   // 1. Rejeições fiscais — dispatch por código
   if (err instanceof ReceitaRejectionError) {
@@ -159,6 +162,25 @@ class InvalidCnpjError extends ValidationError {
 }
 ```
 
+### `ClientClosedError`
+
+Lançado quando qualquer método é chamado em um `NfseClient` após `cliente.close()`. O cliente é single-shot por design — se precisar reconectar (rotação de certificado, por exemplo), instancie um novo `NfseClient`. Herda direto de `OpenNfseError` (sem grupo intermediário).
+
+```typescript
+import { NfseClient, ClientClosedError } from 'open-nfse';
+
+const cliente = new NfseClient({ ... });
+await cliente.close();
+
+try {
+  await cliente.fetchByChave(chave);
+} catch (err) {
+  if (err instanceof ClientClosedError) {
+    // cliente já foi fechado — crie um novo
+  }
+}
+```
+
 ## Erros específicos por endpoint
 
 ### `fetchByChave`
@@ -174,16 +196,24 @@ class InvalidCnpjError extends ValidationError {
 
 **Não lança** `NotFoundError` — 404 carrega body e vira `status: 'NENHUM_DOCUMENTO_LOCALIZADO'`. Lança apenas erros de transporte / certificado.
 
-### `emitir`
+### `emitir(params)` — fluxo seguro
 
-- Pré-validações: `InvalidCnpjError` / `InvalidCpfError` / `XsdValidationError` / `InvalidCepError`
-- Rejeição da Receita: `ReceitaRejectionError` (HTTP 400 com body)
-- HTTP 403/5xx/network: respectivos `HttpError` subclasses
+- Pré-validações offline: `InvalidCnpjError` / `InvalidCpfError` / `XsdValidationError` / `InvalidCepError`
+- `MissingDpsCounterError` — se `params.nDPS` ausente e o cliente não tem `dpsCounter` configurado
+- `MissingRetryStoreError` — se uma falha transiente acontece mas o cliente não tem `retryStore`
+- Rejeição da Receita (permanente): `ReceitaRejectionError` (HTTP 400 com body) — o `nDPS` **foi consumido**
+- Transientes (rede / timeout / 5xx): **não lançam** — retornam `{ status: 'retry_pending', pending, error }`
+
+### `emitirDpsPronta(dps)` — escape hatch
+
+- Pré-validações: as mesmas que `emitir(params)`
+- Rejeição da Receita: `ReceitaRejectionError`
+- Transientes: **lançam direto** (sem retry store, sem `retry_pending`)
 
 ### `cancelar` / `substituir`
 
 - `ReceitaRejectionError` com códigos específicos (`E8001` prazo, etc.)
-- `MissingRetryStoreError` se `substituir` transitar por retry_pending sem RetryStore configurado
+- `MissingRetryStoreError` se transitar por `retry_pending`/`rollback_pending` sem RetryStore configurado
 - Para `substituir`, falhas **após** o step-1 são observáveis via `result.status` (não throw)
 
 ## Relançando com contexto
@@ -198,7 +228,7 @@ class MyAppError extends Error {
 }
 
 try {
-  await cliente.emitir(dps);
+  await cliente.emitir(params);
 } catch (err) {
   if (err instanceof OpenNfseError) {
     throw new MyAppError(`emissão da nota ${order.id} falhou`, err);

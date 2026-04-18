@@ -41,6 +41,24 @@ const cliente = new NfseClient({
 Nunca commite o `.pfx` nem a senha. Use variáveis de ambiente, KMS ou Vault. O `.gitignore` padrão já bloqueia `*.pfx` / `*.p12` / `*.pem`.
 :::
 
+Esse shape já basta para **consulta** e **DANFSe**. Para emitir, vale também configurar um `DpsCounter` (gera `nDPS` atomicamente) e um `RetryStore` (persiste falhas transientes):
+
+```typescript
+import {
+  NfseClient, Ambiente,
+  createInMemoryDpsCounter, createInMemoryRetryStore,
+} from 'open-nfse';
+
+const cliente = new NfseClient({
+  ambiente: Ambiente.ProducaoRestrita,
+  certificado: { pfx, password },
+  dpsCounter: createInMemoryDpsCounter(),  // em prod: wrap Postgres UPDATE ... RETURNING
+  retryStore: createInMemoryRetryStore(),  // em prod: wrap sua tabela de pendentes
+});
+```
+
+Em produção, troque as impls in-memory por impls que conversam com seu banco. Veja [Integração em serviços](./integracao) para o schema SQL.
+
 ## Primeira chamada — consulta por chave
 
 ```typescript
@@ -54,6 +72,10 @@ console.log(resultado.xmlNfse);                        // XML cru assinado (esca
 
 await cliente.close(); // libera o dispatcher mTLS
 ```
+
+::: tip `close()` é single-shot
+O `NfseClient` é de vida única. Após `close()`, qualquer chamada subsequente (`fetchByChave`, `emitir`, etc.) lança `ClientClosedError`. Se o processo é longo-lived (servidor, worker) e você não precisa liberar o dispatcher, simplesmente não chame `close()`. Para reconectar (rotação de certificado, por exemplo), instancie um novo `NfseClient`.
+:::
 
 ## Provider de certificado pluggable
 
@@ -101,5 +123,8 @@ Eventos emitidos: `http.request`, `http.response` com `method`, `url`, `status`,
 ## Próximos passos
 
 - [Consultar NFS-e](./consultar) — fetch por chave + distribuição por NSU
-- [Emitir NFS-e](./emitir) — DPS com `buildDps` + assinatura + POST
-- [Substituir e cancelar](./substituir-cancelar) — eventos com compensação
+- [Emitir NFS-e](./emitir) — `emitir(params)` com counter + retry store
+- [Substituir e cancelar](./substituir-cancelar) — eventos com máquina de 4 estados
+- [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio etc.
+- [DANFSe (PDF)](./danfse) — online com fallback local
+- [Testando com o fake](./testing) — `NfseClientFake`

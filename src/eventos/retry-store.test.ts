@@ -11,7 +11,7 @@ function sampleEntry(id: string) {
     tipoEvento: '105102',
     nPedRegEvento: '001',
     cMotivo: '99',
-    xmlPedidoAssinado: '<xml/>',
+    xmlAssinado: '<xml/>',
     firstAttemptAt: new Date('2026-04-17T12:00:00Z'),
     lastAttemptAt: new Date('2026-04-17T12:00:00Z'),
     lastError: { message: 'timeout', errorName: 'TimeoutError', transient: true },
@@ -33,10 +33,10 @@ describe('createInMemoryRetryStore', () => {
   it('save with same id overwrites (idempotent)', async () => {
     const store = createInMemoryRetryStore();
     await store.save(sampleEntry('x'));
-    await store.save({ ...sampleEntry('x'), xmlPedidoAssinado: '<new/>' });
+    await store.save({ ...sampleEntry('x'), xmlAssinado: '<new/>' });
     const list = await store.list();
     expect(list).toHaveLength(1);
-    expect(list[0]?.xmlPedidoAssinado).toBe('<new/>');
+    expect(list[0]?.xmlAssinado).toBe('<new/>');
   });
 
   it('delete non-existent id does not throw', async () => {

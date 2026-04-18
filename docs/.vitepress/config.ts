@@ -60,6 +60,8 @@ export default defineConfig({
             { text: 'Emitir NFS-e', link: '/guide/emitir' },
             { text: 'Substituir e cancelar', link: '/guide/substituir-cancelar' },
             { text: 'Validações', link: '/guide/validacoes' },
+            { text: 'Parâmetros municipais', link: '/guide/parametros' },
+            { text: 'DANFSe (PDF)', link: '/guide/danfse' },
           ],
         },
         {
@@ -68,6 +70,7 @@ export default defineConfig({
             { text: 'Integração em serviços', link: '/guide/integracao' },
             { text: 'Erros tipados', link: '/guide/erros' },
             { text: 'Ambientes e endpoints', link: '/guide/ambientes' },
+            { text: 'Testando com o fake', link: '/guide/testing' },
           ],
         },
       ],

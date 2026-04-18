@@ -1,7 +1,7 @@
 import type { A1Certificate } from '../certificate/types.js';
 import type { HttpClient } from '../http/client.js';
 import type { DPS } from '../nfse/domain.js';
-import { type NfseEmitResult, emit } from '../nfse/emit.js';
+import { type NfseEmitResult, emitDpsPronta } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
   type JustificativaSubstituicao,
@@ -31,18 +31,57 @@ export interface CancelarParams {
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;
+  /**
+   * Store para persistir pendentes se o POST falhar transitoriamente.
+   * Se omitido e o caminho transiente for acionado, lança
+   * `MissingRetryStoreError` para forçar decisão consciente.
+   */
+  readonly retryStore?: RetryStore;
+  /** Classificador custom. Default: `defaultIsTransient`. */
+  readonly isTransient?: (err: unknown) => boolean;
 }
+
+/** Estado do resultado de `cancelar` — discriminated union sobre `status`. */
+export type CancelarResult =
+  | { readonly status: 'ok'; readonly evento: EventoResult }
+  | {
+      readonly status: 'retry_pending';
+      readonly pending: PendingEvent;
+      readonly error: Error;
+    };
 
 export async function cancelar(
   httpClient: HttpClient,
   certificate: A1Certificate,
   params: CancelarParams,
-): Promise<EventoResult> {
-  const xmlPedido = buildCancelamentoXml(params);
-  const r = await postEvento(httpClient, certificate, params.chaveAcesso, xmlPedido);
-  const { xmlPedidoAssinado: _drop, ...result } = r;
-  void _drop;
-  return result;
+): Promise<CancelarResult> {
+  const isTransient = params.isTransient ?? defaultIsTransient;
+  const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
+
+  const xmlPedido = buildCancelamentoXml({ ...params, nPedRegEvento });
+
+  try {
+    const r = await postEvento(httpClient, certificate, params.chaveAcesso, xmlPedido);
+    return { status: 'ok', evento: dropInternal(r) };
+  } catch (err) {
+    const error = toError(err);
+    if (!isTransient(error)) {
+      throw error; // regra fiscal — caller loga e segue
+    }
+    const pending = buildPendingEvent({
+      kind: 'cancelamento_simples',
+      chaveNfse: params.chaveAcesso,
+      tipoEvento: '101101',
+      nPedRegEvento,
+      cMotivo: params.cMotivo,
+      xMotivo: params.xMotivo,
+      xmlAssinado: xmlPedido,
+      error,
+      transient: true,
+    });
+    await savePending(params.retryStore, pending);
+    return { status: 'retry_pending', pending, error };
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -114,7 +153,7 @@ export async function substituir(
   );
 
   // Step 1 — emit new. Se falhar, throw (nada a reconciliar).
-  const novaNfse = await emit(httpClient, certificate, dpsComSubst);
+  const novaNfse = await emitDpsPronta(httpClient, certificate, dpsComSubst);
 
   // Step 2 — cancelar por substituição (105102) sobre a chave original.
   const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
@@ -154,7 +193,7 @@ export async function substituir(
       nPedRegEvento,
       cMotivo: params.cMotivo,
       ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
-      xmlPedidoAssinado: xmlCancelAssinado ?? xmlCancel,
+      xmlAssinado: xmlCancelAssinado ?? xmlCancel,
       error: cancelamentoErr,
       transient: true,
     });
@@ -199,7 +238,7 @@ export async function substituir(
     nPedRegEvento: '001',
     cMotivo: JustificativaCancelamento.ErroEmissao,
     xMotivo: `Rollback de substituição — chave original ${params.chaveOriginal}`,
-    xmlPedidoAssinado: xmlRollbackAssinado ?? xmlRollback,
+    xmlAssinado: xmlRollbackAssinado ?? xmlRollback,
     error: rollbackErr,
     transient: isTransient(rollbackErr),
   });
@@ -237,8 +276,8 @@ function ensureSubstPopulated(
   };
 }
 
-function dropInternal(r: EventoResult & { xmlPedidoAssinado: string }): EventoResult {
-  const { xmlPedidoAssinado: _drop, ...rest } = r;
+function dropInternal(r: EventoResult & { xmlAssinado: string }): EventoResult {
+  const { xmlAssinado: _drop, ...rest } = r;
   void _drop;
   return rest;
 }
@@ -248,14 +287,14 @@ function toError(err: unknown): Error {
 }
 
 interface PendingEventFactoryInput {
-  readonly kind: PendingEventKind;
+  readonly kind: Exclude<PendingEventKind, 'emission'>;
   readonly chaveNfse: string;
   readonly chaveSubstituta?: string;
   readonly tipoEvento: string;
   readonly nPedRegEvento: string;
   readonly cMotivo: string;
   readonly xMotivo?: string;
-  readonly xmlPedidoAssinado: string;
+  readonly xmlAssinado: string;
   readonly error: Error;
   readonly transient: boolean;
 }
@@ -271,7 +310,7 @@ function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
     nPedRegEvento: input.nPedRegEvento,
     cMotivo: input.cMotivo,
     ...(input.xMotivo ? { xMotivo: input.xMotivo } : {}),
-    xmlPedidoAssinado: input.xmlPedidoAssinado,
+    xmlAssinado: input.xmlAssinado,
     firstAttemptAt: now,
     lastAttemptAt: now,
     lastError: {

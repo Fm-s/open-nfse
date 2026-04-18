@@ -9,6 +9,8 @@ Dois caminhos pós-emissão:
 
 ## `cancelar` — evento 101101
 
+`cancelar()` retorna um resultado **discriminated** — transientes vão pro `RetryStore`, permanentes lançam:
+
 ```typescript
 import { JustificativaCancelamento } from 'open-nfse';
 
@@ -20,9 +22,26 @@ const r = await cliente.cancelar({
   // nPedRegEvento: '1',  // default — para cancelamentos, deixe '1'
 });
 
-r.evento.infEvento.pedRegEvento.infPedReg.Id;   // "PRE..."
-r.xmlEvento;                                     // XML do <evento> assinado pela Sefin
-r.dataHoraProcessamento;
+switch (r.status) {
+  case 'ok':
+    console.log(r.evento.evento.infEvento.pedRegEvento.infPedReg.Id);   // "PRE..."
+    console.log(r.evento.xmlEvento);                                     // XML do <evento> da Sefin
+    break;
+  case 'retry_pending':
+    // falha transiente — já persistido no retryStore
+    console.warn('Cancel transient:', r.pending.id);
+    // cron chama cliente.replayPendingEvents() depois; SEFIN dedupa via nPedReg
+    break;
+}
+
+// Rejeição permanente (prazo expirado, já cancelada, regra municipal) lança:
+try { await cliente.cancelar({...}); }
+catch (err) {
+  if (err instanceof ReceitaRejectionError) {
+    // err.codigo — E8001 prazo, E8xxx regras, etc.
+    console.error(`Rejeição: [${err.codigo}] ${err.descricao}`);
+  }
+}
 ```
 
 ### Códigos de justificativa
@@ -175,36 +194,58 @@ Três operações **idempotentes**. A lib ships `createInMemoryRetryStore()` com
 
 ### Exemplo PostgreSQL
 
+`PendingEvent` é uma **discriminated union** — `kind: 'emission'` (emissão salva em retry por falha de rede) ou `kind: 'cancelamento_*' | 'rollback_cancelamento'` (evento pós-emissão). Use `isPendingEmission` / `isPendingEventoCancelamento` ou narrow direto via `kind` antes de acessar campos específicos:
+
 ```typescript
 import type { RetryStore, PendingEvent } from 'open-nfse';
+import { isPendingEmission } from 'open-nfse';
 
 const pgStore: RetryStore = {
   async save(entry) {
-    await db.query(
-      `INSERT INTO nfse_pending_events (id, kind, chave_nfse, chave_substituta,
-           tipo_evento, n_ped_reg, c_motivo, x_motivo, xml_pedido,
-           first_attempt_at, last_attempt_at, last_error)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       ON CONFLICT (id) DO UPDATE SET
-           last_attempt_at = EXCLUDED.last_attempt_at,
-           last_error = EXCLUDED.last_error`,
-      [
-        entry.id, entry.kind, entry.chaveNfse, entry.chaveSubstituta ?? null,
-        entry.tipoEvento, entry.nPedRegEvento, entry.cMotivo, entry.xMotivo ?? null,
-        entry.xmlPedidoAssinado,
-        entry.firstAttemptAt, entry.lastAttemptAt,
-        JSON.stringify(entry.lastError),
-      ],
-    );
+    if (isPendingEmission(entry)) {
+      await db.query(
+        `INSERT INTO nfse_pending_emissions (id, kind, id_dps, emitente_cnpj,
+             serie, ndps, xml_assinado, first_attempt_at, last_attempt_at, last_error)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ON CONFLICT (id) DO UPDATE SET
+             last_attempt_at = EXCLUDED.last_attempt_at,
+             last_error = EXCLUDED.last_error`,
+        [
+          entry.id, entry.kind, entry.idDps, entry.emitenteCnpj,
+          entry.serie, entry.nDPS, entry.xmlAssinado,
+          entry.firstAttemptAt, entry.lastAttemptAt,
+          JSON.stringify(entry.lastError),
+        ],
+      );
+    } else {
+      await db.query(
+        `INSERT INTO nfse_pending_events (id, kind, chave_nfse, chave_substituta,
+             tipo_evento, n_ped_reg, c_motivo, x_motivo, xml_assinado,
+             first_attempt_at, last_attempt_at, last_error)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         ON CONFLICT (id) DO UPDATE SET
+             last_attempt_at = EXCLUDED.last_attempt_at,
+             last_error = EXCLUDED.last_error`,
+        [
+          entry.id, entry.kind, entry.chaveNfse, entry.chaveSubstituta ?? null,
+          entry.tipoEvento, entry.nPedRegEvento, entry.cMotivo, entry.xMotivo ?? null,
+          entry.xmlAssinado,
+          entry.firstAttemptAt, entry.lastAttemptAt,
+          JSON.stringify(entry.lastError),
+        ],
+      );
+    }
   },
 
   async list() {
-    const { rows } = await db.query(`SELECT * FROM nfse_pending_events`);
+    // SELECT UNION ALL das duas tabelas (ou uma só com colunas nullable)
+    const { rows } = await db.query(`SELECT * FROM nfse_pending_events UNION ALL ...`);
     return rows.map(rowToPendingEvent);
   },
 
   async delete(id) {
     await db.query(`DELETE FROM nfse_pending_events WHERE id = $1`, [id]);
+    await db.query(`DELETE FROM nfse_pending_emissions WHERE id = $1`, [id]);
   },
 };
 
@@ -227,11 +268,13 @@ for (const r of results) {
 ```
 
 A lib:
-1. `store.list()` para buscar pendentes
-2. Re-POSTa cada um com `xmlPedidoAssinado` cru (SEFIN deduplica via `{chave, tipoEvento, nPedRegEvento}`)
-3. Em sucesso: `store.delete(id)`
-4. Em falha transiente: mantém no store (tenta de novo na próxima rodada)
-5. Em falha permanente: **remove do store** e reporta no `results[]` — caller decide o que fazer
+1. `store.list()` para buscar pendentes (mix de emissões + eventos)
+2. Re-POSTa cada um com `xmlAssinado` cru — rota correta por `kind`:
+   - `kind: 'emission'` → `POST /nfse` (SEFIN deduplica via `infDPS.Id`)
+   - `kind: 'cancelamento_*' | 'rollback_*'` → `POST /nfse/{chave}/eventos` (SEFIN deduplica via `{chave, tipoEvento, nPedRegEvento}`)
+3. Em sucesso: `store.delete(id)` + item com `status: 'success' | 'success_emission'`
+4. Em falha transiente: mantém no store (tenta de novo na próxima rodada), item com `status: 'still_pending'`
+5. Em falha permanente: **remove do store** e reporta `status: 'failed_permanent'` no `results[]`
 
 ::: tip Idempotência garantida
 Porque `nPedRegEvento` é determinístico (default `'001'` para o primeiro cancelamento), re-POSTar o mesmo pedido **nunca cria evento duplicado**. O SEFIN retorna o mesmo evento ou uma rejeição de duplicata reconhecível.

@@ -17,8 +17,8 @@ A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve auto
 |------------------------------|-------------------------------------------------------------|-----------------------------------------|
 | **SEFIN Nacional**           | `sefin.producaorestrita.nfse.gov.br/SefinNacional`          | `sefin.nfse.gov.br/SefinNacional`       |
 | **ADN Contribuintes**        | `adn.producaorestrita.nfse.gov.br/contribuintes`            | `adn.nfse.gov.br/contribuintes`         |
-| **ADN DANFSe** *(v0.4)*      | `adn.producaorestrita.nfse.gov.br/danfse`                   | `adn.nfse.gov.br/danfse`                |
-| **ADN Parâmetros Municipais** *(v0.5)*| `adn.producaorestrita.nfse.gov.br/parametrizacao`   | `adn.nfse.gov.br/parametrizacao`        |
+| **ADN DANFSe**               | `adn.producaorestrita.nfse.gov.br/danfse`                   | `adn.nfse.gov.br/danfse`                |
+| **ADN Parâmetros Municipais**| `adn.producaorestrita.nfse.gov.br/parametrizacao`           | `adn.nfse.gov.br/parametrizacao`        |
 
 ::: warning Contratos diferentes por host
 **SEFIN** usa camelCase + `tipoAmbiente: int`. **ADN** usa PascalCase + `TipoAmbiente: string`. Essa diferença é proposital e a lib normaliza tudo para o shape público tipado — você nunca vê essas inconsistências no seu código.
@@ -26,12 +26,18 @@ A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve auto
 
 ## Endpoints usados hoje
 
-| Operação                         | Método | Endpoint                                       | Host         |
-|----------------------------------|--------|------------------------------------------------|--------------|
-| `fetchByChave`                   | GET    | `/nfse/{chaveAcesso}`                          | SEFIN        |
-| `emitir`                         | POST   | `/nfse`                                        | SEFIN        |
-| `cancelar`, `substituir`         | POST   | `/nfse/{chaveAcesso}/eventos`                  | SEFIN        |
-| `fetchByNsu`                     | GET    | `/DFe/{NSU}`                                   | ADN          |
+| Operação                               | Método | Endpoint                                                      | Host                        |
+|----------------------------------------|--------|---------------------------------------------------------------|-----------------------------|
+| `fetchByChave`                         | GET    | `/nfse/{chaveAcesso}`                                         | SEFIN                       |
+| `emitir`, `emitirDpsPronta`, `emitirEmLote` | POST | `/nfse`                                                  | SEFIN                       |
+| `cancelar`, `substituir`, `replayPendingEvents` | POST | `/nfse/{chaveAcesso}/eventos`                        | SEFIN                       |
+| `fetchByNsu`                           | GET    | `/DFe/{NSU}`                                                  | ADN Contribuintes           |
+| `fetchDanfse`, `gerarDanfse` (online)  | GET    | `/{chaveAcesso}`                                              | ADN DANFSe                  |
+| `consultarAliquota`, `consultarHistoricoAliquotas` | GET | `/aliquotas/...`                                   | ADN Parâmetros Municipais   |
+| `consultarBeneficio`                   | GET    | `/beneficios/...`                                             | ADN Parâmetros Municipais   |
+| `consultarConvenio`                    | GET    | `/convenios/{codMunicipio}`                                   | ADN Parâmetros Municipais   |
+| `consultarRegimesEspeciais`            | GET    | `/regimesespeciais/...`                                       | ADN Parâmetros Municipais   |
+| `consultarRetencoes`                   | GET    | `/retencoes/...`                                              | ADN Parâmetros Municipais   |
 
 ## `TipoAmbiente` — o enum do resultado
 

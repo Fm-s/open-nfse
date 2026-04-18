@@ -12,6 +12,11 @@ const parser = new XMLParser({
   parseAttributeValue: false,
   trimValues: false,
   ignoreDeclaration: true,
+  // `processEntities: true` aqui só controla o decode das entidades built-in
+  // (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` + numéricas). `fast-xml-parser`
+  // não suporta declarações DTD/ENTITY/DOCTYPE, então não há superfície para
+  // XXE ou entity-bomb clássicos; desabilitar quebraria o parsing de textos
+  // com caracteres escapados (e.g. `xDescServ` contendo `&`).
   processEntities: true,
 });
 

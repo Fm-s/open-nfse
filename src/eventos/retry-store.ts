@@ -1,27 +1,17 @@
 import { ValidationError } from '../errors/validation.js';
 
-/** Tipo do evento pendente — identifica qual pipeline de retry chamar. */
-export type PendingEventKind = 'cancelamento_por_substituicao' | 'rollback_cancelamento';
+/** Tipo do item pendente — roteia o replay pro endpoint certo. */
+export type PendingEventKind =
+  | 'emission'
+  | 'cancelamento_simples'
+  | 'cancelamento_por_substituicao'
+  | 'rollback_cancelamento';
 
-/**
- * Registro de um evento que falhou transitoriamente e deve ser reenviado depois.
- * O `xmlPedidoAssinado` já está pronto para re-POST — a Receita deduplica via
- * (chave + tipoEvento + nPedRegEvento), então o replay é idempotente.
- */
-export interface PendingEvent {
-  /** Chave estável: sha1(chaveNfse + tipoEvento + nPedRegEvento). */
+interface PendingBase {
+  /** Chave estável de deduplicação no store. */
   readonly id: string;
-  readonly kind: PendingEventKind;
-  /** Chave da NFS-e alvo do evento (a que está sendo cancelada). */
-  readonly chaveNfse: string;
-  /** Chave da NFS-e substituta — apenas para 105102. */
-  readonly chaveSubstituta?: string;
-  readonly tipoEvento: string;
-  readonly nPedRegEvento: string;
-  readonly cMotivo: string;
-  readonly xMotivo?: string;
-  /** XML do `<pedRegEvento>` já assinado. Basta recomprimir+POST. */
-  readonly xmlPedidoAssinado: string;
+  /** XML já assinado, pronto para re-POST. Replay é idempotente via Id do DPS / (chave+tipoEvento+nPedReg). */
+  readonly xmlAssinado: string;
   readonly firstAttemptAt: Date;
   readonly lastAttemptAt: Date;
   readonly lastError: {
@@ -31,14 +21,38 @@ export interface PendingEvent {
   };
 }
 
+/** Emissão pendente — SEFIN deduplica via `infDPS.Id` em retries. */
+export interface PendingEmission extends PendingBase {
+  readonly kind: 'emission';
+  /** `infDPS.Id` (45 chars). Chave de idempotência server-side. */
+  readonly idDps: string;
+  /** CNPJ do emitente, para introspecção/filtros. */
+  readonly emitenteCnpj: string;
+  readonly serie: string;
+  readonly nDPS: string;
+}
+
+/** Evento de cancelamento/substituição pendente. */
+export interface PendingEventoCancelamento extends PendingBase {
+  readonly kind: 'cancelamento_simples' | 'cancelamento_por_substituicao' | 'rollback_cancelamento';
+  /** Chave da NFS-e alvo do evento. */
+  readonly chaveNfse: string;
+  /** Chave da NFS-e substituta — apenas para 105102. */
+  readonly chaveSubstituta?: string;
+  readonly tipoEvento: string;
+  readonly nPedRegEvento: string;
+  readonly cMotivo: string;
+  readonly xMotivo?: string;
+}
+
+export type PendingEvent = PendingEmission | PendingEventoCancelamento;
+
 /**
- * Persistência dos eventos pendentes. A lib fornece uma implementação em
- * memória (`createInMemoryRetryStore`); em produção o consumidor implementa
- * com backend de escolha (Postgres, Redis, DynamoDB).
+ * Persistência dos pendentes. A lib fornece uma implementação em memória
+ * (`createInMemoryRetryStore`); produção implementa contra seu banco.
  *
- * As três operações devem ser **idempotentes** — `save` com o mesmo `id`
- * deve sobrescrever a entrada anterior, `delete` com id inexistente não
- * deve lançar.
+ * Operações devem ser **idempotentes** — `save` com mesmo `id` sobrescreve,
+ * `delete` com id inexistente não lança.
  */
 export interface RetryStore {
   save(entry: PendingEvent): Promise<void>;
@@ -55,7 +69,7 @@ export class MissingRetryStoreError extends ValidationError {
   }
 }
 
-/** Store em memória, útil para testes e demos. Não sobrevive restart. */
+/** Store em memória — testes e demos. Não sobrevive restart. */
 export function createInMemoryRetryStore(): RetryStore {
   const map = new Map<string, PendingEvent>();
   return {
@@ -71,11 +85,24 @@ export function createInMemoryRetryStore(): RetryStore {
   };
 }
 
-/** Gera o id estável para um evento — usado como chave primária no store. */
+/** Id estável para evento (cancelamento/substituição). */
 export function pendingEventId(
   chaveNfse: string,
   tipoEvento: string,
   nPedRegEvento: string,
 ): string {
   return `${chaveNfse}:${tipoEvento}:${nPedRegEvento}`;
+}
+
+/** Id estável para emissão. O `idDps` já é único por natureza. */
+export function pendingEmissionId(idDps: string): string {
+  return `emission:${idDps}`;
+}
+
+// Type guards para discriminar em replay.
+export function isPendingEmission(p: PendingEvent): p is PendingEmission {
+  return p.kind === 'emission';
+}
+export function isPendingEventoCancelamento(p: PendingEvent): p is PendingEventoCancelamento {
+  return p.kind !== 'emission';
 }

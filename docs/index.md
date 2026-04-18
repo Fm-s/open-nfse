@@ -4,7 +4,7 @@ layout: home
 hero:
   name: open-nfse
   text: NFS-e Padrão Nacional em TypeScript
-  tagline: Cliente direto à API oficial da Receita Federal — consulta, emissão, eventos. Sem gateway no meio.
+  tagline: Cliente direto à API oficial da Receita Federal — consulta, emissão segura, eventos, parâmetros municipais e DANFSe. Sem gateway no meio.
   image:
     src: /logo.svg
     alt: open-nfse
@@ -24,20 +24,29 @@ features:
     title: Consulta e distribuição
     details: fetchByChave e fetchByNsu com parsing completo do XML (RTC v1.01) para objetos tipados.
   - icon: 📝
-    title: Emissão síncrona
-    details: buildDps monta a DPS boilerplate-free, assina com XMLDSig, valida contra o XSD local e envia ao SEFIN.
+    title: Emissão segura
+    details: emitir(params) com DpsCounter — counter só consome depois das validações offline, falha de rede vira retry_pending salvo no RetryStore.
   - icon: 🔁
     title: Cancelamento e substituição
-    details: substituir() com máquina de 4 estados (ok, retry_pending, rolled_back, rollback_pending) e RetryStore pluggable.
+    details: substituir() com máquina de 4 estados (ok, retry_pending, rolled_back, rollback_pending) + rollback automático e replayPendingEvents cron-friendly.
   - icon: ✔️
     title: Validações pré-envio
-    details: XSD local, dígito verificador de CPF/CNPJ e lookup de CEP contra ViaCEP — tudo opt-out via flags.
+    details: XSD RTC v1.01 (libxml2 via WASM), dígito verificador de CPF/CNPJ e lookup de CEP contra ViaCEP — todas opt-out via flag.
+  - icon: 🏛️
+    title: Parâmetros municipais
+    details: Seis métodos consultar* (alíquotas, benefícios, convênio, regimes especiais, retenções) com cache pluggable e TTLs sensatos.
+  - icon: 📄
+    title: DANFSe em PDF
+    details: gerarDanfse(nfse) tenta o PDF oficial do ADN e cai num renderer local (pdfkit + QR code) — sem travar na indisponibilidade da Receita.
+  - icon: 🧪
+    title: NfseClientFake
+    details: open-nfse/testing expõe um dublê em memória estruturalmente compatível (NfseClientLike) — testes sem mTLS, sem rede, sem mocks.
   - icon: 🛡️
     title: Erros tipados
-    details: Hierarquia Error → OpenNfseError → grupo → concreto. Callers sabem exatamente o que capturar.
+    details: Hierarquia Error → OpenNfseError → grupo → concreto. Callers sabem exatamente o que capturar, incluindo ReceitaRejectionError com mensagens[].
   - icon: 📦
     title: Zero mágica
-    details: DTO in, DTO out. Sem framework, sem ORM, sem estado global. 100% tipado no TypeScript.
+    details: DTO in, DTO out. Sem framework, sem ORM, sem estado interno escondido. RetryStore, DpsCounter, ParametrosCache e CepValidator são interfaces que você pluga.
 ---
 
 ## Por que
@@ -56,7 +65,8 @@ npm install open-nfse
 import {
   NfseClient,
   Ambiente,
-  buildDps,
+  createInMemoryDpsCounter,
+  createInMemoryRetryStore,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
 } from 'open-nfse';
@@ -64,9 +74,11 @@ import {
 const cliente = new NfseClient({
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx: readFileSync('./cert.pfx'), password: process.env.CERT_PASSWORD! },
+  dpsCounter: createInMemoryDpsCounter(),   // em prod: wrap seu DB (UPDATE ... RETURNING)
+  retryStore: createInMemoryRetryStore(),   // em prod: wrap seu DB (upsert/list/delete)
 });
 
-const dps = buildDps({
+const r = await cliente.emitir({
   emitente: {
     cnpj: '00574753000100',
     codMunicipio: '2111300',
@@ -76,12 +88,14 @@ const dps = buildDps({
     },
   },
   serie: '1',
-  nDPS: '1',
   servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
   valores: { vServ: 1500.0, aliqIss: 2.5 },
 });
 
-const { chaveAcesso, xmlNfse, nfse } = await cliente.emitir(dps);
+if (r.status === 'ok') {
+  console.log(r.nfse.chaveAcesso);
+  console.log(r.nfse.xmlNfse);
+}
 ```
 
 [Ver guia completo →](/guide/getting-started)

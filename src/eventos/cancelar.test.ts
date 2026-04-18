@@ -123,9 +123,12 @@ describe('cancelar', () => {
       xMotivo: 'erro no valor',
     });
 
-    expect(r.evento.versao).toBe('1.01');
-    expect(r.evento.infEvento.pedRegEvento.infPedReg.chNFSe).toBe(CHAVE_ORIGINAL);
-    expect(r.evento.infEvento.pedRegEvento.infPedReg.tipoEvento).toBe('101101');
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') {
+      expect(r.evento.evento.versao).toBe('1.01');
+      expect(r.evento.evento.infEvento.pedRegEvento.infPedReg.chNFSe).toBe(CHAVE_ORIGINAL);
+      expect(r.evento.evento.infEvento.pedRegEvento.infPedReg.tipoEvento).toBe('101101');
+    }
 
     // body contains the gzip+base64 payload with a signed pedido
     expect(capturedBody).toBeDefined();
@@ -152,6 +155,52 @@ describe('cancelar', () => {
         xMotivo: 'x',
       }),
     ).rejects.toMatchObject({ name: 'ReceitaRejectionError', codigo: 'E8001' });
+  });
+
+  it('persists pending on transient (5xx) error and returns retry_pending', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE_ORIGINAL}/eventos`, method: 'POST' })
+      .reply(500, 'boom');
+
+    const retryStore = createInMemoryRetryStore();
+    const r = await cancelar(httpClient, cert, {
+      chaveAcesso: CHAVE_ORIGINAL,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'erro',
+      retryStore,
+    });
+
+    expect(r.status).toBe('retry_pending');
+    if (r.status === 'retry_pending') {
+      expect(r.pending.kind).toBe('cancelamento_simples');
+      if (r.pending.kind === 'cancelamento_simples') {
+        expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
+        expect(r.pending.tipoEvento).toBe('101101');
+        expect(r.pending.nPedRegEvento).toBe('001');
+      }
+      expect(r.pending.lastError.transient).toBe(true);
+    }
+    const stored = await retryStore.list();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.kind).toBe('cancelamento_simples');
+  });
+
+  it('throws MissingRetryStoreError on transient failure without store', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE_ORIGINAL}/eventos`, method: 'POST' })
+      .reply(503, 'unavailable');
+
+    await expect(
+      cancelar(httpClient, cert, {
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.Outros,
+        xMotivo: 'x',
+      }),
+    ).rejects.toBeInstanceOf(MissingRetryStoreError);
   });
 });
 
@@ -238,13 +287,19 @@ describe('substituir — 4-state machine', () => {
     expect(r.status).toBe('retry_pending');
     if (r.status === 'retry_pending') {
       expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
-      expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
       expect(r.pending.kind).toBe('cancelamento_por_substituicao');
+      if (r.pending.kind === 'cancelamento_por_substituicao') {
+        expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
+      }
       expect(r.pending.lastError.transient).toBe(true);
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
-    expect(stored[0]?.chaveNfse).toBe(CHAVE_ORIGINAL);
+    const first = stored[0];
+    expect(first?.kind).toBe('cancelamento_por_substituicao');
+    if (first?.kind === 'cancelamento_por_substituicao') {
+      expect(first.chaveNfse).toBe(CHAVE_ORIGINAL);
+    }
   });
 
   it("status='rolled_back' when cancelamento fails permanently (prazo) and rollback succeeds", async () => {
@@ -289,9 +344,11 @@ describe('substituir — 4-state machine', () => {
 
     expect(r.status).toBe('rollback_pending');
     if (r.status === 'rollback_pending') {
-      expect(r.pendingRollback.chaveNfse).toBe(CHAVE_NOVA);
       expect(r.pendingRollback.kind).toBe('rollback_cancelamento');
-      expect(r.pendingRollback.tipoEvento).toBe('101101');
+      if (r.pendingRollback.kind === 'rollback_cancelamento') {
+        expect(r.pendingRollback.chaveNfse).toBe(CHAVE_NOVA);
+        expect(r.pendingRollback.tipoEvento).toBe('101101');
+      }
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);

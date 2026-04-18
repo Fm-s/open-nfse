@@ -154,7 +154,8 @@ Exterior (`endExt`) é **ignorado** — não tem CEP brasileiro.
 ## Desligando seletivamente
 
 ```typescript
-await cliente.emitir(dps, {
+await cliente.emitir({
+  ...params,
   skipValidation: true,          // sem XSD
   skipCepValidation: true,       // sem lookup externo
   skipCpfCnpjValidation: true,   // sem DV algorítmico

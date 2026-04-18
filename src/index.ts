@@ -4,7 +4,7 @@ export type { AmbienteEndpoints } from './ambiente.js';
 export { noopLogger } from './logging.js';
 export type { LogContext, Logger } from './logging.js';
 
-export { NfseClient } from './client.js';
+export { ClientClosedError, NfseClient } from './client.js';
 export type { EmitenteConfig, FetchByNsuParams, NfseClientConfig } from './client.js';
 
 export { providerFromFile } from './certificate/provider.js';
@@ -210,6 +210,7 @@ export type {
 export { cancelar, substituir } from './eventos/cancelar.js';
 export type {
   CancelarParams,
+  CancelarResult,
   SubstituirParams,
   SubstituirResult,
 } from './eventos/cancelar.js';
@@ -232,12 +233,68 @@ export { postEvento } from './eventos/post-evento.js';
 export type { EventoResult } from './eventos/post-evento.js';
 export {
   createInMemoryRetryStore,
+  isPendingEmission,
+  isPendingEventoCancelamento,
   MissingRetryStoreError,
+  pendingEmissionId,
   pendingEventId,
 } from './eventos/retry-store.js';
-export type { PendingEvent, PendingEventKind, RetryStore } from './eventos/retry-store.js';
+export type {
+  PendingEmission,
+  PendingEvent,
+  PendingEventKind,
+  PendingEventoCancelamento,
+  RetryStore,
+} from './eventos/retry-store.js';
 export { signPedRegEventoXml } from './eventos/sign-event.js';
 export type { ReplayItem } from './client.js';
+
+// v0.5 — Parâmetros Municipais
+export {
+  createInMemoryParametrosCache,
+  DEFAULT_TTL_MS,
+} from './parametros-municipais/cache.js';
+export type { ParametrosCache } from './parametros-municipais/cache.js';
+export {
+  fetchAliquota,
+  fetchBeneficio,
+  fetchConvenio,
+  fetchHistoricoAliquotas,
+  fetchRegimesEspeciais,
+  fetchRetencoes,
+} from './parametros-municipais/fetch.js';
+export type { ConsultaOptions } from './parametros-municipais/fetch.js';
+
+// v0.7 — DANFSe PDF
+export { gerarDanfse } from './danfse/gerar.js';
+export type { GerarDanfseOptions } from './danfse/gerar.js';
+export { fetchDanfse } from './danfse/fetch.js';
+export type {
+  Aliquota,
+  Beneficio,
+  BeneficioInscricao,
+  BeneficioServico,
+  ConsultaAliquotasResult,
+  ConsultaBeneficioResult,
+  ConsultaConvenioResult,
+  ConsultaRegimesEspeciaisResult,
+  ConsultaRetencoesResult,
+  ParametrosConvenio,
+  RegimeEspecial,
+  RetencaoArtigoSexto,
+  RetencaoMunicipal,
+  RetencaoMunicipalPorCodigoServico,
+  RetencaoMunicipalServico,
+  Retencoes,
+  RetencoesArtigoSexto,
+  TipoConfiguracaoRegimeEspecial,
+  TipoConvenio,
+  TipoInscricaoBeneficio,
+  TipoReducaoBaseDeCalculo,
+  TipoRetencaoISSQN,
+  TipoSimNao,
+  TipoSituacaoEmissaoPadraoContribuintesRFB,
+} from './parametros-municipais/types.js';
 
 export { validateDpsXml } from './nfse/validate-xml.js';
 
@@ -264,8 +321,16 @@ export type {
   EmitLoteResult,
   EmitManyOptions,
   EmitOptions,
+  EmitirParams,
+  EmitirResult,
   NfseEmitResult,
 } from './nfse/emit.js';
+
+export {
+  createInMemoryDpsCounter,
+  MissingDpsCounterError,
+} from './nfse/dps-counter.js';
+export type { DpsCounter, DpsCounterScope } from './nfse/dps-counter.js';
 
 export { StatusDistribuicao, TipoDocumento, TipoEvento } from './dfe/types.js';
 export type {

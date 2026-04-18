@@ -10,7 +10,7 @@ Cliente TypeScript/Node.js para o Padrão Nacional de NFS-e (nfse.gov.br), falan
 
 ## Status
 
-**v0.3** fecha o ciclo de vida fiscal: emissão síncrona, cancelamento e substituição (com compensação automática + `RetryStore` pluggable), mais validações locais (XSD, CPF/CNPJ, CEP) e o helper `buildDps`. Leitura (v0.1) e emissão (v0.2) permanecem inalteradas. DANFSe em PDF (v0.4) e parâmetros municipais (v0.5) ficam para próximas minors. A API pública pode mudar até a 1.0.
+**v0.7 — feature-complete** para o ciclo fiscal completo: consulta (chave + NSU), emissão segura com `DpsCounter`, cancelamento e substituição com máquina de 4 estados + rollback automático, `RetryStore` pluggable para falhas transientes, validações locais (XSD / CPF+CNPJ / CEP), parâmetros municipais com cache, DANFSe em PDF (online com fallback para renderer local) e `NfseClientFake` em `open-nfse/testing` para testes. Agora o foco é estabilização até 1.0 — a API pública pode receber ajustes até lá.
 
 ## Contexto
 
@@ -97,62 +97,54 @@ await cliente.close(); // libera o dispatcher mTLS
 
 ### Emitir NFS-e
 
+A emissão "segura" (default, a partir da v0.4) recebe params de alto nível (sem `nDPS`), roda as validações offline primeiro e **só então** consulta o `DpsCounter` — uma DPS quebrada nunca queima um número de série. Retorna um resultado discriminado: `ok` em caso de autorização, `retry_pending` em falha transiente (persistido no `RetryStore` para replay), throw em rejeições permanentes.
+
 ```typescript
-import { NfseClient, Ambiente, buildDpsId, ReceitaRejectionError, type DPS } from 'open-nfse';
+import {
+  NfseClient,
+  Ambiente,
+  createInMemoryDpsCounter,
+  createInMemoryRetryStore,
+  OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
+  ReceitaRejectionError,
+} from 'open-nfse';
 
-const cliente = new NfseClient({ ambiente: Ambiente.ProducaoRestrita, certificado: provider });
-
-const idDps = buildDpsId({
-  cLocEmi: '2111300',
-  tipoInsc: 'CNPJ',
-  inscricaoFederal: '00574753000100',
-  serie: '1',
-  nDPS: '1',
+const cliente = new NfseClient({
+  ambiente: Ambiente.ProducaoRestrita,
+  certificado: provider,
+  dpsCounter: createInMemoryDpsCounter(),     // produção: wrap seu DB (UPDATE ... RETURNING)
+  retryStore: createInMemoryRetryStore(),     // produção: wrap seu DB (upsert/list/delete)
 });
 
-const dps: DPS = {
-  versao: '1.01',
-  infDPS: {
-    Id: idDps,
-    tpAmb: '2',                      // Homologação
-    dhEmi: new Date(),
-    verAplic: 'meu-app-1.0.0',
-    serie: '1',
-    nDPS: '1',
-    dCompet: new Date(),
-    tpEmit: '1',                     // Prestador
-    cLocEmi: '2111300',
-    prest: {
-      identificador: { CNPJ: '00574753000100' },
-      regTrib: { opSimpNac: '3', regEspTrib: '0' },
-    },
-    serv: {
-      locPrest: { cLocPrestacao: '2111300' },
-      cServ: { cTribNac: '010101', xDescServ: 'Serviço de teste' },
-    },
-    valores: {
-      vServPrest: { vServ: 100 },
-      trib: {
-        tribMun: { tribISSQN: '1', tpRetISSQN: '1' },
-        totTrib: { indTotTrib: '0' },
+try {
+  const r = await cliente.emitir({
+    emitente: {
+      cnpj: '00574753000100',
+      codMunicipio: '2111300',
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },
-  },
-};
+    serie: '1',
+    servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+    valores: { vServ: 1500.0, aliqIss: 2.5 },
+    tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
+  });
 
-// Dry-run: monta + assina + comprime, sem enviar
-const preview = await cliente.emitir(dps, { dryRun: true });
-console.log(preview.xmlDpsAssinado);      // XML assinado pronto para inspeção
-console.log(preview.xmlDpsGZipB64);       // payload GZip+Base64 pronto para POST
-
-// Emissão real — lança ReceitaRejectionError em rejeições
-try {
-  const r = await cliente.emitir(dps);
-  console.log(r.chaveAcesso);             // 50 dígitos
-  console.log(r.nfse.infNFSe.nNFSe);      // número sequencial no município
-  console.log(r.xmlNfse);                 // XML oficial assinado pela Sefin
+  if (r.status === 'ok') {
+    console.log(r.nfse.chaveAcesso);          // 50 dígitos
+    console.log(r.nfse.nfse.infNFSe.nNFSe);   // número sequencial no município
+    console.log(r.nfse.xmlNfse);              // XML oficial assinado pela Sefin
+  } else if (r.status === 'retry_pending') {
+    // Falha de rede/timeout/5xx — já persistido no retryStore.
+    // Um cron que chama cliente.replayPendingEvents() re-POSTa idempotentemente.
+    console.warn('Pendente para replay:', r.pending.id);
+  }
 } catch (err) {
   if (err instanceof ReceitaRejectionError) {
+    // Rejeição permanente — o nDPS foi consumido, a nota foi definitivamente rejeitada.
     console.error(`[${err.codigo}] ${err.descricao}`);
     for (const m of err.mensagens.slice(1)) console.error(`  + [${m.codigo}] ${m.descricao}`);
   } else {
@@ -161,9 +153,28 @@ try {
 }
 ```
 
+Dry-run continua disponível para preview sem enviar:
+
+```typescript
+const preview = await cliente.emitir({ ...params, dryRun: true });
+console.log(preview.xmlDpsAssinado);      // XML assinado pronto para inspeção
+console.log(preview.xmlDpsGZipB64);       // payload GZip+Base64 pronto para POST manual
+```
+
+### Escape hatch — `emitirDpsPronta(dps)`
+
+Para quando você já tem uma `DPS` completamente montada (replay customizado, testes determinísticos, fluxos que bypassam o counter):
+
+```typescript
+import { buildDps } from 'open-nfse';
+
+const dps = buildDps({ ...params, nDPS: '42' });
+const r = await cliente.emitirDpsPronta(dps);   // throw em tudo, sem counter, sem retry store
+```
+
 ### Emissão em lote
 
-O SEFIN não tem endpoint de batch — `emitirEmLote` paraleliza no cliente, com concorrência configurável, e nunca derruba o lote inteiro por uma falha individual:
+O SEFIN não tem endpoint de batch — `emitirEmLote` paraleliza no cliente, com concorrência configurável, e nunca derruba o lote inteiro por uma falha individual. Recebe `DPS[]` já montado (use `buildDps` para cada):
 
 ```typescript
 const r = await cliente.emitirEmLote([dps1, dps2, dps3], { concurrency: 2 });
@@ -177,26 +188,56 @@ for (const item of r.items) {
 }
 ```
 
+### Cancelar, substituir e DANFSe
+
+```typescript
+// Cancelar uma NFS-e (evento 101101)
+const c = await cliente.cancelar({
+  chaveAcesso: '21113002200574753000100000000000146726037032711025',
+  autor: { CNPJ: '00574753000100' },
+  cMotivo: JustificativaCancelamento.ErroEmissao,
+  xMotivo: 'Valor digitado incorretamente',
+});
+
+// Substituir (emite nova + cancela original via 105102, com rollback automático)
+const s = await cliente.substituir({
+  chaveOriginal: chave,
+  novaDps: buildDps({ ...params }),
+  autor: { CNPJ: '00574753000100' },
+  cMotivo: JustificativaSubstituicao.Outros,
+  xMotivo: 'Correção de valor',
+});
+
+// DANFSe PDF — default auto (ADN online → fallback local)
+const pdf = await cliente.gerarDanfse(nfse);    // Buffer
+await fs.writeFile('danfse.pdf', pdf);
+```
+
 Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/).
 
 ### Integração em serviços
 
-A lib é **sem estado** por design — banco, fila, retry e idempotência ficam com o seu serviço. O guia [Integração em serviços](https://fm-s.github.io/open-nfse/guide/integracao) traz um schema SQL completo (PostgreSQL) para persistir emitentes, contadores de `nDPS`, submissions, NFS-e autorizadas, rejeições, cursor de NSU, eventos e o backing store para o `RetryStore`, mais o fluxo recomendado de `emitir()` com reconciliação contra crashes, considerações de LGPD, retenção fiscal e monitoramento.
+A lib não tem **estado interno** (sem DB, cache global ou singleton escondido), mas oferece primitives de **orquestração** (`emitirEmLote`, máquina de compensação de `substituir`) e **retry** (`RetryStore` pluggable, `replayPendingEvents`). Persistência durável, CRON e reconciliação ficam com seu serviço. O guia [Integração em serviços](https://fm-s.github.io/open-nfse/guide/integracao) traz um schema SQL completo (PostgreSQL) para persistir submissions, NFS-e autorizadas, cursor de NSU, eventos e o backing store para o `RetryStore`.
 
-### Ainda não implementado
+### Testando seu serviço
 
-Itens no roadmap que **ainda não existem**:
+`open-nfse/testing` exporta um `NfseClientFake` em memória, estruturalmente compatível com `NfseClient` (via `NfseClientLike`):
 
-- `cliente.cancelar({...})` e demais eventos (v0.3)
-- `cliente.gerarDanfse(chave)` — PDF local (v0.4)
-- Parâmetros municipais com cache (v0.5)
-- `NfseClientFake` em `open-nfse/testing` (v0.6)
+```typescript
+import { NfseClientFake, type NfseClientLike } from 'open-nfse/testing';
+
+const fake = new NfseClientFake();
+fake.seed.emitir({ chaveAcesso, nfse });           // programa respostas
+const r = await fake.emitir({ ...params });
+```
+
+Detalhes em [fm-s.github.io/open-nfse/guide/testing](https://fm-s.github.io/open-nfse/guide/testing).
 
 ## Princípios de design
 
 1. **DTO in, DTO out.** Callers não veem XML, GZip, Base64, mTLS ou XMLDSig. O `xmlNfse` raw é exposto em `NfseQueryResult` como escape hatch.
 2. **Erros tipados.** Hierarquia em três níveis (`Error` → `OpenNfseError` → grupo → concreto): `ExpiredCertificateError`, `NotFoundError`, `ReceitaRejectionError`, etc.
-3. **Sem estado.** Nenhum banco, framework ou estado global. É biblioteca, não sistema.
+3. **Sem estado interno, com primitives de orquestração e retry.** A lib não tem banco, cache global ou singleton escondido, mas oferece `emitirEmLote` (worker pool), `substituir` (máquina de compensação) e `RetryStore` + `replayPendingEvents`. Persistência durável fica com seu serviço.
 4. **Schema-driven.** Types derivam dos XSDs oficiais (RTC v1.01). `xs:choice` vira discriminated union em TS.
 5. **Identificadores como `string`** (CNPJ, CPF, CEP, cMun, cTribNac) para preservar zeros à esquerda. Decimais como `number` — consumidores que precisam de aritmética fiscal exata devem envolver em Decimal.js.
 6. **Builder de DPS separável do transporte** (v0.2). Validar e gerar XML assinado sem enviar, para preview e testes.
@@ -205,38 +246,47 @@ Itens no roadmap que **ainda não existem**:
 ## Arquitetura
 
 ```
-┌──────────────────────────────────────────────┐
-│            API pública (NfseClient)          │
-├──────────────────────────────────────────────┤
-│   Leitura               │   Emissão          │
-│   fetch-by-chave        │   emitir           │
-│   fetch-by-nsu          │   emitir-em-lote   │
-│                         │                    │
-│   parse-xml ↔ build-xml (RTC v1.01 ↔ DTO)    │
-│              sign-xml (XMLDSig)              │
-├──────────────────────────────────────────────┤
-│   HTTP client (undici + mTLS, GZip/Base64)   │
-├──────────────────────────────────────────────┤
-│   Certificado A1 (node-forge, ICP-Brasil)    │
-└──────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│   API pública (NfseClient + open-nfse/testing)             │
+├────────────────────────────────────────────────────────────┤
+│  Leitura            │  Emissão        │  Eventos            │
+│  fetch-by-chave     │  emitir         │  cancelar           │
+│  fetch-by-nsu       │  emitir-em-lote │  substituir (4-st)  │
+│                     │  emitirDpsPronta│  replayPendingEvents│
+│                                                            │
+│  parse-xml ↔ build-xml + sign-xml (RTC v1.01 ↔ DTO)         │
+│  build-dps (helper) + dps-id + validate-xml (XSD WASM)      │
+├────────────────────────────────────────────────────────────┤
+│  Validações: CPF/CNPJ DV · CEP (ViaCEP)                    │
+│  Parâmetros municipais (6× consultar + cache)              │
+│  DANFSe: fetch (ADN) + gerar (pdfkit local)                │
+├────────────────────────────────────────────────────────────┤
+│  HTTP client (undici + mTLS + HTTP/1.1, GZip/Base64, PDF)  │
+├────────────────────────────────────────────────────────────┤
+│  Certificado A1 (node-forge, ICP-Brasil, pluggable)        │
+└────────────────────────────────────────────────────────────┘
 ```
 
-A API oficial está dividida em **hosts distintos** (SEFIN Nacional e ADN Contribuintes) com contratos wire diferentes — camelCase vs PascalCase, `tipoAmbiente` int vs string. O `NfseClient` resolve o host correto por chamada e os DTOs públicos normalizam para uma única convenção.
+A API oficial está dividida em **quatro hosts distintos** (SEFIN Nacional, ADN Contribuintes, ADN DANFSe, ADN Parâmetros Municipais) com contratos wire diferentes — camelCase vs PascalCase, `tipoAmbiente` int vs string. O `NfseClient` resolve o host correto por chamada e os DTOs públicos normalizam para uma única convenção.
 
 ## Ambientes
 
-| Ambiente | SEFIN Nacional (consulta por chave, emissão) | ADN Contribuintes (DF-e por NSU) |
+| Serviço | Produção Restrita (homologação) | Produção (notas válidas) |
 |---|---|---|
-| **Produção Restrita** (homologação) | `sefin.producaorestrita.nfse.gov.br/SefinNacional` | `adn.producaorestrita.nfse.gov.br/contribuintes` |
-| **Produção** (notas válidas) | `sefin.nfse.gov.br/SefinNacional` | `adn.nfse.gov.br/contribuintes` |
+| **SEFIN Nacional** (consulta por chave, emissão, eventos) | `sefin.producaorestrita.nfse.gov.br/SefinNacional` | `sefin.nfse.gov.br/SefinNacional` |
+| **ADN Contribuintes** (DF-e por NSU) | `adn.producaorestrita.nfse.gov.br/contribuintes` | `adn.nfse.gov.br/contribuintes` |
+| **ADN DANFSe** (PDF oficial) | `adn.producaorestrita.nfse.gov.br/danfse` | `adn.nfse.gov.br/danfse` |
+| **ADN Parâmetros Municipais** | `adn.producaorestrita.nfse.gov.br/parametrizacao` | `adn.nfse.gov.br/parametrizacao` |
 
 ## Roadmap
 
 - **v0.1** — consulta por chave, distribuição por NSU, parser RTC v1.01 *(shipped)*
 - **v0.2** — emissão síncrona + emissão em lote + dry-run *(shipped)*
-- **v0.3** — validações locais (XSD/CEP/CPF/CNPJ), `buildDps`, eventos (cancelamento + substituição com retry store) *(shipped)*
-- **v0.4** — geração local de DANFSe (PDF)
-- **v0.5** — parâmetros municipais com cache
+- **v0.3** — eventos (cancelamento + substituição com máquina de 4 estados + `RetryStore`) *(shipped)*
+- **v0.4** — fluxo seguro de emissão com `DpsCounter` e integração do `RetryStore` *(shipped)*
+- **v0.5** — parâmetros municipais com cache pluggable *(shipped)*
+- **v0.6** — `NfseClientFake` em `open-nfse/testing` *(shipped)*
+- **v0.7** — DANFSe em PDF (fetch ADN + renderer local com fallback automático) *(shipped)*
 - **v1.0** — API pública estável, cobertura do manual v1.2
 
 Histórico completo no [CHANGELOG.md](./CHANGELOG.md).

@@ -11,6 +11,15 @@ import {
 } from '../errors/http.js';
 import { type Logger, noopLogger } from '../logging.js';
 
+/**
+ * Cap defensivo no tamanho do response body antes de `JSON.parse` / buffer
+ * materialization. As respostas reais da Receita (NFS-e, eventos, ADN) são
+ * dezenas de KB no pior caso; 10 MB é ~100× acima do esperado e ainda assim
+ * protege contra reverse proxies mal configurados, WAFs retornando HTML
+ * gigante, ou responses corrompidas.
+ */
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+
 export interface HttpClientConfig {
   readonly baseUrl: string;
   readonly dispatcher: Dispatcher;
@@ -49,6 +58,53 @@ export class HttpClient {
     return this.execute<T>('POST', path, body, options);
   }
 
+  /**
+   * GET binário — devolve o corpo cru como `Buffer` em vez de parsear JSON.
+   * Usado pelo endpoint DANFSe (`application/pdf`). Segue as mesmas regras
+   * de timeout, mTLS e `acceptedStatuses`.
+   */
+  async getPdf(path: string, options?: RequestOptions): Promise<Buffer> {
+    const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    this.logger.debug('http.request', { method: 'GET', url });
+    const startedAt = Date.now();
+
+    let response: Awaited<ReturnType<typeof request>>;
+    try {
+      response = await request(url, {
+        method: 'GET',
+        headers: { accept: 'application/pdf' },
+        dispatcher: this.dispatcher,
+        bodyTimeout: this.timeoutMs,
+        headersTimeout: this.timeoutMs,
+      });
+    } catch (cause) {
+      throw this.mapTransportError(cause);
+    }
+
+    let buf: Buffer;
+    try {
+      buf = await readBodyBuffer(response.body);
+    } catch (cause) {
+      throw this.mapTransportError(cause);
+    }
+    this.logger.debug('http.response', {
+      method: 'GET',
+      url,
+      status: response.statusCode,
+      latencyMs: Date.now() - startedAt,
+    });
+
+    const accepted = options?.acceptedStatuses ?? [];
+    if (response.statusCode >= 400 && !accepted.includes(response.statusCode)) {
+      throw mapStatusError(
+        response.statusCode,
+        buf.toString('utf-8').slice(0, 200),
+        response.headers,
+      );
+    }
+    return buf;
+  }
+
   private async execute<T>(
     method: 'GET' | 'POST',
     path: string,
@@ -80,7 +136,12 @@ export class HttpClient {
       throw this.mapTransportError(cause);
     }
 
-    const responseBody = await response.body.text();
+    let responseBody: string;
+    try {
+      responseBody = (await readBodyBuffer(response.body)).toString('utf-8');
+    } catch (cause) {
+      throw this.mapTransportError(cause);
+    }
     this.logger.debug('http.response', {
       method,
       url,
@@ -154,4 +215,27 @@ function normalizeHeaders(
     out[key.toLowerCase()] = Array.isArray(value) ? (value[0] ?? '') : value;
   }
   return out;
+}
+
+/**
+ * Lê o corpo do response em chunks, abortando se passar de
+ * `MAX_RESPONSE_BYTES`. Evita que um proxy mal configurado, uma página HTML
+ * gigante de WAF ou um response corrompido explodam a heap do processo.
+ */
+async function readBodyBuffer(stream: Dispatcher.ResponseData['body']): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of stream) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.byteLength;
+    if (total > MAX_RESPONSE_BYTES) {
+      // Consome o resto do stream para não vazar o socket e então lança.
+      stream.destroy?.();
+      throw new NetworkError(
+        `response body excedeu limite de ${MAX_RESPONSE_BYTES} bytes — provavelmente proxy/WAF devolveu payload inesperado`,
+      );
+    }
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks, total);
 }

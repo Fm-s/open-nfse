@@ -6,12 +6,21 @@ import {
   ReceitaRejectionError,
   receitaRejectionFromPostError,
 } from '../errors/receita.js';
+import { defaultIsTransient } from '../eventos/classify-error.js';
+import {
+  MissingRetryStoreError,
+  type PendingEmission,
+  type RetryStore,
+  pendingEmissionId,
+} from '../eventos/retry-store.js';
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import type { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
+import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, NFSe } from './domain.js';
+import { type DpsCounter, MissingDpsCounterError } from './dps-counter.js';
 import { parseNfseXml } from './parse-xml.js';
 import { signDpsXml } from './sign-xml.js';
 import { validateDpsXml } from './validate-xml.js';
@@ -89,19 +98,27 @@ interface SefinPostErrorBody {
 
 type SefinPostBody = SefinPostSuccessBody | SefinPostErrorBody;
 
-export async function emit(
+/**
+ * Escape hatch para quando você já tem um `DPS` completo e quer controlar
+ * inteiramente a pipeline. `nDPS` precisa estar preenchido; o counter do
+ * cliente **não** é chamado. Sem tratamento transiente — falhas de rede
+ * viram exceção.
+ *
+ * O caminho padrão é `emitSeguro` / `NfseClient.emitir(params)`.
+ */
+export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
   options: EmitOptions & { dryRun: true },
 ): Promise<DpsDryRunResult>;
-export async function emit(
+export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
   options?: EmitOptions & { dryRun?: false },
 ): Promise<NfseEmitResult>;
-export async function emit(
+export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
@@ -236,7 +253,7 @@ export async function emitMany(
       if (i >= dpsList.length) return;
       const dps = dpsList[i] as DPS;
       try {
-        const result = await emit(httpClient, certificate, dps, perEmitOptions);
+        const result = await emitDpsPronta(httpClient, certificate, dps, perEmitOptions);
         items[i] = { status: 'success', dps, result };
       } catch (cause) {
         const error = cause instanceof Error ? cause : new Error(String(cause));
@@ -290,6 +307,172 @@ async function getDefaultCepValidator(): Promise<CepValidator> {
     _defaultCepValidator = createViaCepValidator();
   }
   return _defaultCepValidator;
+}
+
+// ---------------------------------------------------------------------------
+// Emissão segura — fluxo primário de v0.4+.
+// Counter é consultado APENAS depois que todas as validações offline passam;
+// falhas transitórias no POST viram retry_pending no RetryStore.
+// ---------------------------------------------------------------------------
+
+/**
+ * Parâmetros de alto nível para `emitSeguro`. Equivalente a `BuildDpsParams`
+ * sem o campo `nDPS` (fornecido pelo `DpsCounter`), mais os flags de emissão.
+ *
+ * Passe `nDPS` explícito para override manual (útil para `dryRun` sem queimar
+ * um número ou replay determinístico em testes).
+ */
+export interface EmitirParams extends Omit<BuildDpsParams, 'nDPS'>, EmitOptions {
+  /**
+   * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
+   * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
+   * um número do counter à toa).
+   */
+  readonly nDPS?: string;
+}
+
+/**
+ * Resultado discriminado de `emitSeguro`.
+ *
+ * - `ok` — autorizada, `nfse` contém a NFS-e parseada.
+ * - `retry_pending` — erro transiente (rede/timeout/5xx); salvo no
+ *   `RetryStore` para replay idempotente via `replayPendingEvents`.
+ *
+ * Erros **permanentes** (rejeição de regra fiscal, validação local) lançam
+ * exceção — o caller sabe que o nDPS foi consumido mas a nota foi
+ * definitivamente rejeitada.
+ */
+export type EmitirResult =
+  | { readonly status: 'ok'; readonly nfse: NfseEmitResult }
+  | {
+      readonly status: 'retry_pending';
+      readonly pending: PendingEmission;
+      readonly error: Error;
+    };
+
+interface EmitSeguroDeps {
+  readonly httpClient: HttpClient;
+  readonly certificate: A1Certificate;
+  readonly dpsCounter: DpsCounter | undefined;
+  readonly retryStore: RetryStore | undefined;
+  readonly isTransient?: (err: unknown) => boolean;
+}
+
+export async function emitSeguro(
+  deps: EmitSeguroDeps,
+  params: EmitirParams,
+): Promise<EmitirResult | DpsDryRunResult> {
+  const isTransient = deps.isTransient ?? defaultIsTransient;
+
+  // 1. Monta DPS com nDPS placeholder para validação (XSD não distingue
+  //    valor específico — só valida contra pattern [1-9][0-9]{0,14}).
+  const placeholderOrExplicit = params.nDPS ?? '1';
+  const dpsParaValidar = buildDps({ ...params, nDPS: placeholderOrExplicit });
+
+  // 2. Validações offline. Ordem: CPF/CNPJ (sync) → XSD (WASM) → CEP (HTTP).
+  if (!params.skipCpfCnpjValidation) {
+    runIdentifierValidation(dpsParaValidar);
+  }
+  const xmlPlaceholder = buildDpsXml(dpsParaValidar);
+  if (!params.skipValidation) {
+    await validateDpsXml(xmlPlaceholder);
+  }
+  if (!params.skipCepValidation) {
+    await runCepValidation(dpsParaValidar, params.cepValidator);
+  }
+
+  // 3. Dry-run: use o placeholder (ou o nDPS explícito) — não consome counter.
+  if (params.dryRun) {
+    const xmlSigned = signDpsXml(xmlPlaceholder, deps.certificate);
+    const xmlDpsGZipB64 = gzipBase64Encode(xmlSigned);
+    return { dryRun: true, xmlDpsAssinado: xmlSigned, xmlDpsGZipB64 };
+  }
+
+  // 4. Obtém o nDPS real — override explícito ou counter.
+  let nDpsReal: string;
+  if (params.nDPS !== undefined) {
+    nDpsReal = params.nDPS;
+  } else {
+    if (!deps.dpsCounter) throw new MissingDpsCounterError();
+    nDpsReal = await deps.dpsCounter.next({
+      emitenteCnpj: params.emitente.cnpj,
+      serie: params.serie,
+    });
+  }
+
+  // 5. Rebuild com nDPS real + sign. Não re-valido XSD — estrutura é
+  //    idêntica, só o valor numérico mudou (e já sabemos que bate no pattern).
+  const dpsReal = buildDps({ ...params, nDPS: nDpsReal });
+  const xmlUnsigned = buildDpsXml(dpsReal);
+  const xmlSigned = signDpsXml(xmlUnsigned, deps.certificate);
+  const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
+
+  // 6. POST. Transiente → retryStore. Permanente → throw.
+  try {
+    const body = await deps.httpClient.post<SefinPostBody>(
+      '/nfse',
+      { dpsXmlGZipB64 },
+      { acceptedStatuses: [400] },
+    );
+
+    if (isSuccessBody(body)) {
+      return { status: 'ok', nfse: toEmitResult(body) };
+    }
+
+    // 400 com corpo de rejeição — permanente (regra de negócio violada).
+    const rejection = receitaRejectionFromPostError(body);
+    if (rejection) throw rejection;
+    throw new ReceitaRejectionError({
+      mensagens: [{ codigo: 'UNKNOWN', descricao: 'Corpo de erro sem mensagens reconhecíveis.' }],
+    });
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (isTransient(error)) {
+      if (!deps.retryStore) throw new MissingRetryStoreError();
+      const now = new Date();
+      const pending: PendingEmission = {
+        id: pendingEmissionId(dpsReal.infDPS.Id),
+        kind: 'emission',
+        idDps: dpsReal.infDPS.Id,
+        emitenteCnpj: params.emitente.cnpj,
+        serie: params.serie,
+        nDPS: nDpsReal,
+        xmlAssinado: xmlSigned,
+        firstAttemptAt: now,
+        lastAttemptAt: now,
+        lastError: {
+          message: error.message,
+          errorName: error.name,
+          transient: true,
+        },
+      };
+      await deps.retryStore.save(pending);
+      return { status: 'retry_pending', pending, error };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Replay de uma emissão pendente — re-POSTa o XML assinado diretamente em
+ * `/nfse`. SEFIN deduplica via `infDPS.Id`, então retentar é idempotente.
+ */
+export async function replayEmission(
+  httpClient: HttpClient,
+  xmlSignedDps: string,
+): Promise<NfseEmitResult> {
+  const dpsXmlGZipB64 = gzipBase64Encode(xmlSignedDps);
+  const body = await httpClient.post<SefinPostBody>(
+    '/nfse',
+    { dpsXmlGZipB64 },
+    { acceptedStatuses: [400] },
+  );
+  if (isSuccessBody(body)) return toEmitResult(body);
+  const rejection = receitaRejectionFromPostError(body);
+  if (rejection) throw rejection;
+  throw new ReceitaRejectionError({
+    mensagens: [{ codigo: 'UNKNOWN', descricao: 'replay: corpo sem mensagens.' }],
+  });
 }
 
 function normalizeAlerta(raw: Partial<MensagemProcessamento>): MensagemProcessamento[] {

@@ -48,7 +48,7 @@ export async function postEvento(
   chaveAcesso: string,
   xmlPedido: string,
   options?: { xmlJaAssinado?: boolean },
-): Promise<EventoResult & { xmlPedidoAssinado: string }> {
+): Promise<EventoResult & { xmlAssinado: string }> {
   const xmlAssinado = options?.xmlJaAssinado
     ? xmlPedido
     : signPedRegEventoXml(xmlPedido, certificate);
@@ -63,7 +63,7 @@ export async function postEvento(
   if (isSuccessBody(body)) {
     const xmlEvento = gzipBase64DecodeToText(body.eventoXmlGZipB64);
     return {
-      xmlPedidoAssinado: xmlAssinado,
+      xmlAssinado: xmlAssinado,
       xmlEvento,
       evento: parseEventoXml(xmlEvento),
       tipoAmbiente: body.tipoAmbiente === 1 ? TipoAmbiente.Producao : TipoAmbiente.Homologacao,

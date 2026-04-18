@@ -1,6 +1,34 @@
 # Emitir NFS-e
 
-Pipeline `emitir()`: **`buildDps` → validar CPF/CNPJ → XSD → CEP → assinar (XMLDSig) → gzip+base64 → `POST /nfse`**. Retorna `NfseEmitResult` com a chave de acesso, XML autorizado e objeto `NFSe` parseado.
+`emitir(params)` é o fluxo primário. Recebe params de alto nível (sem `nDPS`), roda as validações offline primeiro e **só então** consulta o `DpsCounter` — uma DPS quebrada nunca queima um número de série.
+
+```
+params (sem nDPS) → validar CPF/CNPJ → XSD → CEP
+   ↓ só aqui, se tudo passou:
+counter.next() → nDPS real → sign → POST /nfse
+   ↓
+{ status: 'ok', nfse }                 ← autorizada
+{ status: 'retry_pending', pending }   ← falha transiente, salvo no RetryStore
+throw ReceitaRejectionError            ← regra fiscal violada (nDPS consumido)
+```
+
+Garantias:
+- **Counter só incrementa depois** das validações offline — DPS quebrada não queima número.
+- **Falha de rede nunca duplica** — o pendente persiste com o XML assinado; `replayPendingEvents` re-POSTa e SEFIN dedupa via `infDPS.Id`.
+- **Rejeição fiscal é permanente** — não entra no retry pipeline, caller loga e segue.
+
+Pré-requisitos no client:
+
+```ts
+const cliente = new NfseClient({
+  ambiente: Ambiente.ProducaoRestrita,
+  certificado,
+  dpsCounter: pgCounter,      // obrigatório pra emitir(params)
+  retryStore: pgStore,        // obrigatório se quiser retry_pending persistir
+});
+```
+
+Escape hatch para casos manuais (pre-built DPS, replay custom): **`cliente.emitirDpsPronta(dps)`** bypassa counter + retry store, throwing em tudo — útil para replay determinístico, pré-assinatura externa ou testes.
 
 ## `buildDps` — constrói DPS sem boilerplate
 
@@ -97,28 +125,47 @@ const infDPS: InfDPS = {
 const dps: DPS = { versao: '1.01', infDPS };
 ```
 
-## `cliente.emitir(dps)` — envio síncrono
+## `cliente.emitir(params)` — envio seguro
+
+Passe params de alto nível (sem `nDPS` — o counter resolve):
 
 ```typescript
-try {
-  const r = await cliente.emitir(dps);
+const r = await cliente.emitir({
+  emitente: {
+    cnpj: '00574753000100',
+    codMunicipio: '2111300',
+    regime: { opSimpNac: OpcaoSimplesNacional.MeEpp, regEspTrib: RegimeEspecialTributacao.Nenhum },
+  },
+  serie: '1',
+  servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+  valores: { vServ: 1500.0, aliqIss: 2.5 },
+  tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
+});
 
-  r.chaveAcesso;              // 50 dígitos
-  r.idDps;                    // 45 chars, "DPS..."
-  r.xmlNfse;                  // XML oficial assinado pela Sefin
-  r.nfse;                     // NFSe completa, tipada
-  r.alertas;                  // readonly MensagemProcessamento[]
-  r.tipoAmbiente;
-  r.versaoAplicativo;
-  r.dataHoraProcessamento;    // Date
-} catch (err) {
+// r é discriminated — narrow por status:
+if (r.status === 'ok') {
+  console.log(r.nfse.chaveAcesso);
+  console.log(r.nfse.xmlNfse);
+}
+if (r.status === 'retry_pending') {
+  // falha de rede — já salvo no retryStore
+  console.warn('Transient, pendente:', r.pending.id);
+}
+// Rejeições permanentes lançam — capture separado:
+try { await cliente.emitir(params); }
+catch (err) {
   if (err instanceof ReceitaRejectionError) {
     console.error(`[${err.codigo}] ${err.descricao}`);
-    for (const m of err.mensagens.slice(1)) {
-      console.error(`  + [${m.codigo}] ${m.descricao}`);
-    }
   }
 }
+```
+
+### Override manual de `nDPS`
+
+Útil em testes determinísticos ou replay externo:
+
+```ts
+await cliente.emitir({ ...params, nDPS: '999' });  // counter não é chamado
 ```
 
 ### Erros de validação local
@@ -132,8 +179,11 @@ Com defaults (validações ligadas), essas falhas **não saem do seu processo** 
 
 ### Opções
 
+`EmitirParams` estende `EmitOptions` — options viajam junto com os params:
+
 ```typescript
-await cliente.emitir(dps, {
+await cliente.emitir({
+  ...params,
   dryRun: false,                  // default false — se true, só monta+assina sem enviar
   skipValidation: false,          // pula XSD
   skipCepValidation: false,       // pula ViaCEP
@@ -145,12 +195,16 @@ await cliente.emitir(dps, {
 ## Dry-run — preview sem enviar
 
 ```typescript
-const dry = await cliente.emitir(dps, { dryRun: true });
+const dry = await cliente.emitir({ ...params, dryRun: true });
 
 dry.dryRun;             // true — discriminated union
 dry.xmlDpsAssinado;     // XML assinado, inspecionável
 dry.xmlDpsGZipB64;      // payload gzip+base64, pronto para POST manual
 ```
+
+::: tip Dry-run não consome counter
+Em `dryRun: true`, o `DpsCounter` **não é chamado**. O `nDPS` vai como placeholder `'1'` (ou o valor que você passar em `params.nDPS`). Preview seguro, sem queimar número da série.
+:::
 
 Útil para:
 - Gerar XML em pipelines CI sem consumir quota da Receita

@@ -38,21 +38,23 @@ Error
        │    ├─ InvalidCepError
        │    ├─ InvalidCpfError
        │    └─ InvalidCnpjError
-       └─ ReceitaRejectionError     (concreto — carrega mensagens[])
+       ├─ ReceitaRejectionError     (concreto — carrega mensagens[])
+       └─ ClientClosedError         (concreto — pós-close())
 ```
 
 Isso deixa o caller escolher a granularidade do catch:
 
 ```typescript
 try {
-  await cliente.emitir(dps);
+  const r = await cliente.emitir(params);
+  if (r.status === 'retry_pending') {
+    // falha transiente já salva no retryStore; cron cuida do replay
+    logger.warn('emit transient, pending:', r.pending.id);
+  }
 } catch (err) {
   if (err instanceof ReceitaRejectionError) {
-    // rejeição fiscal — lidar com código específico
+    // rejeição fiscal — nDPS consumido, não retry
     logger.warn(`rejeitada [${err.codigo}]: ${err.descricao}`);
-  } else if (err instanceof ServerError) {
-    // 5xx — retry
-    retryQueue.enqueue(dps);
   } else if (err instanceof OpenNfseError) {
     // erro conhecido da lib — relançar com contexto
     throw new MyAppError('Falha de emissão', { cause: err });
@@ -62,9 +64,23 @@ try {
 }
 ```
 
-## 3. Sem estado
+## 3. Sem estado interno, com primitives de orquestração e retry
 
-Nenhum banco, framework, estado global ou singleton escondido. É uma biblioteca, não um sistema. Persistência, fila, retry de falhas transitórias e orquestração são responsabilidade do serviço consumidor. Veja [Integração](./integracao) para o schema SQL sugerido.
+A lib **não tem** banco, cache global, singleton escondido ou qualquer lifecycle que sobreviva ao processo — nesse sentido é stateless.
+
+Mas ela **oferece primitives** que antes o consumidor teria que escrever:
+
+- **`emitirEmLote`** — worker pool client-side que paraleliza emit (o SEFIN não tem endpoint batch). Você passa a concorrência, a lib orquestra.
+- **`substituir`** — máquina de 4 estados (`ok` / `retry_pending` / `rolled_back` / `rollback_pending`) com compensação automática quando step 2 falha. Você não escreve a lógica de rollback.
+- **`RetryStore` + `replayPendingEvents`** — interface plugável para persistir eventos pendentes e um método cron-friendly que re-envia tudo que ficou transiente. Você implementa `save`/`list`/`delete` contra seu banco.
+
+O que **fica com seu serviço**:
+
+- **Persistência durável** — `RetryStore` contra Postgres/Redis, tabelas de submissions, NFS-e autorizadas, cursor de NSU. [Esquema completo em Integração](./integracao).
+- **Agendamento** do cron que chama `replayPendingEvents()`.
+- **Reconciliação** de DPS em `status = 'in_flight'` via `fetchByChave`.
+
+Framing alternativo: a lib **não decide por você** *quando* ou *onde* persistir, mas provê as peças bem encaixadas para você montar isso.
 
 ## 4. Schema-driven
 
@@ -106,12 +122,14 @@ Consumidores que precisam de aritmética fiscal precisa (somas de centavos, arre
 ## 6. Builder separável do transporte
 
 ```typescript
-const dps = buildDps({...});
-
-// inspecione o XML antes de enviar
-const preview = await cliente.emitir(dps, { dryRun: true });
+// emitir(params) em dry-run monta+assina sem enviar (counter NÃO é consumido)
+const preview = await cliente.emitir({ ...params, dryRun: true });
 console.log(preview.xmlDpsAssinado);    // XML assinado, pronto para enviar mas NÃO enviado
 console.log(preview.xmlDpsGZipB64);     // payload gzip+base64 pronto para POST
+
+// Ou para uma DPS já montada manualmente:
+const dps = buildDps({ ...params, nDPS: '1' });
+const dry2 = await cliente.emitirDpsPronta(dps, { dryRun: true });
 ```
 
 Isso permite preview em staging, testes de integração offline e auditoria do payload sem consumir quota da Receita.
@@ -121,7 +139,8 @@ Isso permite preview em staging, testes de integração offline e auditoria do p
 As três validações pré-envio (**XSD, CEP, CPF/CNPJ**) são **ligadas por default**. A semântica é: "me mostre falhas óbvias localmente antes de gastar um round-trip com a Receita". Desligar é possível mas deliberado:
 
 ```typescript
-await cliente.emitir(dps, {
+await cliente.emitir({
+  ...params,
   skipValidation: true,       // XSD
   skipCepValidation: true,    // ViaCEP lookup
   skipCpfCnpjValidation: true // DV algorítmico

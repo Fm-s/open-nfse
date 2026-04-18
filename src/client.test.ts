@@ -5,9 +5,12 @@ import forge from 'node-forge';
 import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Ambiente, TipoAmbiente } from './ambiente.js';
-import { NfseClient } from './client.js';
+import { ClientClosedError, NfseClient } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
+import { ForbiddenError } from './errors/http.js';
+import { InvalidChaveAcessoError } from './errors/validation.js';
 import { gzipBase64Encode } from './http/encoding.js';
+import { parseNfseXml } from './nfse/parse-xml.js';
 
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 const XML_SAMPLE = readFileSync(join(__dirname, '..', 'specs', 'samples', `${CHAVE}.xml`), 'utf-8');
@@ -206,7 +209,7 @@ describe('NfseClient', () => {
           },
         },
       },
-    } as Parameters<NfseClient['emitir']>[0];
+    } as Parameters<NfseClient['emitirDpsPronta']>[0];
 
     mockAgent
       .get('https://sefin.producaorestrita.nfse.gov.br')
@@ -226,7 +229,7 @@ describe('NfseClient', () => {
       dispatcher: mockAgent,
     });
 
-    const result = await client.emitir(minimalDps);
+    const result = await client.emitirDpsPronta(minimalDps);
     expect(result.chaveAcesso).toBe(CHAVE);
     expect(result.idDps).toBe('DPS211130010057475300010000001000000000000001');
     expect(result.nfse.infNFSe.chaveAcesso).toBe(CHAVE);
@@ -262,7 +265,7 @@ describe('NfseClient', () => {
           },
         },
       },
-    } as Parameters<NfseClient['emitir']>[0];
+    } as Parameters<NfseClient['emitirDpsPronta']>[0];
 
     const client = new NfseClient({
       ambiente: Ambiente.ProducaoRestrita,
@@ -270,7 +273,7 @@ describe('NfseClient', () => {
       dispatcher: mockAgent,
     });
 
-    const result = await client.emitir(minimalDps, { dryRun: true });
+    const result = await client.emitirDpsPronta(minimalDps, { dryRun: true });
     expect(result.dryRun).toBe(true);
     expect(result.xmlDpsAssinado).toContain(
       '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">',
@@ -299,5 +302,103 @@ describe('NfseClient', () => {
     await client.close();
     // mockAgent should still be usable after client.close()
     expect(() => mockAgent.assertNoPendingInterceptors()).not.toThrow();
+  });
+
+  it('close() is idempotent — second call is a no-op', async () => {
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    await client.close();
+    await expect(client.close()).resolves.toBeUndefined();
+  });
+
+  it('rejects any call after close() with ClientClosedError', async () => {
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    await client.close();
+    await expect(client.fetchByChave(CHAVE)).rejects.toBeInstanceOf(ClientClosedError);
+  });
+
+  it('ensureState is race-safe — concurrent first calls share one certificate load', async () => {
+    // Dispara três chamadas simultaneamente no primeiro uso do cliente — todas
+    // devem enxergar o mesmo `ClientState`, sem `provider.load()` rodando duas
+    // vezes nem Agent leaks.
+    for (const _ of [0, 1, 2]) {
+      mockAgent
+        .get('https://sefin.producaorestrita.nfse.gov.br')
+        .intercept({ path: `/SefinNacional/nfse/${CHAVE}`, method: 'GET' })
+        .reply(200, {
+          tipoAmbiente: 2,
+          versaoAplicativo: '1.0.0',
+          dataHoraProcessamento: '2026-04-16T12:00:00-03:00',
+          chaveAcesso: CHAVE,
+          nfseXmlGZipB64: gzipBase64Encode(XML_SAMPLE),
+        });
+    }
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+
+    const [a, b, c] = await Promise.all([
+      client.fetchByChave(CHAVE),
+      client.fetchByChave(CHAVE),
+      client.fetchByChave(CHAVE),
+    ]);
+    expect(a.chaveAcesso).toBe(CHAVE);
+    expect(b.chaveAcesso).toBe(CHAVE);
+    expect(c.chaveAcesso).toBe(CHAVE);
+  });
+
+  it('fetchDanfse rejects chaves fora do pattern sem tocar a rede', async () => {
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    await expect(client.fetchDanfse('nao-e-chave')).rejects.toBeInstanceOf(InvalidChaveAcessoError);
+    // encoded traversal attempt também é barrado
+    await expect(client.fetchDanfse('../admin')).rejects.toBeInstanceOf(InvalidChaveAcessoError);
+  });
+
+  it("gerarDanfse('auto') faz fallback para local em 5xx transiente", async () => {
+    mockAgent
+      .get('https://adn.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/danfse/${CHAVE}`, method: 'GET' })
+      .reply(503, 'service unavailable');
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    const nfse = parseNfseXml(XML_SAMPLE);
+
+    const pdf = await client.gerarDanfse(nfse);
+    expect(pdf).toBeInstanceOf(Buffer);
+    expect(pdf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
+  });
+
+  it("gerarDanfse('auto') NÃO mascara ForbiddenError — propaga", async () => {
+    mockAgent
+      .get('https://adn.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/danfse/${CHAVE}`, method: 'GET' })
+      .reply(403, 'cnpj sem acesso');
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    const nfse = parseNfseXml(XML_SAMPLE);
+
+    await expect(client.gerarDanfse(nfse)).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

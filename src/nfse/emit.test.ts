@@ -11,7 +11,7 @@ import { InvalidCepError, InvalidCnpjError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
 import type { DPS, InfDPS } from './domain.js';
-import { emit, emitMany } from './emit.js';
+import { emitDpsPronta, emitMany } from './emit.js';
 
 const SAMPLE_PATH = join(
   __dirname,
@@ -96,7 +96,7 @@ describe('emit', () => {
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
       .reply(500, {});
 
-    const result = await emit(httpClient, cert, minimalDps(), { dryRun: true });
+    const result = await emitDpsPronta(httpClient, cert, minimalDps(), { dryRun: true });
 
     expect(result.dryRun).toBe(true);
     expect(result.xmlDpsAssinado).toContain(
@@ -132,7 +132,7 @@ describe('emit', () => {
         };
       });
 
-    const result = await emit(httpClient, cert, minimalDps());
+    const result = await emitDpsPronta(httpClient, cert, minimalDps());
 
     expect(result.dryRun).toBeFalsy();
     expect(result.chaveAcesso).toBe(chave);
@@ -169,7 +169,7 @@ describe('emit', () => {
         ],
       });
 
-    const result = await emit(httpClient, cert, minimalDps());
+    const result = await emitDpsPronta(httpClient, cert, minimalDps());
 
     expect(result.alertas).toEqual([
       { codigo: 'A001', descricao: 'Alerta informativo' },
@@ -192,7 +192,7 @@ describe('emit', () => {
         ],
       });
 
-    await expect(emit(httpClient, cert, minimalDps())).rejects.toMatchObject({
+    await expect(emitDpsPronta(httpClient, cert, minimalDps())).rejects.toMatchObject({
       name: 'ReceitaRejectionError',
       codigo: 'E401',
       idDps: 'DPS1234',
@@ -207,7 +207,7 @@ describe('emit', () => {
         erros: [{ codigo: 'E001', descricao: 'falha' }],
       });
 
-    await expect(emit(httpClient, cert, minimalDps())).rejects.toBeInstanceOf(
+    await expect(emitDpsPronta(httpClient, cert, minimalDps())).rejects.toBeInstanceOf(
       ReceitaRejectionError,
     );
   });
@@ -225,7 +225,7 @@ describe('emit', () => {
         serv: { ...badDps.infDPS.serv, cServ: cServSemNBS as typeof badDps.infDPS.serv.cServ },
       },
     };
-    await expect(emit(httpClient, cert, broken)).rejects.toMatchObject({
+    await expect(emitDpsPronta(httpClient, cert, broken)).rejects.toMatchObject({
       name: 'XsdValidationError',
     });
   });
@@ -247,7 +247,9 @@ describe('emit', () => {
       },
     };
     // with skipValidation, the XML reaches SEFIN (mocked here as rejection)
-    await expect(emit(httpClient, cert, broken, { skipValidation: true })).rejects.toMatchObject({
+    await expect(
+      emitDpsPronta(httpClient, cert, broken, { skipValidation: true }),
+    ).rejects.toMatchObject({
       name: 'ReceitaRejectionError',
       codigo: 'E999',
     });
@@ -265,7 +267,9 @@ describe('emit', () => {
         },
       },
     };
-    await expect(emit(httpClient, cert, withBadCnpj)).rejects.toBeInstanceOf(InvalidCnpjError);
+    await expect(emitDpsPronta(httpClient, cert, withBadCnpj)).rejects.toBeInstanceOf(
+      InvalidCnpjError,
+    );
     expect(() => mockAgent.assertNoPendingInterceptors()).not.toThrow();
   });
 
@@ -285,7 +289,7 @@ describe('emit', () => {
     };
     // skipCpfCnpjValidation lets the bad CNPJ through; it reaches the mocked SEFIN
     await expect(
-      emit(httpClient, cert, withBadCnpj, {
+      emitDpsPronta(httpClient, cert, withBadCnpj, {
         skipCpfCnpjValidation: true,
         skipCepValidation: true,
       }),
@@ -341,7 +345,7 @@ describe('emit', () => {
       },
     };
 
-    await emit(httpClient, cert, withAddrs, { cepValidator: mockCepValidator });
+    await emitDpsPronta(httpClient, cert, withAddrs, { cepValidator: mockCepValidator });
     expect(seen).toEqual(['01310100', '04538133']);
   });
 
@@ -368,7 +372,7 @@ describe('emit', () => {
       },
     };
     await expect(
-      emit(httpClient, cert, withAddr, { cepValidator: mockCepValidator }),
+      emitDpsPronta(httpClient, cert, withAddr, { cepValidator: mockCepValidator }),
     ).rejects.toBeInstanceOf(InvalidCepError);
     expect(() => mockAgent.assertNoPendingInterceptors()).not.toThrow();
   });
@@ -408,7 +412,7 @@ describe('emit', () => {
         },
       },
     };
-    const r = await emit(httpClient, cert, withAddr, {
+    const r = await emitDpsPronta(httpClient, cert, withAddr, {
       skipCepValidation: true,
       cepValidator: validator,
     });
@@ -422,7 +426,7 @@ describe('emit', () => {
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
       .reply(400, { tipoAmbiente: 2 });
 
-    await expect(emit(httpClient, cert, minimalDps())).rejects.toMatchObject({
+    await expect(emitDpsPronta(httpClient, cert, minimalDps())).rejects.toMatchObject({
       name: 'ReceitaRejectionError',
       codigo: 'UNKNOWN',
     });
@@ -556,7 +560,7 @@ describe('emitMany', () => {
     // Simpler: observe via the emit function by spying on the mock's callback
     // is brittle with undici. Instead measure concurrency via the same
     // worker-pool invariant the implementation guarantees: track how many
-    // emit() calls are in-flight at a single tick by patching HttpClient.post.
+    // emitDpsPronta() calls are in-flight at a single tick by patching HttpClient.post.
     const origPost = httpClient.post.bind(httpClient);
     (httpClient as unknown as { post: typeof origPost }).post = async (path, body, options) => {
       inFlight++;
