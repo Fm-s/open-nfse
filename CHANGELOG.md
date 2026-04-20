@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+
+- **Reescrita completa da documentação.** Cortes profundos em páginas-guia com conteúdo redundante; introdução de um **cheat sheet** por função; nova landing page objetiva. Resumo:
+  - Landing (`docs/index.md`): removido o layout hero do VitePress; substituído por install + exemplo mínimo + tabela de navegação + status. Sem marketing cards.
+  - `docs/guide/principios.md`: 157 → 51 linhas (−68%). Tree de erros removido (vive em `erros.md`), pontos colapsados, removidos exemplos duplicados com `erros.md` e README.
+  - `docs/guide/integracao.md`: 522 → 304 linhas (−42%). Prose de introdução tightened, "fluxo recomendado" reduzido a um snippet focado, seção de produção compactada (retenção+LGPD agrupadas; concorrência movida para §1.2).
+  - `docs/guide/erros.md`: 240 → 121 linhas (−50%). Exemplo reativo longo colapsado, tabelas por-endpoint viraram bullet list, mantida árvore e shapes das classes principais.
+  - `docs/guide/emitir.md`: 246 → 141 linhas (−43%). Removida tabela de defaults avulsa (inline), prose de "cenários avançados", seção duplicada sobre `cliente.emitir()`.
+  - `docs/guide/substituir-cancelar.md`: 288 → 136 linhas (−53%). Removida impl PostgreSQL de 70 linhas do `RetryStore` (vive em `integracao.md`), fluxo ASCII colapsado, "Códigos de justificativa" virou comentário inline.
+  - **Novo `/api-cheatsheet`** (222 linhas): uma linha por método público de `NfseClient` + helpers standalone + interfaces pluggable + enums + erros + result types. Signatures compactas, cada entry linka TypeDoc para detalhe.
+  - Sidebar VitePress: nova seção "Referência" (cheat sheet + TypeDoc); nav bar surface o cheat sheet direto.
+  - **README** cortado de 312 → 137 linhas (−56%). Removida a "tour" completa de cada método (vive nos guias), princípios colapsados para 1 parágrafo, mantidos quickstart mínimo + arquitetura + ambientes + status.
+- Totais: guides 2.599 → 2.182 linhas (−1.400 linhas de prose redundante), ganho de uma página de referência por função.
+
 ## [0.7.1] — 2026-04-17
 
 Endurecimento pós-auditoria interna (race conditions, validação de input, caps defensivos). Nenhuma quebra de API pública.

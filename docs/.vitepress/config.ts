@@ -31,6 +31,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'Guia', link: '/guide/introducao' },
+      { text: 'Cheat sheet', link: '/api-cheatsheet' },
       { text: 'API', link: '/api/' },
       {
         text: 'Links',
@@ -73,9 +74,21 @@ export default defineConfig({
             { text: 'Testando com o fake', link: '/guide/testing' },
           ],
         },
+        {
+          text: 'Referência',
+          items: [
+            { text: 'API cheat sheet', link: '/api-cheatsheet' },
+            { text: 'API completa (TypeDoc)', link: '/api/' },
+          ],
+        },
+      ],
+      '/api-cheatsheet': [
+        { text: 'API cheat sheet', link: '/api-cheatsheet' },
+        { text: 'API completa (TypeDoc)', link: '/api/' },
       ],
       '/api/': [
-        { text: 'Overview', link: '/api/' },
+        { text: 'API cheat sheet', link: '/api-cheatsheet' },
+        { text: 'Overview (TypeDoc)', link: '/api/' },
         ...(typedocSidebar as DefaultTheme.SidebarItem[]),
       ],
     },
