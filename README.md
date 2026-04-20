@@ -22,28 +22,40 @@ Requer Node.js 20+ e certificado digital A1 (ICP-Brasil) em `.pfx` ou `.p12` do 
 
 ## Exemplo mínimo
 
+Setup do cliente com counter atômico de `nDPS` e store de retry (in-memory para início rápido; produção usa Postgres):
+
 ```typescript
 import {
   NfseClient, Ambiente,
   createInMemoryDpsCounter, createInMemoryRetryStore,
-  OpcaoSimplesNacional, RegimeEspecialTributacao,
-  ReceitaRejectionError,
 } from 'open-nfse';
 import { readFileSync } from 'node:fs';
 
 const cliente = new NfseClient({
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx: readFileSync('./cert.pfx'), password: process.env.CERT_PASSWORD! },
-  dpsCounter: createInMemoryDpsCounter(),   // produção: UPDATE ... RETURNING no DB
-  retryStore: createInMemoryRetryStore(),   // produção: tabela de pendentes
+  dpsCounter: createInMemoryDpsCounter(),
+  retryStore: createInMemoryRetryStore(),
 });
+```
+
+Emissão com resultado discriminado (`ok` autorizada, `retry_pending` salvo no store, throw em rejeição permanente):
+
+```typescript
+import {
+  OpcaoSimplesNacional, RegimeEspecialTributacao,
+  ReceitaRejectionError,
+} from 'open-nfse';
 
 try {
   const r = await cliente.emitir({
     emitente: {
       cnpj: '00574753000100',
       codMunicipio: '2111300',
-      regime: { opSimpNac: OpcaoSimplesNacional.MeEpp, regEspTrib: RegimeEspecialTributacao.Nenhum },
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
+      },
     },
     serie: '1',
     servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
@@ -51,15 +63,34 @@ try {
     tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
   });
 
-  if (r.status === 'ok') console.log(r.nfse.chaveAcesso);
-  else if (r.status === 'retry_pending') console.warn('Pendente:', r.pending.id);
+  if (r.status === 'ok') {
+    console.log('autorizada:', r.nfse.chaveAcesso);
+  } else {
+    console.warn('pendente no store:', r.pending.id);
+  }
 } catch (err) {
-  if (err instanceof ReceitaRejectionError) console.error(`[${err.codigo}] ${err.descricao}`);
-  else throw err;
+  if (err instanceof ReceitaRejectionError) {
+    console.error(`rejeitada [${err.codigo}]: ${err.descricao}`);
+  } else {
+    throw err;
+  }
 }
 ```
 
-Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Para `fetchByChave`, `fetchByNsu`, `cancelar`, `substituir`, `gerarDanfse` e `NfseClientFake`, veja a [documentação](https://fm-s.github.io/open-nfse/).
+Cron de retry (mesma função cobre `emitir`, `cancelar`, `substituir`):
+
+```typescript
+// schedule: a cada 1-5 minutos, um worker só
+const items = await cliente.replayPendingEvents();
+for (const item of items) {
+  if (item.status === 'success_emission') await persistirNfse(item.emission);
+  if (item.status === 'success')          await persistirEvento(item.evento);
+  if (item.status === 'failed_permanent') alertar(item);
+  // still_pending fica no store para próxima rodada
+}
+```
+
+Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão completo de produção (persistência, bulk com counter+retry, reconciliação) em [Emitir NFS-e](https://fm-s.github.io/open-nfse/guide/emitir).
 
 ## O que a lib cobre
 

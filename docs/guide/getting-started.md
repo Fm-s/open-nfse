@@ -59,7 +59,7 @@ const cliente = new NfseClient({
 
 Em produção, troque as impls in-memory por impls que conversam com seu banco. Veja [Integração em serviços](./integracao) para o schema SQL.
 
-## Primeira chamada — consulta por chave
+## Primeira chamada — consulta
 
 ```typescript
 const resultado = await cliente.fetchByChave(
@@ -68,13 +68,68 @@ const resultado = await cliente.fetchByChave(
 
 console.log(resultado.nfse.infNFSe.emit.xNome);       // "VOGA LTDA"
 console.log(resultado.nfse.infNFSe.valores.vLiq);     // 51.60
-console.log(resultado.xmlNfse);                        // XML cru assinado (escape hatch)
+```
 
-await cliente.close(); // libera o dispatcher mTLS
+Consulta não exige `dpsCounter` nem `retryStore` — a configuração mínima já basta.
+
+## Primeira emissão
+
+`emitir(params)` retorna um resultado **discriminated**: `ok` se autorizada, `retry_pending` se a rede falhou (a lib salva no store e um cron replay fecha depois), e lança `ReceitaRejectionError` em rejeições permanentes.
+
+```typescript
+import {
+  OpcaoSimplesNacional, RegimeEspecialTributacao,
+  ReceitaRejectionError,
+} from 'open-nfse';
+
+try {
+  const r = await cliente.emitir({
+    emitente: {
+      cnpj: '00574753000100',
+      codMunicipio: '2111300',
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
+      },
+    },
+    serie: '1',
+    servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+    valores: { vServ: 1500.0, aliqIss: 2.5 },
+    tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
+  });
+
+  if (r.status === 'ok') {
+    console.log('Chave autorizada:', r.nfse.chaveAcesso);
+    console.log('Número municipal:', r.nfse.nfse.infNFSe.nNFSe);
+  } else {
+    // r.status === 'retry_pending' — já persistido no retryStore pela lib
+    console.warn('Transiente, pendente:', r.pending.id);
+  }
+} catch (err) {
+  if (err instanceof ReceitaRejectionError) {
+    console.error(`Rejeitada: [${err.codigo}] ${err.descricao}`);
+  } else {
+    throw err;
+  }
+}
+```
+
+Três coisas importantes sobre esse fluxo:
+
+1. **Validações offline rodam antes do counter** — DPS com CPF/CNPJ inválido, XSD quebrado ou CEP inexistente não queima `nDPS`.
+2. **Transiente nunca duplica** — o pendente no store tem o XML já assinado; replay posta de novo e SEFIN deduplica via `infDPS.Id`.
+3. **Rejeição permanente consome o `nDPS`** — o número foi gasto, mas a nota não virou NFS-e. Registre para auditoria e siga.
+
+Produção em mais detalhe: [Emitir NFS-e](./emitir). Schema SQL do store: [Integração em serviços](./integracao).
+
+## Fechando o cliente
+
+```typescript
+await cliente.close();
 ```
 
 ::: tip `close()` é single-shot
-O `NfseClient` é de vida única. Após `close()`, qualquer chamada subsequente (`fetchByChave`, `emitir`, etc.) lança `ClientClosedError`. Se o processo é longo-lived (servidor, worker) e você não precisa liberar o dispatcher, simplesmente não chame `close()`. Para reconectar (rotação de certificado, por exemplo), instancie um novo `NfseClient`.
+O `NfseClient` é de vida única. Após `close()`, qualquer chamada subsequente lança `ClientClosedError`. Se o processo é longo-lived (servidor, worker) e você não precisa liberar o dispatcher, simplesmente não chame `close()`. Para reconectar (rotação de certificado), instancie um novo `NfseClient`.
 :::
 
 ## Provider de certificado pluggable

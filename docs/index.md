@@ -14,31 +14,62 @@ Requer Node.js 20+ e certificado digital A1 (ICP-Brasil) do CNPJ emitente.
 
 ## Exemplo mínimo
 
+Setup do cliente com `DpsCounter` (gera `nDPS` atomicamente) e `RetryStore` (persiste transientes). As versões in-memory cobrem testes; produção usa Postgres — [schema SQL sugerido](/guide/integracao).
+
 ```typescript
 import {
   NfseClient, Ambiente,
   createInMemoryDpsCounter, createInMemoryRetryStore,
-  OpcaoSimplesNacional, RegimeEspecialTributacao,
 } from 'open-nfse';
 
 const cliente = new NfseClient({
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx: readFileSync('./cert.pfx'), password: process.env.CERT_PASSWORD! },
-  dpsCounter: createInMemoryDpsCounter(),   // em prod: UPDATE ... RETURNING no DB
-  retryStore: createInMemoryRetryStore(),   // em prod: tabela de pendentes
+  dpsCounter: createInMemoryDpsCounter(),
+  retryStore: createInMemoryRetryStore(),
 });
-
-const r = await cliente.emitir({
-  emitente: { cnpj: '00574753000100', codMunicipio: '2111300',
-    regime: { opSimpNac: OpcaoSimplesNacional.MeEpp, regEspTrib: RegimeEspecialTributacao.Nenhum } },
-  serie: '1',
-  servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
-  valores: { vServ: 1500.0, aliqIss: 2.5 },
-  tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
-});
-
-if (r.status === 'ok') console.log(r.nfse.chaveAcesso);
 ```
+
+Emissão com resultado discriminado:
+
+```typescript
+import {
+  OpcaoSimplesNacional, RegimeEspecialTributacao,
+  ReceitaRejectionError,
+} from 'open-nfse';
+
+try {
+  const r = await cliente.emitir({
+    emitente: {
+      cnpj: '00574753000100',
+      codMunicipio: '2111300',
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
+      },
+    },
+    serie: '1',
+    servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+    valores: { vServ: 1500.0, aliqIss: 2.5 },
+    tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
+  });
+
+  if (r.status === 'ok') {
+    console.log('chave autorizada:', r.nfse.chaveAcesso);
+  } else {
+    // r.status === 'retry_pending' — já persistido no retryStore pela lib
+    console.warn('pendente:', r.pending.id);
+  }
+} catch (err) {
+  if (err instanceof ReceitaRejectionError) {
+    console.error(`rejeitada [${err.codigo}]: ${err.descricao}`);
+  } else {
+    throw err;
+  }
+}
+```
+
+Para o ciclo completo (persistência, cron de replay, bulk com counter+retry), veja [Emitir NFS-e](/guide/emitir).
 
 ## O que a lib cobre
 
