@@ -7,29 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-04-20
+
+Correções guiadas pela auditoria v1.2 contra o Manual do Contribuinte + XSDs RTC v1.01. Cobertura de eventos completa, classificação de erros mais precisa, dois endpoints novos para reconciliação, sem quebra de API pública.
+
+### Added
+
+- **Cobertura completa de tipos de evento no parser.** `TipoEventoNfse` agora tem as 16 entradas do `TSTipoEvento` (era só 5). `parseEventoXml` parseia todos os tipos definidos em `tiposEventos_v1.01.xsd`: cancelamento (101101, 105102), análise fiscal (101103, 105104, 105105), confirmações P/T/I e tácita (202201, 203202, 204203, 205204), rejeições P/T/I (202205, 203206, 204207), anulação de rejeição (205208), e eventos por ofício (305101, 305102, 305103). `DetalheEvento` ganhou uma variante fallback `{ unknown: { elementName, tipoEvento, raw } }` para tipos futuros. **Antes:** `fetchByNsu` quebraria ao distribuir qualquer evento fora de 101101/105102 — a nota do prestador ficava invisível quando o tomador confirmava.
+- **`NfseClient.fetchDpsStatus(idDps)`** e **`NfseClient.existsDpsStatus(idDps)`** — wrappers para `GET /dps/{id}` e `HEAD /dps/{id}`. Uso primário: reconciliação pós-timeout. Quando um `emitir()` não retornou e você persistiu o `idDps`, essas chamadas revelam se a Receita chegou a gerar a NFS-e — evita reemissão duplicada.
+- **`validatePedRegEventoXml(xml)`** e **`validateEventoXml(xml)`** — valida pedRegEvento / evento contra os XSDs correspondentes. Paridade com `validateDpsXml`.
+- **`RuleViolationError`** — classe concreta para violações de regra de negócio locais (Manual v1.2 / Anexo I), com campo `rule` opcional (e.g., `'E0078'`). Herda de `ValidationError`.
+- **`InvalidIdDpsError`** — separado de `InvalidDpsIdParamError` (que cobre params do `buildDpsId`). Usado quando o `idDps` completo está fora do pattern `DPS\d{42}`.
+- **`InfoEventoRejeicao` e `InfoEventoAnulacaoRejeicao`** — types exportados para narrow dos eventos de rejeição (202205/203206/204207/205208).
+- **`HttpClient.head(path)`** — método para requests HEAD, usado por `existsDpsStatus`.
+
+### Changed
+
+- **`defaultIsTransient` agora classifica `E1217` e `E1206` como transientes.** Per Anexo I: `E1217` ("Serviço paralisado para manutenção") e `E1206` ("Certificado de Transmissão — Erro de acesso a LCR") são os únicos dois códigos de rejeição que são genuinamente intermitentes — antes iam para o caller como falha dura, agora vão para o `RetryStore` e são retentados pelo cron.
+- **Pré-check de `cMotivo=99` em `cancelar()` e `substituir()`** (rule E0078). Se `cMotivo=99` com `xMotivo` ausente ou whitespace-only, lança `RuleViolationError` antes de ir para a rede — evita queima de `nDPS` num emit que seria rejeitado pelo SEFIN.
+
+### Fixed
+
+- `parseEventoXml` lançava `InvalidXmlError('evento sem detalhe reconhecido')` em qualquer tipo de evento diferente de 101101/105102, quebrando `fetchByNsu` para NFS-e onde o tomador confirmou ou rejeitou a nota.
+
+### Tests
+
+- Testes para cada novo tipo de evento parseado (confirmação, rejeição, ofício, fallback unknown).
+- Testes para classificação transiente de `E1217`/`E1206`.
+- Testes para pré-check E0078 em `cancelar` e `substituir`.
+- Testes validando XSD contra DPS assinada (regression guard para xml-crypto) e contra pedRegEvento assinado (101101 e 105102).
+- Testes para `fetchDpsStatus` (happy path + validação de formato do idDps).
+
 ### Docs
 
-- **Reescrita completa da documentação.** Cortes profundos em páginas-guia com conteúdo redundante; introdução de um **cheat sheet** por função; nova landing page objetiva. Resumo:
-  - Landing (`docs/index.md`): removido o layout hero do VitePress; substituído por install + exemplo mínimo + tabela de navegação + status. Sem marketing cards.
-  - `docs/guide/principios.md`: 157 → 51 linhas (−68%). Tree de erros removido (vive em `erros.md`), pontos colapsados, removidos exemplos duplicados com `erros.md` e README.
-  - `docs/guide/integracao.md`: 522 → 304 linhas (−42%). Prose de introdução tightened, "fluxo recomendado" reduzido a um snippet focado, seção de produção compactada (retenção+LGPD agrupadas; concorrência movida para §1.2).
-  - `docs/guide/erros.md`: 240 → 121 linhas (−50%). Exemplo reativo longo colapsado, tabelas por-endpoint viraram bullet list, mantida árvore e shapes das classes principais.
-  - `docs/guide/emitir.md`: 246 → 141 linhas (−43%). Removida tabela de defaults avulsa (inline), prose de "cenários avançados", seção duplicada sobre `cliente.emitir()`.
-  - `docs/guide/substituir-cancelar.md`: 288 → 136 linhas (−53%). Removida impl PostgreSQL de 70 linhas do `RetryStore` (vive em `integracao.md`), fluxo ASCII colapsado, "Códigos de justificativa" virou comentário inline.
-  - **Novo `/api-cheatsheet`** (222 linhas): uma linha por método público de `NfseClient` + helpers standalone + interfaces pluggable + enums + erros + result types. Signatures compactas, cada entry linka TypeDoc para detalhe.
-  - Sidebar VitePress: nova seção "Referência" (cheat sheet + TypeDoc); nav bar surface o cheat sheet direto.
-  - **README** cortado de 312 → 137 linhas (−56%). Removida a "tour" completa de cada método (vive nos guias), princípios colapsados para 1 parágrafo, mantidos quickstart mínimo + arquitetura + ambientes + status.
-- Totais: guides 2.599 → 2.182 linhas (−1.400 linhas de prose redundante), ganho de uma página de referência por função.
+- `docs/guide/consultar.md` — nota sobre **NSU ser por município-ator** (Anexo IV): a mesma NFS-e gera múltiplos NSUs, CNPJ matriz não vê eventos roteados para filial.
+- `docs/guide/substituir-cancelar.md` — regras de prazo municipal (E0050/E0822), precheck E0078, seção sobre transient codes E1217/E1206.
+- `docs/guide/parametros.md` — avisos de cache curta para município suspenso (E2003/E2004) e IM potencialmente revogada (E0023/E0025).
+- `docs/guide/emitir.md` — nota sobre IBS/CBS só a partir de `dCompet ≥ 2026-01-01` (E0850); seção "Reconciliação pós-timeout" com `fetchDpsStatus` e `existsDpsStatus`.
+- `docs/guide/erros.md` — hierarquia atualizada com `InvalidIdDpsError` + `RuleViolationError`; seção explícita sobre o classificador transiente/permanente.
+- `README.md` — seção "Escopo explícito" listando o que é suportado, o que é out-of-scope (CNC, decisão judicial, emissão de eventos não-cancelamento, POSTs admin de parâmetros).
 
 ## [0.7.1] — 2026-04-17
 
-Endurecimento pós-auditoria interna (race conditions, validação de input, caps defensivos). Nenhuma quebra de API pública.
+Endurecimento pós-auditoria interna (race conditions, validação de input, caps defensivos) + reescrita completa da documentação. Nenhuma quebra de API pública.
 
 ### Added
 
 - `ClientClosedError` exportado da raiz — lançado quando qualquer método é chamado em um `NfseClient` após `close()`. Cliente é single-shot; instancie um novo para reconectar.
 - `NfseClient` agora é **race-safe** na primeira chamada: `ensureState()` cacheia o promise em voo, evitando que chamadas concorrentes construam dois `Agent` mTLS e vazem o primeiro.
 - `close()` agora é **idempotente** e **mid-flight-safe**: chamar durante um `ensureState()` em voo dispara `ClientClosedError` e libera o dispatcher recém-construído sem vazar.
+- **Reescrita completa da documentação**: nova landing `docs/index.md` sem hero, novo `api-cheatsheet.md` (1 linha por API pública, 222 linhas), sidebar com seção "Referência". Guides compactados: `principios.md` −68%, `erros.md` −50%, `substituir-cancelar.md` −53%, `emitir.md` −43%, `integracao.md` −42%. README cortado de 312 → 137 linhas.
 
 ### Changed
 

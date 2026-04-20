@@ -1,7 +1,9 @@
 import { XsdValidationError, type XsdViolation } from '../errors/validation.js';
 import { RTC_V1_01_SCHEMAS } from './_rtc-schemas.generated.js';
 
-const MAIN_SCHEMA_FILE = 'DPS_v1.01.xsd';
+const DPS_SCHEMA_FILE = 'DPS_v1.01.xsd';
+const PED_REG_EVENTO_SCHEMA_FILE = 'pedRegEvento_v1.01.xsd';
+const EVENTO_SCHEMA_FILE = 'evento_v1.01.xsd';
 
 export interface ValidateDpsXmlOptions {
   /**
@@ -40,8 +42,57 @@ export async function validateDpsXml(
   xml: string,
   options?: ValidateDpsXmlOptions,
 ): Promise<ValidateDpsXmlResult | undefined> {
+  return validateAgainst(xml, DPS_SCHEMA_FILE, 'dps.xml', options);
+}
+
+/**
+ * Valida um XML de pedRegEvento (cancelamento/substituição/etc, 101101/105102/...)
+ * contra o schema RTC v1.01. Mesmo contrato de `validateDpsXml`.
+ */
+export async function validatePedRegEventoXml(xml: string): Promise<undefined>;
+export async function validatePedRegEventoXml(
+  xml: string,
+  options: { throwOnInvalid: false },
+): Promise<ValidateDpsXmlResult>;
+export async function validatePedRegEventoXml(
+  xml: string,
+  options: { throwOnInvalid: true },
+): Promise<undefined>;
+export async function validatePedRegEventoXml(
+  xml: string,
+  options?: ValidateDpsXmlOptions,
+): Promise<ValidateDpsXmlResult | undefined> {
+  return validateAgainst(xml, PED_REG_EVENTO_SCHEMA_FILE, 'pedRegEvento.xml', options);
+}
+
+/**
+ * Valida um XML de `<evento>` (a resposta da Sefin que envelopa o
+ * pedRegEvento + metadados de processamento) contra o schema RTC v1.01.
+ */
+export async function validateEventoXml(xml: string): Promise<undefined>;
+export async function validateEventoXml(
+  xml: string,
+  options: { throwOnInvalid: false },
+): Promise<ValidateDpsXmlResult>;
+export async function validateEventoXml(
+  xml: string,
+  options: { throwOnInvalid: true },
+): Promise<undefined>;
+export async function validateEventoXml(
+  xml: string,
+  options?: ValidateDpsXmlOptions,
+): Promise<ValidateDpsXmlResult | undefined> {
+  return validateAgainst(xml, EVENTO_SCHEMA_FILE, 'evento.xml', options);
+}
+
+async function validateAgainst(
+  xml: string,
+  mainSchemaFile: string,
+  xmlLabel: string,
+  options: ValidateDpsXmlOptions | undefined,
+): Promise<ValidateDpsXmlResult | undefined> {
   const throwOnInvalid = options?.throwOnInvalid ?? true;
-  const result = await runValidation(xml);
+  const result = await runValidation(xml, mainSchemaFile, xmlLabel);
 
   if (result.valid) {
     return throwOnInvalid ? undefined : result;
@@ -52,21 +103,24 @@ export async function validateDpsXml(
   return result;
 }
 
-async function runValidation(xml: string): Promise<ValidateDpsXmlResult> {
+async function runValidation(
+  xml: string,
+  mainSchemaFile: string,
+  xmlLabel: string,
+): Promise<ValidateDpsXmlResult> {
   const { validateXML } = await import('xmllint-wasm');
 
-  const main = RTC_V1_01_SCHEMAS.find((s) => s.fileName === MAIN_SCHEMA_FILE);
+  const main = RTC_V1_01_SCHEMAS.find((s) => s.fileName === mainSchemaFile);
   if (!main) {
-    // Should never happen — the generated file is committed.
-    throw new Error(`schema principal ${MAIN_SCHEMA_FILE} ausente nos bundled XSDs.`);
+    throw new Error(`schema principal ${mainSchemaFile} ausente nos bundled XSDs.`);
   }
-  const preload = RTC_V1_01_SCHEMAS.filter((s) => s.fileName !== MAIN_SCHEMA_FILE).map((s) => ({
+  const preload = RTC_V1_01_SCHEMAS.filter((s) => s.fileName !== mainSchemaFile).map((s) => ({
     fileName: s.fileName,
     contents: s.contents,
   }));
 
   const out = await validateXML({
-    xml: [{ fileName: 'dps.xml', contents: xml }],
+    xml: [{ fileName: xmlLabel, contents: xml }],
     schema: [{ fileName: main.fileName, contents: main.contents }],
     preload,
   });

@@ -16,6 +16,7 @@ import {
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
 } from '../nfse/enums.js';
+import { validatePedRegEventoXml } from '../nfse/validate-xml.js';
 import { buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
 import { cancelar, substituir } from './cancelar.js';
 import { MissingRetryStoreError, createInMemoryRetryStore } from './retry-store.js';
@@ -201,6 +202,17 @@ describe('cancelar', () => {
         xMotivo: 'x',
       }),
     ).rejects.toBeInstanceOf(MissingRetryStoreError);
+  });
+
+  it('rejects cMotivo=99 com xMotivo vazio (rule E0078) sem tocar a rede', async () => {
+    await expect(
+      cancelar(httpClient, cert, {
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.Outros,
+        xMotivo: '   ', // whitespace-only conta como vazio
+      }),
+    ).rejects.toMatchObject({ rule: 'E0078' });
   });
 });
 
@@ -403,6 +415,18 @@ describe('substituir — 4-state machine', () => {
     const body = JSON.parse(capturedDpsPayload as string) as { dpsXmlGZipB64: string };
     expect(body.dpsXmlGZipB64).toMatch(/^[A-Za-z0-9+/]+=*$/);
   });
+
+  it('rejeita cMotivo=99 sem xMotivo (rule E0078) antes de emitir a nova', async () => {
+    await expect(
+      substituir(httpClient, cert, {
+        chaveOriginal: CHAVE_ORIGINAL,
+        novaDps: minimalNovaDps(),
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaSubstituicao.Outros,
+        // xMotivo ausente → deve lançar RuleViolationError antes do emit
+      }),
+    ).rejects.toMatchObject({ rule: 'E0078' });
+  });
 });
 
 describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
@@ -426,9 +450,35 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       chaveSubstituta: CHAVE_NOVA,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Correção',
     });
     const signed = signPedRegEventoXml(xml, cert);
     expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}105102001">`);
+  });
+
+  it('signed cancelamento (101101) validates against pedRegEvento XSD', async () => {
+    const cert = selfSignedCert();
+    const xml = buildCancelamentoXml({
+      chaveAcesso: CHAVE_ORIGINAL,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'Valor incorreto',
+    });
+    const signed = signPedRegEventoXml(xml, cert);
+    await expect(validatePedRegEventoXml(signed)).resolves.toBeUndefined();
+  });
+
+  it('signed substituição (105102) validates against pedRegEvento XSD', async () => {
+    const cert = selfSignedCert();
+    const xml = buildSubstituicaoXml({
+      chaveOriginal: CHAVE_ORIGINAL,
+      chaveSubstituta: CHAVE_NOVA,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Correção de valor',
+    });
+    const signed = signPedRegEventoXml(xml, cert);
+    await expect(validatePedRegEventoXml(signed)).resolves.toBeUndefined();
   });
 });
 

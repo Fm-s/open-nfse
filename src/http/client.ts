@@ -59,6 +59,48 @@ export class HttpClient {
   }
 
   /**
+   * HEAD — verifica existência sem baixar o body. Retorna o status code em
+   * caso de 2xx, lança o erro mapeado em 4xx/5xx (a menos que o status esteja
+   * em `acceptedStatuses`).
+   */
+  async head(path: string, options?: RequestOptions): Promise<number> {
+    const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+    this.logger.debug('http.request', { method: 'HEAD', url });
+    const startedAt = Date.now();
+
+    let response: Awaited<ReturnType<typeof request>>;
+    try {
+      response = await request(url, {
+        method: 'HEAD',
+        dispatcher: this.dispatcher,
+        bodyTimeout: this.timeoutMs,
+        headersTimeout: this.timeoutMs,
+      });
+    } catch (cause) {
+      throw this.mapTransportError(cause);
+    }
+    // Drena o body (HEAD não deveria ter, mas undici às vezes devolve — evita
+    // socket leak).
+    try {
+      await response.body.dump();
+    } catch {
+      /* ignore */
+    }
+    this.logger.debug('http.response', {
+      method: 'HEAD',
+      url,
+      status: response.statusCode,
+      latencyMs: Date.now() - startedAt,
+    });
+
+    const accepted = options?.acceptedStatuses ?? [];
+    if (response.statusCode >= 400 && !accepted.includes(response.statusCode)) {
+      throw mapStatusError(response.statusCode, undefined, response.headers);
+    }
+    return response.statusCode;
+  }
+
+  /**
    * GET binário — devolve o corpo cru como `Buffer` em vez de parsear JSON.
    * Usado pelo endpoint DANFSe (`application/pdf`). Segue as mesmas regras
    * de timeout, mTLS e `acceptedStatuses`.

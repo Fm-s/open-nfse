@@ -180,3 +180,13 @@ await cliente.emitir({
   valores: { vServ: 1500, aliqIss: aliq ?? 0 },
 });
 ```
+
+## Avisos de cache
+
+Alguns estados são **voláteis** e merecem TTL curto (ou bypass do cache) quando o município não está em operação normal:
+
+- **Município pode ficar suspenso ou inativo.** Rules `E2003` (suspenso) e `E2004` (inativo há mais de X dias) devolvem o status do município junto dos parâmetros. Se sua aplicação vai emitir nesse município, use `useCache: false` ou um TTL < 1 h para decisões sensíveis.
+- **Inscrição Municipal pode ser revogada mid-month.** Rules `E0023`/`E0025`/`E0119`/`E0124` invalidam IMs a qualquer momento. Não cacheie o status de IM por longos períodos — consulte próximo à emissão, não no startup do processo.
+- **Convênio do município com a Sefin Nacional muda raramente** mas também não é imutável — o default de 24 h para `consultarConvenio` está calibrado pra isso.
+
+Se você precisar invalidar cache manualmente (e.g., após uma rejeição `E2003`), passe `useCache: false` na próxima chamada ou destrua o cache externamente (`ParametrosCache.set` em impls próprias).

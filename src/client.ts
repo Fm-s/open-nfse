@@ -40,6 +40,11 @@ import {
   replayEmission,
 } from './nfse/emit.js';
 import { fetchByChave as fetchByChaveInternal } from './nfse/fetch-by-chave.js';
+import {
+  type DpsStatusResult,
+  existsDpsStatus as existsDpsStatusInternal,
+  fetchDpsStatus as fetchDpsStatusInternal,
+} from './nfse/fetch-dps-status.js';
 import type { NfseQueryResult } from './nfse/types.js';
 import {
   type ParametrosCache,
@@ -174,6 +179,31 @@ export class NfseClient {
   async fetchByChave(chaveAcesso: string): Promise<NfseQueryResult> {
     const state = await this.ensureState();
     return fetchByChaveInternal(state.sefin, chaveAcesso);
+  }
+
+  /**
+   * `GET /dps/{id}` — consulta a chave de acesso da NFS-e a partir de um
+   * `infDPS.Id`. Uso primário: **reconciliação pós-timeout**. Quando um
+   * `emitir()` não retornou (processo morreu, timeout, crash), mas você tem o
+   * `idDps` persistido, essa chamada revela se a Receita chegou a gerar a
+   * NFS-e — evita reemissão duplicada.
+   *
+   * Lança `NotFoundError` se nenhuma NFS-e foi gerada a partir desse idDps
+   * (resposta 404 do SEFIN).
+   */
+  async fetchDpsStatus(idDps: string): Promise<DpsStatusResult> {
+    const state = await this.ensureState();
+    return fetchDpsStatusInternal(state.sefin, idDps);
+  }
+
+  /**
+   * `HEAD /dps/{id}` — variante barata de `fetchDpsStatus` que só retorna
+   * `true`/`false` sem baixar o corpo. Para reconciliação em lote, prefere
+   * esse método e busque os detalhes via `fetchDpsStatus` só nos que existem.
+   */
+  async existsDpsStatus(idDps: string): Promise<boolean> {
+    const state = await this.ensureState();
+    return existsDpsStatusInternal(state.sefin, idDps);
   }
 
   async fetchByNsu(params: FetchByNsuParams): Promise<NsuQueryResult> {

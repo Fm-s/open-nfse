@@ -7,6 +7,7 @@ import { InvalidXmlError } from '../errors/validation.js';
 import { buildDpsXml } from './build-xml.js';
 import type { DPS, InfDPS } from './domain.js';
 import { DpsAlreadySignedError, signDpsXml } from './sign-xml.js';
+import { validateDpsXml } from './validate-xml.js';
 
 function makeSelfSignedCert(): A1Certificate {
   const keys = forge.pki.rsa.generateKeyPair(2048);
@@ -133,5 +134,10 @@ describe('signDpsXml', () => {
   it('throws DpsAlreadySignedError when the XML already contains a Signature', () => {
     const alreadySigned = signDpsXml(unsignedXml, certificate);
     expect(() => signDpsXml(alreadySigned, certificate)).toThrow(DpsAlreadySignedError);
+  });
+
+  it('signed DPS validates against the RTC v1.01 XSD', async () => {
+    const signed = signDpsXml(unsignedXml, certificate);
+    await expect(validateDpsXml(signed)).resolves.toBeUndefined();
   });
 });

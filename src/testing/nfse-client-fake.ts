@@ -11,7 +11,12 @@ import type {
 } from '../eventos/cancelar.js';
 import type { EventoResult } from '../eventos/post-evento.js';
 import type { PendingEmission } from '../eventos/retry-store.js';
-import { InvalidChaveAcessoError, NotFoundError } from '../index.js';
+import {
+  type DpsStatusResult,
+  InvalidChaveAcessoError,
+  InvalidIdDpsError,
+  NotFoundError,
+} from '../index.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { DPS } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
@@ -39,6 +44,7 @@ import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';
 
 const REGEX_CHAVE = /^\d{50}$/;
+const REGEX_ID_DPS = /^DPS\d{42}$/;
 
 /**
  * Dublê em memória do `NfseClient` para testes de consumidores. Expõe a mesma
@@ -104,6 +110,34 @@ export class NfseClientFake {
       versaoAplicativo: nfse.versaoAplicativo,
       dataHoraProcessamento: nfse.dataHoraProcessamento,
     };
+  }
+
+  async fetchDpsStatus(idDps: string): Promise<DpsStatusResult> {
+    if (!REGEX_ID_DPS.test(idDps)) {
+      throw new InvalidIdDpsError(idDps);
+    }
+    for (const nfse of this.state.emitted.values()) {
+      if (nfse.idDps === idDps) {
+        return {
+          chaveAcesso: nfse.chaveAcesso,
+          idDps,
+          tipoAmbiente: nfse.tipoAmbiente,
+          versaoAplicativo: nfse.versaoAplicativo,
+          dataHoraProcessamento: nfse.dataHoraProcessamento,
+        };
+      }
+    }
+    throw new NotFoundError(`idDps ${idDps} não encontrado no fake`);
+  }
+
+  async existsDpsStatus(idDps: string): Promise<boolean> {
+    try {
+      await this.fetchDpsStatus(idDps);
+      return true;
+    } catch (err) {
+      if (err instanceof NotFoundError) return false;
+      throw err;
+    }
   }
 
   async fetchByNsu(params: {

@@ -274,10 +274,47 @@ Com defaults, essas falhas **nem chegam** à Receita:
 | `InvalidCepError`              | Formato inválido ou ViaCEP retornou 404                     |
 | `XsdValidationError`           | DPS não bate com RTC v1.01 (campo faltando, pattern errado) |
 | `InvalidDpsIdParamError`       | cMun/CNPJ/série/nDPS fora do formato do `TSIdDPS`            |
+| `RuleViolationError`           | Regra de negócio local (e.g. E0078 para `cMotivo=99` em eventos) |
 | `MissingDpsCounterError`       | `emitir(params)` sem `params.nDPS` e sem `dpsCounter` configurado |
 | `MissingRetryStoreError`       | Transiente ocorreu mas não há `retryStore` para persistir   |
 
 Todos herdam de `OpenNfseError` — [hierarquia completa](./erros).
+
+::: tip IBS / CBS e data de competência
+Rule E0850 do Anexo I: campos IBS/CBS só são aceitos a partir de `dCompet ≥ 2026-01-01`. Se você está emitindo retroativamente para competência anterior, omita o grupo `IBSCBS` — a Receita rejeita `E0850` caso contrário. E0942 é o espelho: `OutrosDocumentos` (dedução/redução) só até 2025-12-31.
+:::
+
+## Reconciliação pós-timeout — `fetchDpsStatus`
+
+Se um `emitir()` não retornou (processo morreu, timeout sem `retry_pending` capturado), você pode consultar o status pelo `idDps` usando `GET /dps/{id}`:
+
+```typescript
+try {
+  const status = await cliente.fetchDpsStatus('DPS211130010057475300010000001000000000000001');
+  // NFS-e existe — reconcilia com seu DB usando status.chaveAcesso
+  console.log('recuperada:', status.chaveAcesso);
+} catch (err) {
+  if (err instanceof NotFoundError) {
+    // nenhuma NFS-e gerada com esse idDps — pode reemitir com novo idDps
+  } else {
+    throw err;
+  }
+}
+```
+
+Para reconciliação em lote, use `existsDpsStatus(idDps)` (HEAD, sem body) e busque detalhes só nos que existem:
+
+```typescript
+const pendentes = await db.query(`SELECT id_dps FROM dps_submissions WHERE status='in_flight'`);
+for (const { id_dps } of pendentes) {
+  if (await cliente.existsDpsStatus(id_dps)) {
+    const s = await cliente.fetchDpsStatus(id_dps);
+    await persistirAutorizada(s);
+  } else {
+    await db.query(`UPDATE dps_submissions SET status='pending' WHERE id_dps = $1`, [id_dps]);
+  }
+}
+```
 
 ---
 

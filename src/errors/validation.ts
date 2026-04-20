@@ -57,6 +57,18 @@ export class InvalidChaveAcessoError extends ValidationError {
   }
 }
 
+export class InvalidIdDpsError extends ValidationError {
+  constructor(
+    public readonly value: string,
+    options?: { cause?: unknown },
+  ) {
+    super(
+      `Id do DPS inválido: "${value}". Deve bater com o pattern "DPS" + 42 dígitos (TSIdDPS do RTC v1.01).`,
+      options,
+    );
+  }
+}
+
 export class InvalidXmlError extends ValidationError {
   constructor(detalhe: string, options?: { cause?: unknown }) {
     super(`XML inválido: ${detalhe}`, options);
@@ -67,6 +79,20 @@ export class InvalidXmlError extends ValidationError {
 export interface XsdViolation {
   readonly message: string;
   readonly line?: number;
+}
+
+/**
+ * Violação de regra de negócio local. Usado para regras que o lib verifica
+ * antes de ir para a rede — tipicamente regras enumeradas no Manual do
+ * Contribuinte / Anexo I (e.g. E0078: cMotivo=99 exige xMotivo) que evitamos
+ * disparar um round-trip inútil + queima de `nDPS`.
+ */
+export class RuleViolationError extends ValidationError {
+  readonly rule: string | undefined;
+  constructor(message: string, rule?: string) {
+    super(message);
+    this.rule = rule;
+  }
 }
 
 /**

@@ -386,6 +386,39 @@ describe('NfseClient', () => {
     expect(pdf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
   });
 
+  it('fetchDpsStatus retorna chaveAcesso quando a NFS-e existe', async () => {
+    const idDps = 'DPS211130010057475300010000001000000000000001';
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/SefinNacional/dps/${idDps}`, method: 'GET' })
+      .reply(200, {
+        tipoAmbiente: 2,
+        versaoAplicativo: '1.0.0',
+        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+        idDps,
+        chaveAcesso: CHAVE,
+      });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+
+    const r = await client.fetchDpsStatus(idDps);
+    expect(r.chaveAcesso).toBe(CHAVE);
+    expect(r.idDps).toBe(idDps);
+  });
+
+  it('fetchDpsStatus rejeita idDps malformado sem tocar a rede', async () => {
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    await expect(client.fetchDpsStatus('not-an-id')).rejects.toThrow(/Id do DPS inválido/);
+  });
+
   it("gerarDanfse('auto') NÃO mascara ForbiddenError — propaga", async () => {
     mockAgent
       .get('https://adn.producaorestrita.nfse.gov.br')

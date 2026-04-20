@@ -49,7 +49,9 @@ export {
   InvalidChaveAcessoError,
   InvalidCnpjError,
   InvalidCpfError,
+  InvalidIdDpsError,
   InvalidXmlError,
+  RuleViolationError,
   ValidationError,
   XsdValidationError,
 } from './errors/validation.js';
@@ -226,6 +228,8 @@ export type {
   DetalheEvento,
   EventoProcessado,
   InfEvento,
+  InfoEventoAnulacaoRejeicao,
+  InfoEventoRejeicao,
   InfPedRegEvento,
   PedRegEvento,
 } from './eventos/parse-event.js';
@@ -296,7 +300,14 @@ export type {
   TipoSituacaoEmissaoPadraoContribuintesRFB,
 } from './parametros-municipais/types.js';
 
-export { validateDpsXml } from './nfse/validate-xml.js';
+export {
+  validateDpsXml,
+  validateEventoXml,
+  validatePedRegEventoXml,
+} from './nfse/validate-xml.js';
+
+export { existsDpsStatus, fetchDpsStatus } from './nfse/fetch-dps-status.js';
+export type { DpsStatusResult } from './nfse/fetch-dps-status.js';
 
 export { validateCnpj, validateCpf } from './fiscal/validate-cpf-cnpj.js';
 export { createViaCepValidator } from './cep/viacep.js';

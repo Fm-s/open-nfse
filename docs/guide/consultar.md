@@ -80,6 +80,14 @@ try {
 
 **NSU** (Número Sequencial Único) é um cursor por CPF/CNPJ. A cada NFS-e emitida **onde seu CNPJ é prestador, tomador ou intermediário**, a Receita incrementa o NSU e guarda o documento em `/DFe/{NSU}`.
 
+::: warning NSU é por município-ator, não por CNPJ
+Conforme Anexo IV do Manual v1.2, a **mesma NFS-e gera múltiplos NSUs** — um para cada município distinto envolvido (emissor, tomador, intermediário, prestação, incidência). O cursor que você busca é por **seu CNPJ**, mas a Receita roteia eventos para o município de cada ator. Consequências práticas:
+
+- Um CNPJ matriz **não vê** documentos roteados exclusivamente ao município de uma filial.
+- Se você tem múltiplos estabelecimentos em municípios diferentes, paginar por um único cursor pode perder eventos — considere um `nsu_cursors` por (CNPJ, município) se o cenário exigir.
+- NFS-e recebidas aparecem tanto no cursor do prestador quanto no do tomador (com NSUs diferentes).
+:::
+
 ### Loop básico
 
 ```typescript

@@ -1,6 +1,6 @@
 {
   "name": "open-nfse",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Biblioteca TypeScript/Node.js para o Padrão Nacional de NFS-e (nfse.gov.br): consulta, distribuição, emissão síncrona, cancelamento e substituição — direto na API oficial da Receita Federal.",
   "keywords": [
     "nfse",

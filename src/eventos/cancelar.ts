@@ -1,10 +1,11 @@
 import type { A1Certificate } from '../certificate/types.js';
+import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 import type { DPS } from '../nfse/domain.js';
 import { type NfseEmitResult, emitDpsPronta } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
-  type JustificativaSubstituicao,
+  JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
 import { type AutorEvento, buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
@@ -55,6 +56,13 @@ export async function cancelar(
   certificate: A1Certificate,
   params: CancelarParams,
 ): Promise<CancelarResult> {
+  // Rule E0078 — cMotivo=99 exige xMotivo populado. xMotivo já é required em
+  // CancelarParams, mas validamos o conteúdo (não-vazio) pra pegar strings
+  // vazias antes do wire roundtrip.
+  if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
+    throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
+  }
+
   const isTransient = params.isTransient ?? defaultIsTransient;
   const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
 
@@ -142,6 +150,12 @@ export async function substituir(
   certificate: A1Certificate,
   params: SubstituirParams,
 ): Promise<SubstituirResult> {
+  // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para
+  // evitar round-trip + queima de nDPS num emit que seria rejeitado.
+  if (params.cMotivo === JustificativaSubstituicao.Outros && !params.xMotivo?.trim()) {
+    throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
+  }
+
   const isTransient = params.isTransient ?? defaultIsTransient;
 
   // Auto-preenche subst na nova DPS se não estiver presente.

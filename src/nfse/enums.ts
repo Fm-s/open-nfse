@@ -28,6 +28,17 @@ export enum TipoEventoNfse {
   CancelamentoPorSubstituicao = '105102',
   CancelamentoDeferidoAnaliseFiscal = '105104',
   CancelamentoIndeferidoAnaliseFiscal = '105105',
+  ConfirmacaoPrestador = '202201',
+  ConfirmacaoTomador = '203202',
+  ConfirmacaoIntermediario = '204203',
+  ConfirmacaoTacita = '205204',
+  RejeicaoPrestador = '202205',
+  RejeicaoTomador = '203206',
+  RejeicaoIntermediario = '204207',
+  AnulacaoRejeicao = '205208',
+  CancelamentoPorOficio = '305101',
+  BloqueioPorOficio = '305102',
+  DesbloqueioPorOficio = '305103',
 }
 
 /** Ambiente gerador do evento. Per XSD `TSAmbGeradorEvt`. */

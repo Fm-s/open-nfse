@@ -148,6 +148,16 @@ DTO in, DTO out. Erros tipados em 3 níveis. Sem estado interno, com primitives 
 
 Todo município é obrigado a aderir ao Padrão Nacional, mas a migração é gradual ao longo de 2026. A lib funciona com qualquer município aderente — a API é a mesma. Municípios ainda não aderentes continuam no sistema municipal até a migração.
 
+## Escopo explícito
+
+**Suportado:** consulta (chave + NSU), emissão segura (`emitir(params)`), eventos 101101 e 105102 (cancelamento + substituição) como emissão; parse de todos os 16 tipos de eventos via NSU distribuição (inclusive confirmação/rejeição P/T/I, cancelamento por ofício); validações locais; parâmetros municipais; DANFSe PDF; `fetchDpsStatus` para reconciliação.
+
+**Fora de escopo** (não implementado):
+- **`POST /decisao-judicial/nfse`** — endpoint separado para emissão por decisão judicial (`cStat=102`). Caso de uso restrito; aberto a contribuição.
+- **CNC** (Cadastro Nacional de Contribuintes) — schemas `CNC_v1.00.xsd` / `tiposCnc_v1.00.xsd` não são referenciados pelo fluxo NFS-e; fora do escopo desta lib.
+- **Emissão dos 14 tipos de evento "não-cancelamento"** (202201 etc.) — parseamos quando chegam via NSU, mas não há builders públicos. Caso de uso raro para o emitente; abra uma issue se precisar.
+- **ADN Parâmetros Municipais — endpoints POST** (`beneficiomunicipal/{idManut}`, `regimes_especiais/{idManut}`, `retencoes/{idManut}`) — são admin-only da municipalidade.
+
 ## Contribuindo
 
 Bugs e sugestões: [issues](https://github.com/fm-s/open-nfse/issues). PRs bem-vindos — rode `npm run lint && npm run typecheck && npm test` antes de abrir. Histórico de versões no [CHANGELOG.md](./CHANGELOG.md).

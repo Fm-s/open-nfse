@@ -243,7 +243,17 @@ Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de c
 
 ## Regras de negócio que importam
 
-1. **Prazo municipal** — cada município define sua janela de cancelamento (24h, 30d, 180d). Após o prazo, `E8001`.
+1. **Prazo é parametrizado pelo município** (rule E0050 para substituição, E0822 para cancelamento). Cada município define sua janela (24 h, 30 d, 180 d…) e a Receita retorna `E8001` ao expirar. Para checagem prévia, consulte via `consultarAliquota` / `consultarBeneficio` (guia [Parâmetros municipais](./parametros)).
 2. **Estado da NFS-e** — já cancelada, já substituída, ou com eventos bloqueantes → rejeição upfront.
 3. **Chain check em `substituir`** — se a original já foi cancelada, o emit da nova falha upfront no `subst.chSubstda`. Sem dangling state.
 4. **Dedup server-side** — SEFIN rejeita `{chave, tipoEvento, nPedRegEvento}` duplicado com código específico; retry nunca cria evento fantasma.
+5. **`cMotivo=99` exige `xMotivo`** (rule E0078 do Anexo I). A lib faz o pré-check local e lança `RuleViolationError` antes do wire — evita consumir `nDPS` num emit que seria rejeitado.
+
+### Classificação de erros transientes
+
+Por default (`defaultIsTransient`), `ReceitaRejectionError` é **permanente** — 426 dos 428 códigos do Anexo I são de fato permanentes. As duas exceções são tratadas como transientes automaticamente:
+
+- **E1217** — "Serviço paralisado para manutenção" (janela de maintenance do SEFIN).
+- **E1206** — "Certificado de Transmissão — Erro de acesso a LCR" (CRL reachable).
+
+Ambos vão para o `RetryStore` e são retentados pelo cron de `replayPendingEvents`. Para sobrescrever a classificação, passe `isTransient: (err) => boolean` nas opções de cada método.

@@ -21,6 +21,7 @@ Error
       │    └─ InvalidCertificatePasswordError
       ├─ ValidationError            (grupo)
       │    ├─ InvalidChaveAcessoError
+      │    ├─ InvalidIdDpsError
       │    ├─ InvalidXmlError
       │    ├─ XsdValidationError          (com violations[])
       │    ├─ InvalidCepError             (com reason + cep)
@@ -30,7 +31,8 @@ Error
       │    ├─ InvalidEventoPedidoIdParamError
       │    ├─ DpsAlreadySignedError
       │    ├─ MissingRetryStoreError
-      │    └─ MissingDpsCounterError
+      │    ├─ MissingDpsCounterError
+      │    └─ RuleViolationError          (com rule código E...)
       ├─ ReceitaRejectionError      (concreto — com mensagens[], idDps, codigo, descricao)
       └─ ClientClosedError          (concreto — pós cliente.close())
 ```
@@ -102,6 +104,16 @@ class InvalidCepError extends ValidationError {
 - **`MissingRetryStoreError`** — transiente em `emitir`/`cancelar`/`substituir` sem `retryStore`.
 - **`ClientClosedError`** — qualquer método após `cliente.close()`. Single-shot por design; para reconectar, instancie um novo cliente.
 - **`gerarDanfse('auto')` só cai para local em `NetworkError`/`TimeoutError`/`ServerError`** — permission/404/invalid-chave propagam.
+
+### Classificação padrão transiente vs permanente
+
+`defaultIsTransient` (de `src/eventos/classify-error.ts`) decide o que vai para `retry_pending` vs lançar. Resumo:
+
+- **Sempre transiente**: `NetworkError`, `TimeoutError`, `ServerError` (5xx).
+- **Transiente por código** (em `ReceitaRejectionError`): `E1217` (manutenção SEFIN), `E1206` (erro de acesso a LCR) — dois códigos da camada de recepção que são intermitentes.
+- **Permanente**: qualquer outro `ReceitaRejectionError` (426 dos 428 códigos do Anexo I) e tudo o mais.
+
+Sobrescreva passando `isTransient: (err) => boolean` em `EmitirParams`, `CancelarParams`, ou `SubstituirParams`.
 
 Signatures e parâmetros exatos: veja o [API cheat sheet](../api-cheatsheet) ou [API completa (TypeDoc)](../api/).
 
