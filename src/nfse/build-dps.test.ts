@@ -40,7 +40,7 @@ describe('buildDps', () => {
 
     expect(dps.infDPS.tpAmb).toBe(TipoAmbienteDps.Homologacao);
     expect(dps.infDPS.tpEmit).toBe('1');
-    expect(dps.infDPS.verAplic).toBe('open-nfse/0.2');
+    expect(dps.infDPS.verAplic).toMatch(/^open-nfse\/\d+\.\d+\.\d+$/);
     expect(dps.infDPS.dhEmi.getTime()).toBeGreaterThanOrEqual(before);
     expect(dps.infDPS.dhEmi.getTime()).toBeLessThanOrEqual(after);
     expect(dps.infDPS.dCompet).toBeInstanceOf(Date);

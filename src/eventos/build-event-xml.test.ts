@@ -33,7 +33,7 @@ describe('buildCancelamentoXml', () => {
     };
     const inf = tree.pedRegEvento.infPedReg;
     expect(inf.tpAmb).toBe('2');
-    expect(inf.verAplic).toBe('open-nfse/0.2');
+    expect(inf.verAplic).toMatch(/^open-nfse\/\d+\.\d+\.\d+$/);
     expect(typeof inf.dhEvento).toBe('string');
     expect(inf.CNPJAutor).toBe('00574753000100');
     expect(inf.chNFSe).toBe(CHAVE);

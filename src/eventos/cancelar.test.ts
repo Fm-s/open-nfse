@@ -121,7 +121,7 @@ describe('cancelar', () => {
       chaveAcesso: CHAVE_ORIGINAL,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.ErroEmissao,
-      xMotivo: 'erro no valor',
+      xMotivo: 'erro no valor informado',
     });
 
     expect(r.status).toBe('ok');
@@ -153,7 +153,7 @@ describe('cancelar', () => {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.ErroEmissao,
-        xMotivo: 'x',
+        xMotivo: 'motivo suficientemente longo',
       }),
     ).rejects.toMatchObject({ name: 'ReceitaRejectionError', codigo: 'E8001' });
   });
@@ -169,7 +169,7 @@ describe('cancelar', () => {
       chaveAcesso: CHAVE_ORIGINAL,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.ErroEmissao,
-      xMotivo: 'erro',
+      xMotivo: 'erro transitorio 5xx',
       retryStore,
     });
 
@@ -199,7 +199,7 @@ describe('cancelar', () => {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.Outros,
-        xMotivo: 'x',
+        xMotivo: 'servico indisponivel transiente',
       }),
     ).rejects.toBeInstanceOf(MissingRetryStoreError);
   });
@@ -213,6 +213,17 @@ describe('cancelar', () => {
         xMotivo: '   ', // whitespace-only conta como vazio
       }),
     ).rejects.toMatchObject({ rule: 'E0078' });
+  });
+
+  it('rejects xMotivo com menos de 15 caracteres (TSMotivo) sem tocar a rede', async () => {
+    await expect(
+      cancelar(httpClient, cert, {
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo: 'curto', // 5 chars, abaixo de 15
+      }),
+    ).rejects.toMatchObject({ rule: 'TSMotivo' });
   });
 });
 
@@ -436,7 +447,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       chaveAcesso: CHAVE_ORIGINAL,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.Outros,
-      xMotivo: 'teste',
+      xMotivo: 'teste de assinatura',
     });
     const signed = signPedRegEventoXml(xml, cert);
     expect(signed).toContain('<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">');
@@ -450,7 +461,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       chaveSubstituta: CHAVE_NOVA,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaSubstituicao.Outros,
-      xMotivo: 'Correção',
+      xMotivo: 'Correção de cadastro',
     });
     const signed = signPedRegEventoXml(xml, cert);
     expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}105102001">`);

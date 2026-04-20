@@ -1,3 +1,5 @@
+import { RuleViolationError } from '../errors/validation.js';
+import { DEFAULT_VER_APLIC } from '../version.js';
 import type {
   DPS,
   Endereco,
@@ -106,14 +108,12 @@ export interface BuildDpsParams {
   readonly dhEmi?: Date;
   /** Default `new Date()` truncada em UTC. */
   readonly dCompet?: Date;
-  /** Versão do aplicativo emissor. Default `'open-nfse/0.2'`. */
+  /** Versão do aplicativo emissor. Default `open-nfse/<VERSÃO_ATUAL>`. */
   readonly verAplic?: string;
   readonly servico: ServicoInput;
   readonly valores: ValoresInput;
   readonly tomador?: TomadorInput;
 }
-
-const DEFAULT_VER_APLIC = 'open-nfse/0.2';
 const DEFAULT_TP_AMB: TipoAmbienteDps = '2' as TipoAmbienteDps;
 const TP_EMIT_PRESTADOR = '1' as InfDPS['tpEmit'];
 const DEFAULT_TRIB_ISSQN: TipoTribISSQN = '1' as TipoTribISSQN;
@@ -145,11 +145,14 @@ export function buildDps(params: BuildDpsParams): DPS {
   const serv = buildServ(params.servico, params.emitente.codMunicipio);
   const valores = buildInfoValores(params.valores);
 
+  const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
+  assertVerAplicLength(verAplic);
+
   const infDPS: InfDPS = {
     Id,
     tpAmb,
     dhEmi,
-    verAplic: params.verAplic ?? DEFAULT_VER_APLIC,
+    verAplic,
     serie: params.serie,
     nDPS: params.nDPS,
     dCompet,
@@ -234,4 +237,14 @@ function buildInfoValores(v: ValoresInput) {
     vServPrest,
     trib: { tribMun, totTrib },
   };
+}
+
+/** `TSVerAplic` limita verAplic a maxLength=20. Fail-fast local. */
+function assertVerAplicLength(verAplic: string): void {
+  if (verAplic.length < 1 || verAplic.length > 20) {
+    throw new RuleViolationError(
+      `verAplic deve ter entre 1 e 20 caracteres (atual: ${verAplic.length}) — per TSVerAplic do RTC v1.01`,
+      'TSVerAplic',
+    );
+  }
 }

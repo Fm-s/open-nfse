@@ -56,12 +56,13 @@ export async function cancelar(
   certificate: A1Certificate,
   params: CancelarParams,
 ): Promise<CancelarResult> {
-  // Rule E0078 — cMotivo=99 exige xMotivo populado. xMotivo já é required em
-  // CancelarParams, mas validamos o conteúdo (não-vazio) pra pegar strings
-  // vazias antes do wire roundtrip.
+  // Rule E0078 — cMotivo=99 exige xMotivo populado.
   if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
     throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
   }
+  // TSMotivo (tiposSimples_v1.01.xsd:355) — minLength 15, maxLength 255.
+  // xMotivo é required em CancelarParams, então sempre checa.
+  validarTSMotivo(params.xMotivo);
 
   const isTransient = params.isTransient ?? defaultIsTransient;
   const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
@@ -154,6 +155,10 @@ export async function substituir(
   // evitar round-trip + queima de nDPS num emit que seria rejeitado.
   if (params.cMotivo === JustificativaSubstituicao.Outros && !params.xMotivo?.trim()) {
     throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
+  }
+  // TSMotivo — 15 a 255 chars quando presente (xMotivo é opcional em subst).
+  if (params.xMotivo !== undefined) {
+    validarTSMotivo(params.xMotivo);
   }
 
   const isTransient = params.isTransient ?? defaultIsTransient;
@@ -338,4 +343,19 @@ function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
 async function savePending(store: RetryStore | undefined, pending: PendingEvent): Promise<void> {
   if (!store) throw new MissingRetryStoreError();
   await store.save(pending);
+}
+
+/**
+ * Valida que a string bate com `TSMotivo` (tiposSimples_v1.01.xsd:355):
+ * minLength 15, maxLength 255. Lança `RuleViolationError` com rule `TSMotivo`
+ * — evita round-trip + rejeição server-side de payload curto.
+ */
+function validarTSMotivo(xMotivo: string): void {
+  const len = xMotivo.length;
+  if (len < 15 || len > 255) {
+    throw new RuleViolationError(
+      `xMotivo deve ter entre 15 e 255 caracteres (atual: ${len}) — per TSMotivo do RTC v1.01`,
+      'TSMotivo',
+    );
+  }
 }

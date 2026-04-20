@@ -1,4 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
+import { RuleViolationError } from '../errors/validation.js';
 import type {
   AmbienteGeradorEvento,
   JustificativaCancelamento,
@@ -6,6 +7,7 @@ import type {
   TipoAmbienteDps,
   TipoEventoNfse,
 } from '../nfse/enums.js';
+import { DEFAULT_VER_APLIC } from '../version.js';
 import { ATTR_PREFIX } from '../xml/parser.js';
 import { buildEventoPedidoId } from './event-id.js';
 
@@ -46,7 +48,6 @@ export interface BuildSubstituicaoXmlParams {
 
 const DEFAULT_TP_AMB = '2' as TipoAmbienteDps;
 const DEFAULT_AMB_GER = '2' as AmbienteGeradorEvento; // SefinNacional
-const DEFAULT_VER_APLIC = 'open-nfse/0.2';
 const VERSAO_EVENTO = '1.01';
 const TIPO_CANCELAMENTO = '101101' as TipoEventoNfse;
 const TIPO_CANCELAMENTO_SUBSTITUICAO = '105102' as TipoEventoNfse;
@@ -130,6 +131,13 @@ function renderPedRegEvento(
   const autor =
     'CNPJ' in params.autor ? { CNPJAutor: params.autor.CNPJ } : { CPFAutor: params.autor.CPF };
 
+  const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
+  if (verAplic.length < 1 || verAplic.length > 20) {
+    throw new RuleViolationError(
+      `verAplic deve ter entre 1 e 20 caracteres (atual: ${verAplic.length}) — per TSVerAplic do RTC v1.01`,
+      'TSVerAplic',
+    );
+  }
   const root = {
     pedRegEvento: {
       [`${ATTR_PREFIX}xmlns`]: NFSE_NS,
@@ -137,7 +145,7 @@ function renderPedRegEvento(
       infPedReg: {
         [`${ATTR_PREFIX}Id`]: Id,
         tpAmb: params.tpAmb ?? DEFAULT_TP_AMB,
-        verAplic: params.verAplic ?? DEFAULT_VER_APLIC,
+        verAplic,
         dhEvento: formatDateTime(params.dhEvento ?? new Date()),
         ...autor,
         chNFSe: params.chaveAcesso,

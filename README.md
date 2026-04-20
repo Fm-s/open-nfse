@@ -152,11 +152,15 @@ Todo município é obrigado a aderir ao Padrão Nacional, mas a migração é gr
 
 **Suportado:** consulta (chave + NSU), emissão segura (`emitir(params)`), eventos 101101 e 105102 (cancelamento + substituição) como emissão; parse de todos os 16 tipos de eventos via NSU distribuição (inclusive confirmação/rejeição P/T/I, cancelamento por ofício); validações locais; parâmetros municipais; DANFSe PDF; `fetchDpsStatus` para reconciliação.
 
-**Fora de escopo** (não implementado):
-- **`POST /decisao-judicial/nfse`** — endpoint separado para emissão por decisão judicial (`cStat=102`). Caso de uso restrito; aberto a contribuição.
-- **CNC** (Cadastro Nacional de Contribuintes) — schemas `CNC_v1.00.xsd` / `tiposCnc_v1.00.xsd` não são referenciados pelo fluxo NFS-e; fora do escopo desta lib.
-- **Emissão dos 14 tipos de evento "não-cancelamento"** (202201 etc.) — parseamos quando chegam via NSU, mas não há builders públicos. Caso de uso raro para o emitente; abra uma issue se precisar.
-- **ADN Parâmetros Municipais — endpoints POST** (`beneficiomunicipal/{idManut}`, `regimes_especiais/{idManut}`, `retencoes/{idManut}`) — são admin-only da municipalidade.
+**Fora de escopo** (intencional):
+- **`POST /decisao-judicial/nfse`** — backs the **Emissor Público Web UI** per Guia v1.2 §4.3, não é uma API de contribuinte. Emissão por decisão judicial acontece via UI Web da Receita, não via lib.
+- **CNC** (Cadastro Nacional de Contribuintes) — schemas `CNC_v1.00.xsd` / `tiposCnc_v1.00.xsd` não são referenciados pelo fluxo NFS-e; fora do escopo.
+- **Emissão dos 14 tipos de evento "não-cancelamento"** (202201 etc.) — parseamos quando chegam via NSU, mas não há builders públicos. Município-only em sua maioria; abra uma issue se precisar.
+- **ADN Parâmetros Municipais — endpoints POST** (`beneficiomunicipal/{idManut}`, `regimes_especiais/{idManut}`, `retencoes/{idManut}`) — admin-only da municipalidade.
+
+**Backlog** (worth wrapping antes de 1.0):
+- `GET /nfse/{chave}/eventos/{tipoEvento}/{numSeqEvento}` (SEFIN) — fetch específico de evento
+- `GET /NFSe/{chave}/Eventos` (ADN Contribuintes) — event list por chave sem passar por NSU
 
 ## Contribuindo
 

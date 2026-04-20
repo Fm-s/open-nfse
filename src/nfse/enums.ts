@@ -39,6 +39,13 @@ export enum TipoEventoNfse {
   CancelamentoPorOficio = '305101',
   BloqueioPorOficio = '305102',
   DesbloqueioPorOficio = '305103',
+  /**
+   * Eventos sistêmicos da Sefin não declarados em `tiposEventos_v1.01.xsd`.
+   * Aparecem no enum `tipoEvento` do endpoint `GET /nfse/{chave}/eventos/{tipoEvento}/{numSeqEvento}`.
+   * Parser cai no fallback `unknown` ao recebê-los (shape exato não publicada).
+   */
+  EventoSistemico467201 = '467201',
+  EventoSistemico907201 = '907201',
 }
 
 /** Ambiente gerador do evento. Per XSD `TSAmbGeradorEvt`. */
@@ -172,6 +179,47 @@ export enum JustificativaSubstituicao {
   ExclusaoImunidadeIsencao = '04',
   RejeicaoTomadorIntermediario = '05',
   Outros = '99',
+}
+
+/**
+ * Código do motivo da solicitação de análise fiscal para cancelamento de
+ * NFS-e (evento 101103). Per XSD `TSCodJustAnaliseFiscalCanc`.
+ */
+export enum JustificativaAnaliseFiscalCancelamento {
+  ErroEmissao = '1',
+  ServicoNaoPrestado = '2',
+  Outros = '9',
+}
+
+/**
+ * Resposta da análise da solicitação de cancelamento extemporâneo — deferido
+ * (evento 105104). Per XSD `TSCodJustAnaliseFiscalCancDef`.
+ */
+export enum JustificativaAnaliseFiscalCancelamentoDeferido {
+  Deferido = '1',
+}
+
+/**
+ * Resposta da análise da solicitação de cancelamento extemporâneo —
+ * indeferido (evento 105105). Per XSD `TSCodJustAnaliseFiscalCancIndef`.
+ */
+export enum JustificativaAnaliseFiscalCancelamentoIndeferido {
+  Indeferido = '1',
+  IndeferidoSemAnaliseDeMerito = '2',
+}
+
+/**
+ * Motivo da rejeição de NFS-e pelo prestador/tomador/intermediário
+ * (eventos 202205, 203206, 204207, no campo `infRej.cMotivo`). Per XSD
+ * `TSCodMotivoRejeicao`.
+ */
+export enum MotivoRejeicaoNfse {
+  Duplicidade = '1',
+  JaEmitidaPeloTomador = '2',
+  SemFatoGerador = '3',
+  ErroResponsabilidadeTributaria = '4',
+  ErroValorOuDataFatoGerador = '5',
+  Outros = '9',
 }
 
 export enum ModoPrestacao {

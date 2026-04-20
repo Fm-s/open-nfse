@@ -2,8 +2,12 @@ import { InvalidXmlError } from '../errors/validation.js';
 import type { Signature } from '../nfse/domain.js';
 import type {
   AmbienteGeradorEvento,
+  JustificativaAnaliseFiscalCancelamento,
+  JustificativaAnaliseFiscalCancelamentoDeferido,
+  JustificativaAnaliseFiscalCancelamentoIndeferido,
   JustificativaCancelamento,
   JustificativaSubstituicao,
+  MotivoRejeicaoNfse,
   TipoAmbienteDps,
   TipoEventoNfse,
 } from '../nfse/enums.js';
@@ -41,7 +45,7 @@ export type AutorEventoParsed = { readonly CNPJAutor: string } | { readonly CPFA
 
 /** Informações comuns aos eventos de rejeição (202205 / 203206 / 204207). */
 export interface InfoEventoRejeicao {
-  readonly cMotivo: string;
+  readonly cMotivo: MotivoRejeicaoNfse;
   readonly xMotivo?: string;
 }
 
@@ -84,7 +88,7 @@ export type DetalheEvento =
   | {
       readonly e101103: {
         readonly xDesc: string;
-        readonly cMotivo: string;
+        readonly cMotivo: JustificativaAnaliseFiscalCancelamento;
         readonly xMotivo: string;
       };
     }
@@ -93,7 +97,7 @@ export type DetalheEvento =
         readonly xDesc: string;
         readonly CPFAgTrib: string;
         readonly nProcAdm?: string;
-        readonly cMotivo: string;
+        readonly cMotivo: JustificativaAnaliseFiscalCancelamentoDeferido;
         readonly xMotivo: string;
       };
     }
@@ -102,7 +106,7 @@ export type DetalheEvento =
         readonly xDesc: string;
         readonly CPFAgTrib: string;
         readonly nProcAdm?: string;
-        readonly cMotivo: string;
+        readonly cMotivo: JustificativaAnaliseFiscalCancelamentoIndeferido;
         readonly xMotivo: string;
       };
     }
@@ -234,26 +238,6 @@ function parseAutor(node: XmlObject): AutorEventoParsed {
   throw new InvalidXmlError('autor do evento ausente (CNPJAutor/CPFAutor)');
 }
 
-/** Mapa elemento → código do tipo de evento, per `TSTipoEvento` na XSD. */
-const EVENTO_ELEMENT_TO_TIPO: Readonly<Record<string, string>> = {
-  e101101: '101101',
-  e105102: '105102',
-  e101103: '101103',
-  e105104: '105104',
-  e105105: '105105',
-  e202201: '202201',
-  e203202: '203202',
-  e204203: '204203',
-  e205204: '205204',
-  e202205: '202205',
-  e203206: '203206',
-  e204207: '204207',
-  e205208: '205208',
-  e305101: '305101',
-  e305102: '305102',
-  e305103: '305103',
-};
-
 function parseDetalhe(node: XmlObject): {
   readonly tipoEvento: TipoEventoNfse;
   readonly detalhe: DetalheEvento;
@@ -295,7 +279,7 @@ function parseDetalhe(node: XmlObject): {
       detalhe: {
         e101103: {
           xDesc: requireText(e101103, 'xDesc'),
-          cMotivo: requireText(e101103, 'cMotivo'),
+          cMotivo: requireText(e101103, 'cMotivo') as JustificativaAnaliseFiscalCancelamento,
           xMotivo: requireText(e101103, 'xMotivo'),
         },
       },
@@ -311,7 +295,10 @@ function parseDetalhe(node: XmlObject): {
           xDesc: requireText(e105104, 'xDesc'),
           CPFAgTrib: requireText(e105104, 'CPFAgTrib'),
           ...(nProcAdm !== undefined ? { nProcAdm } : {}),
-          cMotivo: requireText(e105104, 'cMotivo'),
+          cMotivo: requireText(
+            e105104,
+            'cMotivo',
+          ) as JustificativaAnaliseFiscalCancelamentoDeferido,
           xMotivo: requireText(e105104, 'xMotivo'),
         },
       },
@@ -327,7 +314,10 @@ function parseDetalhe(node: XmlObject): {
           xDesc: requireText(e105105, 'xDesc'),
           CPFAgTrib: requireText(e105105, 'CPFAgTrib'),
           ...(nProcAdm !== undefined ? { nProcAdm } : {}),
-          cMotivo: requireText(e105105, 'cMotivo'),
+          cMotivo: requireText(
+            e105105,
+            'cMotivo',
+          ) as JustificativaAnaliseFiscalCancelamentoIndeferido,
           xMotivo: requireText(e105105, 'xMotivo'),
         },
       },
@@ -364,7 +354,7 @@ function parseDetalhe(node: XmlObject): {
           [elem]: {
             xDesc: requireText(child, 'xDesc'),
             infRej: {
-              cMotivo: requireText(infRej, 'cMotivo'),
+              cMotivo: requireText(infRej, 'cMotivo') as MotivoRejeicaoNfse,
               ...(xMotivoInfRej !== undefined ? { xMotivo: xMotivoInfRej } : {}),
             },
           },
@@ -431,18 +421,8 @@ function parseDetalhe(node: XmlObject): {
     };
   }
   // Fallback — preserva o elemento bruto. Acontece se a Receita introduzir
-  // um novo tipo antes da lib atualizar. Caller pode ler `detalhe.unknown.raw`.
-  for (const [elementName, tipoEvento] of Object.entries(EVENTO_ELEMENT_TO_TIPO)) {
-    const child = optionalChild(node, elementName);
-    if (child) {
-      return {
-        tipoEvento: tipoEvento as TipoEventoNfse,
-        detalhe: { unknown: { elementName, tipoEvento, raw: child } },
-      };
-    }
-  }
-  // Nenhum elemento reconhecido — provavelmente um e<código> completamente
-  // novo. Busca entre todas as chaves do nó pelo padrão `e\d{6}`.
+  // um novo tipo antes da lib atualizar. Busca entre as chaves do nó pelo
+  // padrão `e\d{6}`. Caller pode ler `detalhe.unknown.raw`.
   for (const key of Object.keys(node)) {
     if (/^e\d{6}$/.test(key)) {
       const child = optionalChild(node, key);

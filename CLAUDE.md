@@ -53,7 +53,7 @@ The API is split across **two base URLs**, not one:
 
 | Service | Path on `Ambiente` | Endpoints used |
 |---|---|---|
-| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` ✓, `GET /nfse/{chave}` ✓, events on `/nfse/{chave}/eventos` ✓, plus (not yet wrapped) `GET/HEAD /dps/{id}`, `POST /decisao-judicial/nfse` |
+| **SEFIN Nacional** | `endpoints.sefin` | `POST /nfse` ✓, `GET /nfse/{chave}` ✓, events on `/nfse/{chave}/eventos` ✓, `GET/HEAD /dps/{id}` ✓ (v0.7.2). **Out of scope:** `POST /decisao-judicial/nfse` (backs the Emissor Público Web UI per Guia v1.2 §4.3, not a contribuinte API); `GET /nfse/{chave}/eventos/{tipoEvento}/{numSeqEvento}` (backlog). |
 | **ADN Contribuintes** | `endpoints.adn` | `GET /DFe/{NSU}` ✓, `GET /NFSe/{ChaveAcesso}/Eventos` (not yet wrapped) |
 | **ADN DANFSe** | `endpoints.danfse` | `GET /{chaveAcesso}` → PDF ✓ |
 | **ADN Parâmetros Municipais** | `endpoints.parametrosMunicipais` | `GET /aliquotas/{cMun}/{cServ}/{competencia}` + 5 more ✓ |

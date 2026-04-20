@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] — 2026-04-20
+
+Hardening pós-review. Tipagem mais precisa para eventos, enforcement local de regras que só apareciam no servidor. Nenhuma quebra de API pública.
+
+### Added
+
+- **`TipoEventoNfse`** ganhou `EventoSistemico467201` e `EventoSistemico907201` — dois códigos declarados no enum OpenAPI de `GET /nfse/{chave}/eventos/{tipoEvento}/{numSeqEvento}` mas não presentes no `TSTipoEvento` da XSD. Parser cai no fallback `unknown` ao recebê-los (shape interno não publicada).
+- **Enums para justificativas e motivos de evento** — antes tratados como `string` livre no parser:
+  - `JustificativaAnaliseFiscalCancelamento` (evento 101103: `1`/`2`/`9`)
+  - `JustificativaAnaliseFiscalCancelamentoDeferido` (evento 105104: `1`)
+  - `JustificativaAnaliseFiscalCancelamentoIndeferido` (evento 105105: `1`/`2`)
+  - `MotivoRejeicaoNfse` (eventos 202205/203206/204207, em `infRej.cMotivo`: `1`..`5`/`9`)
+- **`src/version.ts`** — exporta `LIB_VERSION` e `DEFAULT_VER_APLIC`, usados pelos builders. Bumpado junto com `package.json` no release.
+
+### Changed
+
+- **`verAplic` default dinâmico** — `buildDps` e `buildCancelamentoXml`/`buildSubstituicaoXml` agora emitem `open-nfse/<versão-corrente>` ao invés do legacy hardcoded `open-nfse/0.2`. Builders também enforçam `TSVerAplic` maxLength=20 localmente, lançando `RuleViolationError` com rule `TSVerAplic` antes do wire.
+- **`TSMotivo` minLength=15 enforçado localmente** em `cancelar` e `substituir`. `xMotivo` com menos de 15 caracteres agora lança `RuleViolationError` com rule `TSMotivo` — evita round-trip + rejeição server-side. Anteriormente só o check E0078 (não-vazio) rodava.
+- **`parseEventoXml` typing**: campos `cMotivo` agora retornam tipos enum específicos ao invés de `string` livre. Consumidores que narrow via `detalhe.e202205.infRej.cMotivo` ganham exhaustividade em switch statements.
+
+### Removed
+
+- **Dead code path em `parse-event.ts`** — o primeiro fallback loop que iterava `EVENTO_ELEMENT_TO_TIPO` era unreachable (todos os 16 tipos já são capturados por `if` blocks tipados acima). O verdadeiro fallback (pattern `/^e\d{6}$/`) continua em vigor para variantes futuras.
+
+### Docs
+
+- **Scope fence** — `CLAUDE.md` e `README.md` agora marcam `POST /decisao-judicial/nfse` como out-of-scope (backs the Emissor Público Web UI per Guia v1.2 §4.3, não é uma API de contribuinte). README ganhou seção "Backlog" para os dois endpoints ainda worth-wrapping antes de 1.0.
+
+### Tests
+
+- Regression para `TSMotivo` minLength=15 em `cancelar`/`substituir`.
+- Regression para os novos enums em `parse-event.test.ts` (confirmação/rejeição/ofício).
+- Existing tests com `xMotivo` curtos (< 15 chars) atualizados para passar o novo gate.
+
 ## [0.7.2] — 2026-04-20
 
 Correções guiadas pela auditoria v1.2 contra o Manual do Contribuinte + XSDs RTC v1.01. Cobertura de eventos completa, classificação de erros mais precisa, dois endpoints novos para reconciliação, sem quebra de API pública.
