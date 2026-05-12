@@ -33,6 +33,31 @@ export class HttpStatusError extends HttpError {
     super(`HTTP ${status}`, options?.cause !== undefined ? { cause: options.cause } : undefined);
     this.headers = options?.headers ?? {};
   }
+
+  /**
+   * Parse `Retry-After` per RFC 7231 §7.1.3. Returns the delay in
+   * milliseconds, or `undefined` when the header is missing, malformed,
+   * or expresses a negative delta. HTTP-date values in the past return
+   * `0` (ready immediately).
+   */
+  getRetryAfterMs(): number | undefined {
+    const raw = this.headers['retry-after'];
+    if (!raw) return undefined;
+    const trimmed = raw.trim();
+    if (trimmed === '') return undefined;
+    // delta-seconds: pure non-negative integer.
+    if (/^\d+$/.test(trimmed)) {
+      return Number.parseInt(trimmed, 10) * 1000;
+    }
+    // Negative integer: return undefined (semantically invalid delta-seconds).
+    if (/^-\d+$/.test(trimmed)) {
+      return undefined;
+    }
+    // HTTP-date.
+    const parsedMs = Date.parse(trimmed);
+    if (Number.isNaN(parsedMs)) return undefined;
+    return Math.max(0, parsedMs - Date.now());
+  }
 }
 
 export class UnauthorizedError extends HttpStatusError {
@@ -63,5 +88,13 @@ export class ServerError extends HttpStatusError {
   constructor(status: number, body: string | undefined, options?: HttpStatusErrorOptions) {
     super(status, body, options);
     this.message = `Falha no servidor da Receita (HTTP ${status}). Provavelmente transitória — tente novamente em alguns minutos.`;
+  }
+}
+
+export class TooManyRequestsError extends HttpStatusError {
+  constructor(body: string | undefined, options?: HttpStatusErrorOptions) {
+    super(429, body, options);
+    this.message =
+      'Limite de requisições excedido (HTTP 429). Aguarde antes de tentar novamente — respeite o cabeçalho Retry-After quando presente.';
   }
 }

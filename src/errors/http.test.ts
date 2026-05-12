@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   ForbiddenError,
   HttpError,
@@ -7,6 +7,7 @@ import {
   NotFoundError,
   ServerError,
   TimeoutError,
+  TooManyRequestsError,
   UnauthorizedError,
 } from './http.js';
 
@@ -76,5 +77,70 @@ describe('ServerError', () => {
     expect(err.status).toBe(503);
     expect(err.body).toBe('overloaded');
     expect(err.message).toContain('503');
+  });
+});
+
+describe('HttpStatusError.getRetryAfterMs', () => {
+  it('parses delta-seconds', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '120' } });
+    expect(err.getRetryAfterMs()).toBe(120_000);
+  });
+
+  it('parses HTTP-date in the future', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+    const err = new HttpStatusError(503, undefined, {
+      headers: { 'retry-after': 'Tue, 12 May 2026 10:02:00 GMT' },
+    });
+    expect(err.getRetryAfterMs()).toBe(120_000);
+    vi.useRealTimers();
+  });
+
+  it('returns 0 for HTTP-date in the past', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+    const err = new HttpStatusError(503, undefined, {
+      headers: { 'retry-after': 'Tue, 12 May 2020 10:00:00 GMT' },
+    });
+    expect(err.getRetryAfterMs()).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('returns undefined for malformed value', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': 'banana' } });
+    expect(err.getRetryAfterMs()).toBeUndefined();
+  });
+
+  it('returns undefined for negative delta-seconds', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '-5' } });
+    expect(err.getRetryAfterMs()).toBeUndefined();
+  });
+
+  it('returns undefined when header is absent', () => {
+    const err = new HttpStatusError(429, undefined);
+    expect(err.getRetryAfterMs()).toBeUndefined();
+  });
+
+  it('returns undefined for empty string', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '' } });
+    expect(err.getRetryAfterMs()).toBeUndefined();
+  });
+});
+
+describe('TooManyRequestsError', () => {
+  it('has status 429', () => {
+    const err = new TooManyRequestsError(undefined);
+    expect(err.status).toBe(429);
+  });
+
+  it('is an instance of HttpStatusError', () => {
+    const err = new TooManyRequestsError(undefined);
+    expect(err).toBeInstanceOf(HttpStatusError);
+  });
+
+  it('preserves headers passed in', () => {
+    const err = new TooManyRequestsError('body', { headers: { 'retry-after': '60' } });
+    expect(err.headers['retry-after']).toBe('60');
+    expect(err.getRetryAfterMs()).toBe(60_000);
   });
 });
