@@ -6,6 +6,7 @@ import {
   NetworkError,
   NotFoundError,
   ServerError,
+  TooManyRequestsError,
   UnauthorizedError,
 } from '../errors/http.js';
 import { HttpClient } from './client.js';
@@ -91,7 +92,7 @@ describe('HttpClient', () => {
     }
   });
 
-  it('attaches response headers (lowercased) to HttpStatusError — e.g. Retry-After on 429', async () => {
+  it('throws TooManyRequestsError on 429 with Retry-After header preserved', async () => {
     mockAgent
       .get(baseUrl)
       .intercept({ path: '/throttled', method: 'GET' })
@@ -104,11 +105,12 @@ describe('HttpClient', () => {
       await client.get('/throttled');
       expect.fail('should have thrown');
     } catch (err) {
-      expect(err).toBeInstanceOf(HttpStatusError);
-      const httpErr = err as HttpStatusError;
+      expect(err).toBeInstanceOf(TooManyRequestsError);
+      const httpErr = err as TooManyRequestsError;
       expect(httpErr.status).toBe(429);
       expect(httpErr.headers['retry-after']).toBe('42');
       expect(httpErr.headers['x-custom']).toBe('whatever');
+      expect(httpErr.getRetryAfterMs()).toBe(42_000);
     }
   });
 

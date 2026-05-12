@@ -7,6 +7,7 @@ import {
   NotFoundError,
   ServerError,
   TimeoutError,
+  TooManyRequestsError,
   UnauthorizedError,
 } from '../errors/http.js';
 import { type Logger, noopLogger } from '../logging.js';
@@ -244,6 +245,7 @@ function mapStatusError(
   if (status === 401) return new UnauthorizedError(body, options);
   if (status === 403) return new ForbiddenError(body, options);
   if (status === 404) return new NotFoundError(body, options);
+  if (status === 429) return new TooManyRequestsError(body, options);
   if (status >= 500) return new ServerError(status, body, options);
   return new HttpStatusError(status, body, options);
 }
