@@ -6,16 +6,16 @@ import {
   ReceitaRejectionError,
   receitaRejectionFromPostError,
 } from '../errors/receita.js';
-import { defaultIsTransient } from '../eventos/classify-error.js';
+import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
+import type { HttpClient } from '../http/client.js';
+import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import {
   MissingRetryStoreError,
   type PendingEmission,
   type RetryStore,
   pendingEmissionId,
-} from '../eventos/retry-store.js';
-import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
-import type { HttpClient } from '../http/client.js';
-import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
+} from '../retry/store.js';
+import { defaultIsTransient } from '../retry/transient.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';

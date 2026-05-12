@@ -8,16 +8,16 @@ import {
   JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
-import { type AutorEvento, buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
-import { defaultIsTransient } from './classify-error.js';
-import { type EventoResult, postEvento } from './post-evento.js';
 import {
   MissingRetryStoreError,
   type PendingEvent,
   type PendingEventKind,
   type RetryStore,
   pendingEventId,
-} from './retry-store.js';
+} from '../retry/store.js';
+import { defaultIsTransient } from '../retry/transient.js';
+import { type AutorEvento, buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
+import { type EventoResult, postEvento } from './post-evento.js';
 
 // -----------------------------------------------------------------------------
 // cancelar — evento 101101

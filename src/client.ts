@@ -17,10 +17,8 @@ import {
   cancelar as cancelarInternal,
   substituir as substituirInternal,
 } from './eventos/cancelar.js';
-import { defaultIsTransient } from './eventos/classify-error.js';
 import type { EventoResult } from './eventos/post-evento.js';
 import { postEvento } from './eventos/post-evento.js';
-import { type PendingEvent, type RetryStore, isPendingEmission } from './eventos/retry-store.js';
 import { HttpClient } from './http/client.js';
 import { type Logger, noopLogger } from './logging.js';
 import type { DPS } from './nfse/domain.js';
@@ -66,6 +64,8 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from './parametros-municipais/types.js';
+import { type PendingEvent, type RetryStore, isPendingEmission } from './retry/store.js';
+import { defaultIsTransient } from './retry/transient.js';
 
 export type ReplayItem =
   | { readonly id: string; readonly status: 'success'; readonly evento: EventoResult }

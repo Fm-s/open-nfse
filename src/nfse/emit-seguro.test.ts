@@ -4,13 +4,13 @@ import forge from 'node-forge';
 import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { A1Certificate } from '../certificate/types.js';
+import { HttpClient } from '../http/client.js';
+import { gzipBase64Encode } from '../http/encoding.js';
 import {
   MissingRetryStoreError,
   createInMemoryRetryStore,
   isPendingEmission,
-} from '../eventos/retry-store.js';
-import { HttpClient } from '../http/client.js';
-import { gzipBase64Encode } from '../http/encoding.js';
+} from '../retry/store.js';
 import {
   type DpsCounter,
   MissingDpsCounterError,

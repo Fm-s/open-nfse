@@ -10,7 +10,6 @@ import type {
   SubstituirResult,
 } from '../eventos/cancelar.js';
 import type { EventoResult } from '../eventos/post-evento.js';
-import type { PendingEmission } from '../eventos/retry-store.js';
 import {
   type DpsStatusResult,
   InvalidChaveAcessoError,
@@ -39,6 +38,7 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from '../parametros-municipais/types.js';
+import type { PendingEmission } from '../retry/store.js';
 import { FakeState, type ProgrammedFailure } from './fake-state.js';
 import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';

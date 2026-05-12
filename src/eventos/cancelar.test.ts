@@ -17,9 +17,9 @@ import {
   RegimeEspecialTributacao,
 } from '../nfse/enums.js';
 import { validatePedRegEventoXml } from '../nfse/validate-xml.js';
+import { MissingRetryStoreError, createInMemoryRetryStore } from '../retry/store.js';
 import { buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
 import { cancelar, substituir } from './cancelar.js';
-import { MissingRetryStoreError, createInMemoryRetryStore } from './retry-store.js';
 import { signPedRegEventoXml } from './sign-event.js';
 
 const SAMPLE_XML = readFileSync(

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NetworkError, ServerError, TimeoutError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
-import { defaultIsTransient } from './classify-error.js';
+import { defaultIsTransient } from './transient.js';
 
 describe('defaultIsTransient', () => {
   it('treats NetworkError as transient', () => {

@@ -220,7 +220,7 @@ export type {
   SubstituirParams,
   SubstituirResult,
 } from './eventos/cancelar.js';
-export { defaultIsTransient } from './eventos/classify-error.js';
+export { defaultIsTransient } from './retry/transient.js';
 export {
   buildEventoPedidoId,
   InvalidEventoPedidoIdParamError,
@@ -246,14 +246,14 @@ export {
   MissingRetryStoreError,
   pendingEmissionId,
   pendingEventId,
-} from './eventos/retry-store.js';
+} from './retry/store.js';
 export type {
   PendingEmission,
   PendingEvent,
   PendingEventKind,
   PendingEventoCancelamento,
   RetryStore,
-} from './eventos/retry-store.js';
+} from './retry/store.js';
 export { signPedRegEventoXml } from './eventos/sign-event.js';
 export type { ReplayItem } from './client.js';
 

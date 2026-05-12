@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MissingRetryStoreError, createInMemoryRetryStore, pendingEventId } from './retry-store.js';
+import { MissingRetryStoreError, createInMemoryRetryStore, pendingEventId } from './store.js';
 
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 
