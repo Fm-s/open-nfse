@@ -64,6 +64,7 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from './parametros-municipais/types.js';
+import { type RetryPolicy, createDefaultRetryPolicy } from './retry/policy.js';
 import { type PendingEvent, type RetryStore, isPendingEmission } from './retry/store.js';
 import { defaultIsTransient } from './retry/transient.js';
 
@@ -134,6 +135,13 @@ export interface NfseClientConfig {
    * entre processos, passe uma impl de Redis/Memcached.
    */
   readonly parametrosCache?: ParametrosCache;
+  /**
+   * Política de retry — decide o `notBefore` para cada erro transiente
+   * (respeitando `Retry-After` quando o servidor envia). Se omitida, a
+   * lib usa `createDefaultRetryPolicy()` (default 60s para 429/503 sem
+   * header, cap de 1h para valores absurdos).
+   */
+  readonly retryPolicy?: RetryPolicy;
 }
 
 export interface FetchByNsuParams extends FetchByNsuOptions {
@@ -160,6 +168,7 @@ export class NfseClient {
   private readonly retryStore: RetryStore | undefined;
   private readonly dpsCounter: DpsCounter | undefined;
   private readonly parametrosCache: ParametrosCache;
+  private readonly retryPolicy: RetryPolicy;
   private state: ClientState | null = null;
   private statePromise: Promise<ClientState> | null = null;
   private closed = false;
@@ -174,6 +183,7 @@ export class NfseClient {
     this.retryStore = config.retryStore;
     this.dpsCounter = config.dpsCounter;
     this.parametrosCache = config.parametrosCache ?? createInMemoryParametrosCache();
+    this.retryPolicy = config.retryPolicy ?? createDefaultRetryPolicy();
   }
 
   async fetchByChave(chaveAcesso: string): Promise<NfseQueryResult> {
@@ -244,6 +254,7 @@ export class NfseClient {
       certificate: state.certificate,
       dpsCounter: this.dpsCounter,
       retryStore: this.retryStore,
+      retryPolicy: this.retryPolicy,
     };
     if (mergedParams.dryRun === true) {
       return emitSeguro(deps, { ...mergedParams, dryRun: true });
@@ -342,7 +353,7 @@ export class NfseClient {
       ...params,
       ...(retryStore ? { retryStore } : {}),
     };
-    return cancelarInternal(state.sefin, state.certificate, merged);
+    return cancelarInternal(state.sefin, state.certificate, this.retryPolicy, merged);
   }
 
   /**
@@ -368,7 +379,7 @@ export class NfseClient {
       ...params,
       ...(retryStore ? { retryStore } : {}),
     };
-    return substituirInternal(state.sefin, state.certificate, merged);
+    return substituirInternal(state.sefin, state.certificate, this.retryPolicy, merged);
   }
 
   /**

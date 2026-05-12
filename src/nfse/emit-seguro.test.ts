@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { A1Certificate } from '../certificate/types.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
+import { createDefaultRetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
   createInMemoryRetryStore,
@@ -109,7 +110,13 @@ describe('emitSeguro', () => {
       }),
     };
     const r = await emitSeguro(
-      { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
       baseParams(),
     );
     expect(r).toMatchObject({ status: 'ok' });
@@ -120,7 +127,13 @@ describe('emitSeguro', () => {
     mockPostOk();
     const counter: DpsCounter = { next: vi.fn() };
     await emitSeguro(
-      { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
       { ...baseParams(), nDPS: '99' },
     );
     expect(counter.next).not.toHaveBeenCalled();
@@ -129,7 +142,13 @@ describe('emitSeguro', () => {
   it('does NOT call counter for dryRun (uses placeholder to avoid burning a number)', async () => {
     const counter: DpsCounter = { next: vi.fn() };
     const r = await emitSeguro(
-      { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
       { ...baseParams(), dryRun: true },
     );
     expect(counter.next).not.toHaveBeenCalled();
@@ -139,7 +158,13 @@ describe('emitSeguro', () => {
   it('throws MissingDpsCounterError when counter absent and no nDPS override', async () => {
     await expect(
       emitSeguro(
-        { httpClient, certificate: cert, dpsCounter: undefined, retryStore: undefined },
+        {
+          httpClient,
+          certificate: cert,
+          dpsCounter: undefined,
+          retryStore: undefined,
+          retryPolicy: createDefaultRetryPolicy(),
+        },
         baseParams(),
       ),
     ).rejects.toBeInstanceOf(MissingDpsCounterError);
@@ -155,7 +180,13 @@ describe('emitSeguro', () => {
     };
     await expect(
       emitSeguro(
-        { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+        {
+          httpClient,
+          certificate: cert,
+          dpsCounter: counter,
+          retryStore: undefined,
+          retryPolicy: createDefaultRetryPolicy(),
+        },
         paramsSemCnbs,
       ),
     ).rejects.toThrow(); // XsdValidationError
@@ -171,7 +202,13 @@ describe('emitSeguro', () => {
     const retryStore = createInMemoryRetryStore();
 
     const r = await emitSeguro(
-      { httpClient, certificate: cert, dpsCounter: counter, retryStore },
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
       baseParams(),
     );
 
@@ -200,7 +237,13 @@ describe('emitSeguro', () => {
 
     await expect(
       emitSeguro(
-        { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+        {
+          httpClient,
+          certificate: cert,
+          dpsCounter: counter,
+          retryStore: undefined,
+          retryPolicy: createDefaultRetryPolicy(),
+        },
         baseParams(),
       ),
     ).rejects.toBeInstanceOf(MissingRetryStoreError);
@@ -217,7 +260,16 @@ describe('emitSeguro', () => {
     const retryStore = createInMemoryRetryStore();
 
     await expect(
-      emitSeguro({ httpClient, certificate: cert, dpsCounter: counter, retryStore }, baseParams()),
+      emitSeguro(
+        {
+          httpClient,
+          certificate: cert,
+          dpsCounter: counter,
+          retryStore,
+          retryPolicy: createDefaultRetryPolicy(),
+        },
+        baseParams(),
+      ),
     ).rejects.toMatchObject({ name: 'ReceitaRejectionError', codigo: 'E401' });
 
     const stored = await retryStore.list();
@@ -236,6 +288,7 @@ describe('emitSeguro', () => {
         certificate: cert,
         dpsCounter: createInMemoryDpsCounter(),
         retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
       },
       baseParams(),
     );
@@ -249,7 +302,13 @@ describe('emitSeguro', () => {
   it('dryRun with nDPS override produces signed XML referencing that nDPS', async () => {
     const counter: DpsCounter = { next: vi.fn() };
     const r = await emitSeguro(
-      { httpClient, certificate: cert, dpsCounter: counter, retryStore: undefined },
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
       { ...baseParams(), dryRun: true, nDPS: '42' },
     );
     expect('dryRun' in r && r.dryRun).toBe(true);
@@ -266,8 +325,26 @@ describe('emitSeguro', () => {
     const retryStore = createInMemoryRetryStore();
 
     const p: EmitirParams & { dryRun: false } = { ...baseParams(), dryRun: false };
-    await emitSeguro({ httpClient, certificate: cert, dpsCounter: counter, retryStore }, p);
-    await emitSeguro({ httpClient, certificate: cert, dpsCounter: counter, retryStore }, p);
+    await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
+      p,
+    );
+    await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
+      p,
+    );
 
     // next call would be 12 — verify by consuming one more
     expect(await counter.next({ emitenteCnpj: '00574753000100', serie: '1' })).toBe('12');

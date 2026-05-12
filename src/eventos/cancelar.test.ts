@@ -17,6 +17,7 @@ import {
   RegimeEspecialTributacao,
 } from '../nfse/enums.js';
 import { validatePedRegEventoXml } from '../nfse/validate-xml.js';
+import { createDefaultRetryPolicy } from '../retry/policy.js';
 import { MissingRetryStoreError, createInMemoryRetryStore } from '../retry/store.js';
 import { buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
 import { cancelar, substituir } from './cancelar.js';
@@ -117,7 +118,7 @@ describe('cancelar', () => {
         return { statusCode: 201, data: mockEventoSuccessBody(CHAVE_ORIGINAL, '101101') };
       });
 
-    const r = await cancelar(httpClient, cert, {
+    const r = await cancelar(httpClient, cert, createDefaultRetryPolicy(), {
       chaveAcesso: CHAVE_ORIGINAL,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.ErroEmissao,
@@ -149,7 +150,7 @@ describe('cancelar', () => {
       });
 
     await expect(
-      cancelar(httpClient, cert, {
+      cancelar(httpClient, cert, createDefaultRetryPolicy(), {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.ErroEmissao,
@@ -165,7 +166,7 @@ describe('cancelar', () => {
       .reply(500, 'boom');
 
     const retryStore = createInMemoryRetryStore();
-    const r = await cancelar(httpClient, cert, {
+    const r = await cancelar(httpClient, cert, createDefaultRetryPolicy(), {
       chaveAcesso: CHAVE_ORIGINAL,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.ErroEmissao,
@@ -195,7 +196,7 @@ describe('cancelar', () => {
       .reply(503, 'unavailable');
 
     await expect(
-      cancelar(httpClient, cert, {
+      cancelar(httpClient, cert, createDefaultRetryPolicy(), {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.Outros,
@@ -206,7 +207,7 @@ describe('cancelar', () => {
 
   it('rejects cMotivo=99 com xMotivo vazio (rule E0078) sem tocar a rede', async () => {
     await expect(
-      cancelar(httpClient, cert, {
+      cancelar(httpClient, cert, createDefaultRetryPolicy(), {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.Outros,
@@ -217,7 +218,7 @@ describe('cancelar', () => {
 
   it('rejects xMotivo com menos de 15 caracteres (TSMotivo) sem tocar a rede', async () => {
     await expect(
-      cancelar(httpClient, cert, {
+      cancelar(httpClient, cert, createDefaultRetryPolicy(), {
         chaveAcesso: CHAVE_ORIGINAL,
         autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaCancelamento.ErroEmissao,
@@ -284,7 +285,7 @@ describe('substituir — 4-state machine', () => {
     mockEmitSuccess();
     mockCancelamentoEvento('105102', CHAVE_ORIGINAL);
 
-    const r = await substituir(httpClient, cert, {
+    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
       ...baseSubstParams,
       novaDps: minimalNovaDps(),
     });
@@ -301,7 +302,7 @@ describe('substituir — 4-state machine', () => {
     mockEventoFail(CHAVE_ORIGINAL, 500, 'Internal Server Error');
 
     const retryStore = createInMemoryRetryStore();
-    const r = await substituir(httpClient, cert, {
+    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
       ...baseSubstParams,
       novaDps: minimalNovaDps(),
       retryStore,
@@ -337,7 +338,7 @@ describe('substituir — 4-state machine', () => {
     // Second eventos POST (to nova, for rollback) — success
     mockCancelamentoEvento('101101', CHAVE_NOVA);
 
-    const r = await substituir(httpClient, cert, {
+    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
       ...baseSubstParams,
       novaDps: minimalNovaDps(),
     });
@@ -359,7 +360,7 @@ describe('substituir — 4-state machine', () => {
     mockEventoFail(CHAVE_NOVA, 500, 'Internal Server Error');
 
     const retryStore = createInMemoryRetryStore();
-    const r = await substituir(httpClient, cert, {
+    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
       ...baseSubstParams,
       novaDps: minimalNovaDps(),
       retryStore,
@@ -383,7 +384,7 @@ describe('substituir — 4-state machine', () => {
     mockEventoFail(CHAVE_ORIGINAL, 500, 'boom');
 
     await expect(
-      substituir(httpClient, cert, {
+      substituir(httpClient, cert, createDefaultRetryPolicy(), {
         ...baseSubstParams,
         novaDps: minimalNovaDps(),
       }),
@@ -414,7 +415,7 @@ describe('substituir — 4-state machine', () => {
     const dpsSemSubst = minimalNovaDps();
     expect(dpsSemSubst.infDPS.subst).toBeUndefined();
 
-    await substituir(httpClient, cert, {
+    await substituir(httpClient, cert, createDefaultRetryPolicy(), {
       ...baseSubstParams,
       novaDps: dpsSemSubst,
     });
@@ -429,7 +430,7 @@ describe('substituir — 4-state machine', () => {
 
   it('rejeita cMotivo=99 sem xMotivo (rule E0078) antes de emitir a nova', async () => {
     await expect(
-      substituir(httpClient, cert, {
+      substituir(httpClient, cert, createDefaultRetryPolicy(), {
         chaveOriginal: CHAVE_ORIGINAL,
         novaDps: minimalNovaDps(),
         autor: { CNPJ: '00574753000100' },

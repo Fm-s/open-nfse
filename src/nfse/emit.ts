@@ -9,6 +9,7 @@ import {
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import type { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
+import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
   type PendingEmission,
@@ -355,6 +356,7 @@ interface EmitSeguroDeps {
   readonly certificate: A1Certificate;
   readonly dpsCounter: DpsCounter | undefined;
   readonly retryStore: RetryStore | undefined;
+  readonly retryPolicy: RetryPolicy;
   readonly isTransient?: (err: unknown) => boolean;
 }
 

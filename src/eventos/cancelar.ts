@@ -8,6 +8,7 @@ import {
   JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
+import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
   type PendingEvent,
@@ -54,6 +55,7 @@ export type CancelarResult =
 export async function cancelar(
   httpClient: HttpClient,
   certificate: A1Certificate,
+  retryPolicy: RetryPolicy,
   params: CancelarParams,
 ): Promise<CancelarResult> {
   // Rule E0078 — cMotivo=99 exige xMotivo populado.
@@ -149,6 +151,7 @@ export type SubstituirResult =
 export async function substituir(
   httpClient: HttpClient,
   certificate: A1Certificate,
+  retryPolicy: RetryPolicy,
   params: SubstituirParams,
 ): Promise<SubstituirResult> {
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para
