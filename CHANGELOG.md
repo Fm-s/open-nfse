@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`defaultIsTransient` agora classifica `TooManyRequestsError` como transiente** — emissões e eventos que recebem 429 viram `status: 'retry_pending'` em vez de lançar erro.
 - **Arquivos movidos**: `src/eventos/retry-store.ts` → `src/retry/store.ts` e `src/eventos/classify-error.ts` → `src/retry/transient.ts`. Re-exports públicos preservados em `open-nfse`.
 
+### Fixed
+
+- **Eventos persistidos no `RetryStore` agora carregam XML assinado** (bug pré-existente desde 0.7.2). `cancelar()` / `substituir()` antes guardavam o XML pré-assinatura como `xmlAssinado` quando o POST falhava transitoriamente; o `replayPendingEvents` então enviava XML sem `<Signature>` ao SEFIN com `xmlJaAssinado: true`, levando à rejeição imediata e à perda do evento (entrada deletada como falha permanente). O fluxo de emissão (`emitir`) sempre persistiu assinado e não foi afetado. Tornou-se urgente em 0.8.0 porque 429 agora roteia pelo mesmo pipeline.
+
 ### Migration
 
 - Consumidores usando `createInMemoryRetryStore()` ou a interface `RetryStore` em código próprio: nenhuma mudança necessária. O novo campo `notBefore` é opcional.

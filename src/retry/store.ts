@@ -10,7 +10,13 @@ export type PendingEventKind =
 interface PendingBase {
   /** Chave estável de deduplicação no store. */
   readonly id: string;
-  /** XML já assinado, pronto para re-POST. Replay é idempotente via Id do DPS / (chave+tipoEvento+nPedReg). */
+  /**
+   * XML **assinado** (XMLDSig) pronto para re-POST sem re-assinatura.
+   * `replayPendingEvents` envia este XML diretamente ao SEFIN; persistir
+   * XML sem assinatura causa rejeição imediata na retentativa. SEFIN
+   * deduplica via `infDPS.Id` (emissão) ou `chave + tipoEvento + nPedReg`
+   * (eventos), então retentar é idempotente quando o XML é íntegro.
+   */
   readonly xmlAssinado: string;
   readonly firstAttemptAt: Date;
   readonly lastAttemptAt: Date;

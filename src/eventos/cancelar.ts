@@ -19,6 +19,7 @@ import {
 import { defaultIsTransient } from '../retry/transient.js';
 import { type AutorEvento, buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
 import { type EventoResult, postEvento } from './post-evento.js';
+import { signPedRegEventoXml } from './sign-event.js';
 
 // -----------------------------------------------------------------------------
 // cancelar — evento 101101
@@ -70,9 +71,16 @@ export async function cancelar(
   const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
 
   const xmlPedido = buildCancelamentoXml({ ...params, nPedRegEvento });
+  // Sign up-front so that, if the POST fails transiently, the persisted
+  // entry carries genuinely signed XML — `replayPendingEvents` re-POSTs
+  // with `xmlJaAssinado: true`, so unsigned XML in the store would be
+  // rejected by SEFIN's signature check on every retry.
+  const xmlAssinado = signPedRegEventoXml(xmlPedido, certificate);
 
   try {
-    const r = await postEvento(httpClient, certificate, params.chaveAcesso, xmlPedido);
+    const r = await postEvento(httpClient, certificate, params.chaveAcesso, xmlAssinado, {
+      xmlJaAssinado: true,
+    });
     return { status: 'ok', evento: dropInternal(r) };
   } catch (err) {
     const error = toError(err);
@@ -88,7 +96,7 @@ export async function cancelar(
       nPedRegEvento,
       cMotivo: params.cMotivo,
       xMotivo: params.xMotivo,
-      xmlAssinado: xmlPedido,
+      xmlAssinado,
       error,
       transient: true,
       now,
@@ -194,18 +202,17 @@ export async function substituir(
     ...(params.verAplic ? { verAplic: params.verAplic } : {}),
     ...(params.dhEvento ? { dhEvento: params.dhEvento } : {}),
   });
+  // Sign up-front — replay relies on the persisted XML being already signed.
+  const xmlCancelAssinado = signPedRegEventoXml(xmlCancel, certificate);
 
   let cancelamentoErr: Error | undefined;
-  let xmlCancelAssinado: string | undefined;
   try {
-    const r = await postEvento(httpClient, certificate, params.chaveOriginal, xmlCancel);
+    const r = await postEvento(httpClient, certificate, params.chaveOriginal, xmlCancelAssinado, {
+      xmlJaAssinado: true,
+    });
     return { status: 'ok', novaNfse, cancelamento: dropInternal(r) };
   } catch (err) {
     cancelamentoErr = toError(err);
-    // Se o postEvento assinou antes de falhar, recuperamos para retry. Caso
-    // contrário, o passo de re-assinatura no replay gera assinatura nova (o
-    // nPedReg garante dedup).
-    xmlCancelAssinado = undefined;
   }
 
   // Step 2 falhou.
@@ -221,7 +228,7 @@ export async function substituir(
       nPedRegEvento,
       cMotivo: params.cMotivo,
       ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
-      xmlAssinado: xmlCancelAssinado ?? xmlCancel,
+      xmlAssinado: xmlCancelAssinado,
       error: cancelamentoErr,
       transient: true,
       now,
@@ -246,10 +253,14 @@ export async function substituir(
     ...(params.verAplic ? { verAplic: params.verAplic } : {}),
   });
 
+  // Sign up-front — see note on cancelar() above.
+  const xmlRollbackAssinado = signPedRegEventoXml(xmlRollback, certificate);
+
   let rollbackErr: Error | undefined;
-  let xmlRollbackAssinado: string | undefined;
   try {
-    const r = await postEvento(httpClient, certificate, novaNfse.chaveAcesso, xmlRollback);
+    const r = await postEvento(httpClient, certificate, novaNfse.chaveAcesso, xmlRollbackAssinado, {
+      xmlJaAssinado: true,
+    });
     return {
       status: 'rolled_back',
       novaNfse,
@@ -258,7 +269,6 @@ export async function substituir(
     };
   } catch (err) {
     rollbackErr = toError(err);
-    xmlRollbackAssinado = undefined;
   }
 
   const nowRollback = new Date();
@@ -270,7 +280,7 @@ export async function substituir(
     nPedRegEvento: '001',
     cMotivo: JustificativaCancelamento.ErroEmissao,
     xMotivo: `Rollback de substituição — chave original ${params.chaveOriginal}`,
-    xmlAssinado: xmlRollbackAssinado ?? xmlRollback,
+    xmlAssinado: xmlRollbackAssinado,
     error: rollbackErr,
     transient: isTransient(rollbackErr),
     now: nowRollback,

@@ -183,10 +183,18 @@ describe('cancelar', () => {
         expect(r.pending.nPedRegEvento).toBe('001');
       }
       expect(r.pending.lastError.transient).toBe(true);
+      // Regression guard: the persisted xmlAssinado MUST contain an
+      // XMLDSig signature. `replayPendingEvents` re-POSTs with
+      // `xmlJaAssinado: true`, so unsigned XML in the store would be
+      // silently rejected by SEFIN on every retry and the entry would
+      // be evicted as a "permanent" failure — losing the cancellation.
+      expect(r.pending.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
+      expect(r.pending.xmlAssinado).toContain('<SignatureValue>');
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
     expect(stored[0]?.kind).toBe('cancelamento_simples');
+    expect(stored[0]?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
   });
 
   it('on 429 with Retry-After, persists pending with notBefore = now + retryAfter', async () => {
@@ -343,6 +351,8 @@ describe('substituir — 4-state machine', () => {
         expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
       }
       expect(r.pending.lastError.transient).toBe(true);
+      // Regression guard: persisted xmlAssinado must be XMLDSig-signed.
+      expect(r.pending.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
@@ -351,6 +361,7 @@ describe('substituir — 4-state machine', () => {
     if (first?.kind === 'cancelamento_por_substituicao') {
       expect(first.chaveNfse).toBe(CHAVE_ORIGINAL);
     }
+    expect(first?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
   });
 
   it("status='rolled_back' when cancelamento fails permanently (prazo) and rollback succeeds", async () => {
@@ -400,10 +411,13 @@ describe('substituir — 4-state machine', () => {
         expect(r.pendingRollback.chaveNfse).toBe(CHAVE_NOVA);
         expect(r.pendingRollback.tipoEvento).toBe('101101');
       }
+      // Regression guard: rollback's persisted xmlAssinado must be signed.
+      expect(r.pendingRollback.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
     expect(stored[0]?.kind).toBe('rollback_cancelamento');
+    expect(stored[0]?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
   });
 
   it('throws MissingRetryStoreError when a transient cancel would need persistence but no store is configured', async () => {
