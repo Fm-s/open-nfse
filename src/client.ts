@@ -396,8 +396,12 @@ export class NfseClient {
     const store = override ?? this.retryStore;
     if (!store) return [];
     const pending = await store.list();
+    const now = new Date();
     const results: ReplayItem[] = [];
     for (const entry of pending) {
+      if (entry.notBefore && entry.notBefore > now) {
+        continue; // not yet eligible — skip silently, will reappear next sweep
+      }
       try {
         if (isPendingEmission(entry)) {
           // Re-POST direto em /nfse — SEFIN deduplica via infDPS.Id
@@ -421,6 +425,18 @@ export class NfseClient {
         const transient = entry.lastError.transient && isRetryableError(error);
         if (!transient) {
           await store.delete(entry.id);
+        } else {
+          // Recompute notBefore from the fresh error so a recurring 429
+          // doesn't get retried on the next sweep before the server is
+          // ready. Overwrites in place — same id, idempotent save.
+          const newNotBefore = this.retryPolicy.computeNotBefore(error, new Date());
+          if (newNotBefore) {
+            await store.save({
+              ...entry,
+              lastAttemptAt: new Date(),
+              notBefore: newNotBefore,
+            });
+          }
         }
         results.push({
           id: entry.id,

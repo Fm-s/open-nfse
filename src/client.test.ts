@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import { MockAgent } from 'undici';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente, TipoAmbiente } from './ambiente.js';
 import { ClientClosedError, NfseClient } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
@@ -11,6 +11,7 @@ import { ForbiddenError } from './errors/http.js';
 import { InvalidChaveAcessoError } from './errors/validation.js';
 import { gzipBase64Encode } from './http/encoding.js';
 import { parseNfseXml } from './nfse/parse-xml.js';
+import { createInMemoryRetryStore } from './retry/store.js';
 
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 const XML_SAMPLE = readFileSync(join(__dirname, '..', 'specs', 'samples', `${CHAVE}.xml`), 'utf-8');
@@ -433,5 +434,88 @@ describe('NfseClient', () => {
     const nfse = parseNfseXml(XML_SAMPLE);
 
     await expect(client.gerarDanfse(nfse)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('replayPendingEvents skips entries whose notBefore is in the future', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-id',
+      kind: 'emission',
+      idDps: 'test-id',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado: '<xml/>',
+      firstAttemptAt: new Date('2026-05-12T09:59:00Z'),
+      lastAttemptAt: new Date('2026-05-12T09:59:00Z'),
+      notBefore: new Date('2026-05-12T10:05:00Z'), // 5 min in the future
+      lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
+    });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+    });
+
+    const results = await client.replayPendingEvents();
+    expect(results).toEqual([]);
+    expect(await store.list()).toHaveLength(1); // entry stays in store
+
+    vi.useRealTimers();
+    await client.close();
+  });
+
+  it('replayPendingEvents replays entries whose notBefore is past (success → evict)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    // mock a successful re-POST on /SefinNacional/nfse
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: 'v',
+        dataHoraProcessamento: '2026-05-12T10:00:00-03:00',
+        idDps: 'test-id-2',
+        chaveAcesso: CHAVE,
+        nfseXmlGZipB64: gzipBase64Encode(XML_SAMPLE),
+      });
+
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-id-2',
+      kind: 'emission',
+      idDps: 'test-id-2',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado:
+        '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="test-id-2"/></DPS>',
+      firstAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      notBefore: new Date('2026-05-12T09:59:00Z'), // 1 min ago — eligible
+      lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
+    });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+    });
+
+    const results = await client.replayPendingEvents();
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('success_emission');
+    expect(await store.list()).toHaveLength(0); // evicted after success
+
+    vi.useRealTimers();
+    await client.close();
   });
 });
