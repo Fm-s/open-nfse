@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Consumidores usando `createInMemoryRetryStore()` ou a interface `RetryStore` em código próprio: nenhuma mudança necessária. O novo campo `notBefore` é opcional.
 - Consumidores com store em banco: adicione coluna `not_before TIMESTAMP NULL` (ou equivalente). Linhas existentes ficam com `NULL` → elegíveis imediatamente no próximo sweep, comportamento idêntico ao anterior.
-- Consumidores que envolviam `emitir()` em retry custom para 429: remova o wrapper. A lib agora persiste no `RetryStore` automaticamente, evitando o bug em que cada retry consome um novo `nDPS` do counter.
+- **Configure um `retryStore` se ainda não tiver feito.** Antes desta versão, um 429 lançava `HttpStatusError(429)` direto pro caller. Agora 429 é classificado como transiente: se não houver `retryStore` configurado, a lib lança `MissingRetryStoreError` em vez de devolver `retry_pending`. Sem `retryStore` o `nDPS` ainda é consumido — então rodar emissão em produção sem store deixou de ser uma opção segura.
+- **Remova retry loops próprios em volta de `emitir()` para 429 / 5xx.** Cada `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta e retenta queima números da série e cria buracos permanentes no sequencial. A lib já persiste o pendente no `RetryStore` e dedupica server-side via `infDPS.Id` — use `replayPendingEvents()` (tipicamente num cron a cada 1–5 min) para retomar.
 
 ## [0.7.3] — 2026-04-20
 

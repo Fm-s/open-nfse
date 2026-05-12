@@ -72,8 +72,8 @@ export interface RetryStore {
 export class MissingRetryStoreError extends ValidationError {
   constructor() {
     super(
-      'Um evento falhou transitoriamente mas nenhum RetryStore foi configurado — ' +
-        'pass a `retryStore` no NfseClient config ou direto no método para que a lib possa persistir o pendente.',
+      'Falha transiente (rede, timeout, 429, 5xx) detectada mas nenhum RetryStore foi configurado — ' +
+        'passe `retryStore` no NfseClient config (ou direto no método de evento) para que a lib possa persistir o pendente e retentá-lo via replayPendingEvents().',
     );
   }
 }

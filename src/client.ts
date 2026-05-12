@@ -230,12 +230,18 @@ export class NfseClient {
    *
    * Resultado discriminado:
    * - `{ status: 'ok', nfse }` — autorizada.
-   * - `{ status: 'retry_pending', pending }` — falha transiente (rede/5xx);
-   *   salvo no `RetryStore` para replay via `replayPendingEvents()`.
+   * - `{ status: 'retry_pending', pending }` — falha transiente (rede / timeout
+   *   / 5xx / 429); salvo no `RetryStore` para replay via `replayPendingEvents()`.
    *
    * Lança em falhas permanentes (rejeição fiscal, validação offline). Nesses
    * casos o `nDPS` foi consumido mas a nota foi definitivamente rejeitada —
    * o caller loga e segue.
+   *
+   * **Não envolva esta chamada num retry loop próprio para 429 / 5xx.** Cada
+   * `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta
+   * e retenta queima números da série e cria buracos permanentes. A lib já
+   * persiste o pendente no `RetryStore` e dedupica server-side via `infDPS.Id`
+   * — use `replayPendingEvents()` (tipicamente num cron) para retomar.
    *
    * Para emitir uma DPS já montada manualmente (bypass counter + retry flow),
    * use `emitirDpsPronta(dps)`.
@@ -426,17 +432,21 @@ export class NfseClient {
         if (!transient) {
           await store.delete(entry.id);
         } else {
-          // Recompute notBefore from the fresh error so a recurring 429
-          // doesn't get retried on the next sweep before the server is
-          // ready. Overwrites in place — same id, idempotent save.
-          const newNotBefore = this.retryPolicy.computeNotBefore(error, new Date());
-          if (newNotBefore) {
-            await store.save({
-              ...entry,
-              lastAttemptAt: new Date(),
-              notBefore: newNotBefore,
-            });
-          }
+          // Always refresh `lastAttemptAt` so observability/audit queries
+          // reflect the most recent attempt. Recompute `notBefore` from the
+          // fresh error so a recurring 429 doesn't get retried on the next
+          // sweep before the server is ready — when the policy returns
+          // `undefined` (e.g., NetworkError, TimeoutError, generic 5xx
+          // without a Retry-After header), preserve the previous `notBefore`
+          // (which is necessarily in the past at this point, since the
+          // entry was just deemed eligible). Same id, idempotent save.
+          const newAttemptAt = new Date();
+          const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt);
+          await store.save({
+            ...entry,
+            lastAttemptAt: newAttemptAt,
+            ...(newNotBefore ? { notBefore: newNotBefore } : {}),
+          });
         }
         results.push({
           id: entry.id,

@@ -518,4 +518,108 @@ describe('NfseClient', () => {
     vi.useRealTimers();
     await client.close();
   });
+
+  it('replayPendingEvents on 429: refreshes notBefore and lastAttemptAt; entry stays', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    // mock another 429 on the replay POST — server still backing off
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(429, '', { headers: { 'Retry-After': '120' } });
+
+    const ORIG_FIRST = new Date('2026-05-12T09:00:00Z');
+    const ORIG_LAST = new Date('2026-05-12T09:00:00Z');
+    const ORIG_NOT_BEFORE = new Date('2026-05-12T09:59:00Z'); // 1 min ago — eligible
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-replay-429',
+      kind: 'emission',
+      idDps: 'test-replay-429',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado:
+        '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="test-replay-429"/></DPS>',
+      firstAttemptAt: ORIG_FIRST,
+      lastAttemptAt: ORIG_LAST,
+      notBefore: ORIG_NOT_BEFORE,
+      lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
+    });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+    });
+
+    const results = await client.replayPendingEvents();
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('still_pending');
+
+    const stored = await store.list();
+    expect(stored).toHaveLength(1);
+    const refreshed = stored[0];
+    expect(refreshed?.notBefore).toEqual(new Date('2026-05-12T10:02:00Z')); // now + 120s
+    expect(refreshed?.lastAttemptAt).toEqual(new Date('2026-05-12T10:00:00Z')); // refreshed
+    expect(refreshed?.firstAttemptAt).toEqual(ORIG_FIRST); // preserved
+
+    vi.useRealTimers();
+    await client.close();
+  });
+
+  it('replayPendingEvents on transient without Retry-After: refreshes lastAttemptAt, preserves prior notBefore', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    // Network-level failure on the replay — HttpClient wraps as NetworkError.
+    // Policy returns undefined (no Retry-After signal), so notBefore stays
+    // as the prior value while lastAttemptAt is refreshed.
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .replyWithError(new Error('socket closed'));
+
+    const ORIG_FIRST = new Date('2026-05-12T09:00:00Z');
+    const ORIG_LAST = new Date('2026-05-12T09:00:00Z');
+    const ORIG_NOT_BEFORE = new Date('2026-05-12T09:59:00Z');
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-replay-net',
+      kind: 'emission',
+      idDps: 'test-replay-net',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado:
+        '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="test-replay-net"/></DPS>',
+      firstAttemptAt: ORIG_FIRST,
+      lastAttemptAt: ORIG_LAST,
+      notBefore: ORIG_NOT_BEFORE,
+      lastError: { message: 'socket closed', errorName: 'NetworkError', transient: true },
+    });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+    });
+
+    const results = await client.replayPendingEvents();
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('still_pending');
+
+    const stored = await store.list();
+    expect(stored).toHaveLength(1);
+    const refreshed = stored[0];
+    expect(refreshed?.lastAttemptAt).toEqual(new Date('2026-05-12T10:00:00Z')); // refreshed
+    expect(refreshed?.notBefore).toEqual(ORIG_NOT_BEFORE); // preserved (policy returned undefined)
+    expect(refreshed?.firstAttemptAt).toEqual(ORIG_FIRST); // preserved
+
+    vi.useRealTimers();
+    await client.close();
+  });
 });

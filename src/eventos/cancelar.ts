@@ -79,7 +79,8 @@ export async function cancelar(
     if (!isTransient(error)) {
       throw error; // regra fiscal — caller loga e segue
     }
-    const notBefore = retryPolicy.computeNotBefore(error, new Date());
+    const now = new Date();
+    const notBefore = retryPolicy.computeNotBefore(error, now);
     const pending = buildPendingEvent({
       kind: 'cancelamento_simples',
       chaveNfse: params.chaveAcesso,
@@ -90,6 +91,7 @@ export async function cancelar(
       xmlAssinado: xmlPedido,
       error,
       transient: true,
+      now,
       ...(notBefore ? { notBefore } : {}),
     });
     await savePending(params.retryStore, pending);
@@ -209,7 +211,8 @@ export async function substituir(
   // Step 2 falhou.
   if (isTransient(cancelamentoErr)) {
     // Persistir para retry.
-    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, new Date());
+    const now = new Date();
+    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, now);
     const pending = buildPendingEvent({
       kind: 'cancelamento_por_substituicao',
       chaveNfse: params.chaveOriginal,
@@ -221,6 +224,7 @@ export async function substituir(
       xmlAssinado: xmlCancelAssinado ?? xmlCancel,
       error: cancelamentoErr,
       transient: true,
+      now,
       ...(notBefore ? { notBefore } : {}),
     });
     await savePending(params.retryStore, pending);
@@ -257,7 +261,8 @@ export async function substituir(
     xmlRollbackAssinado = undefined;
   }
 
-  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, new Date());
+  const nowRollback = new Date();
+  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, nowRollback);
   const pendingRollback = buildPendingEvent({
     kind: 'rollback_cancelamento',
     chaveNfse: novaNfse.chaveAcesso,
@@ -268,6 +273,7 @@ export async function substituir(
     xmlAssinado: xmlRollbackAssinado ?? xmlRollback,
     error: rollbackErr,
     transient: isTransient(rollbackErr),
+    now: nowRollback,
     ...(notBeforeRollback ? { notBefore: notBeforeRollback } : {}),
   });
   await savePending(params.retryStore, pendingRollback);
@@ -325,11 +331,16 @@ interface PendingEventFactoryInput {
   readonly xmlAssinado: string;
   readonly error: Error;
   readonly transient: boolean;
+  /**
+   * Timestamp compartilhado entre `firstAttemptAt` / `lastAttemptAt` e o
+   * cálculo de `notBefore` no caller. Required para garantir que os três
+   * campos refiram-se ao mesmo instante (sem drift de microssegundos).
+   */
+  readonly now: Date;
   readonly notBefore?: Date;
 }
 
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
-  const now = new Date();
   return {
     id: pendingEventId(input.chaveNfse, input.tipoEvento, input.nPedRegEvento),
     kind: input.kind,
@@ -340,8 +351,8 @@ function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
     cMotivo: input.cMotivo,
     ...(input.xMotivo ? { xMotivo: input.xMotivo } : {}),
     xmlAssinado: input.xmlAssinado,
-    firstAttemptAt: now,
-    lastAttemptAt: now,
+    firstAttemptAt: input.now,
+    lastAttemptAt: input.now,
     ...(input.notBefore ? { notBefore: input.notBefore } : {}),
     lastError: {
       message: input.error.message,
