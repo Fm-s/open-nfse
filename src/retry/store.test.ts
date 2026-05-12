@@ -43,6 +43,15 @@ describe('createInMemoryRetryStore', () => {
     const store = createInMemoryRetryStore();
     await expect(store.delete('nope')).resolves.toBeUndefined();
   });
+
+  it('round-trips an entry with notBefore', async () => {
+    const store = createInMemoryRetryStore();
+    const notBefore = new Date('2026-05-12T11:00:00Z');
+    await store.save({ ...sampleEntry('with-not-before'), notBefore });
+    const list = await store.list();
+    expect(list).toHaveLength(1);
+    expect(list[0]?.notBefore).toEqual(notBefore);
+  });
 });
 
 describe('pendingEventId', () => {

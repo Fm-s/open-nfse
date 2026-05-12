@@ -14,6 +14,15 @@ interface PendingBase {
   readonly xmlAssinado: string;
   readonly firstAttemptAt: Date;
   readonly lastAttemptAt: Date;
+  /**
+   * Earliest moment this entry is eligible for replay. When set,
+   * `replayPendingEvents` skips entries with `notBefore > now`.
+   * Populated from `RetryPolicy.computeNotBefore` (e.g., respecting a
+   * 429 / 503 `Retry-After` header). `undefined` means the entry is
+   * eligible on the next replay tick — current behavior for all entries
+   * created before this field existed.
+   */
+  readonly notBefore?: Date;
   readonly lastError: {
     readonly message: string;
     readonly errorName: string;
