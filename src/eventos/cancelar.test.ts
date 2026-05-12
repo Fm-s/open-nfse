@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import { MockAgent } from 'undici';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente } from '../ambiente.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
@@ -187,6 +187,33 @@ describe('cancelar', () => {
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
     expect(stored[0]?.kind).toBe('cancelamento_simples');
+  });
+
+  it('on 429 with Retry-After, persists pending with notBefore = now + retryAfter', async () => {
+    vi.useFakeTimers();
+    const NOW = new Date('2026-05-12T10:00:00Z');
+    vi.setSystemTime(NOW);
+
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE_ORIGINAL}/eventos`, method: 'POST' })
+      .reply(429, '', { headers: { 'Retry-After': '45' } });
+
+    const retryStore = createInMemoryRetryStore();
+    const r = await cancelar(httpClient, cert, createDefaultRetryPolicy(), {
+      chaveAcesso: CHAVE_ORIGINAL,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'erro com rate limit transitorio',
+      retryStore,
+    });
+
+    expect(r.status).toBe('retry_pending');
+    if (r.status === 'retry_pending') {
+      expect(r.pending.notBefore).toEqual(new Date(NOW.getTime() + 45_000));
+    }
+
+    vi.useRealTimers();
   });
 
   it('throws MissingRetryStoreError on transient failure without store', async () => {

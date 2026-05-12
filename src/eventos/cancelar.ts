@@ -79,6 +79,7 @@ export async function cancelar(
     if (!isTransient(error)) {
       throw error; // regra fiscal — caller loga e segue
     }
+    const notBefore = retryPolicy.computeNotBefore(error, new Date());
     const pending = buildPendingEvent({
       kind: 'cancelamento_simples',
       chaveNfse: params.chaveAcesso,
@@ -89,6 +90,7 @@ export async function cancelar(
       xmlAssinado: xmlPedido,
       error,
       transient: true,
+      ...(notBefore ? { notBefore } : {}),
     });
     await savePending(params.retryStore, pending);
     return { status: 'retry_pending', pending, error };
@@ -207,6 +209,7 @@ export async function substituir(
   // Step 2 falhou.
   if (isTransient(cancelamentoErr)) {
     // Persistir para retry.
+    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, new Date());
     const pending = buildPendingEvent({
       kind: 'cancelamento_por_substituicao',
       chaveNfse: params.chaveOriginal,
@@ -218,6 +221,7 @@ export async function substituir(
       xmlAssinado: xmlCancelAssinado ?? xmlCancel,
       error: cancelamentoErr,
       transient: true,
+      ...(notBefore ? { notBefore } : {}),
     });
     await savePending(params.retryStore, pending);
     return { status: 'retry_pending', novaNfse, pending, cancelamentoError: cancelamentoErr };
@@ -253,6 +257,7 @@ export async function substituir(
     xmlRollbackAssinado = undefined;
   }
 
+  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, new Date());
   const pendingRollback = buildPendingEvent({
     kind: 'rollback_cancelamento',
     chaveNfse: novaNfse.chaveAcesso,
@@ -263,6 +268,7 @@ export async function substituir(
     xmlAssinado: xmlRollbackAssinado ?? xmlRollback,
     error: rollbackErr,
     transient: isTransient(rollbackErr),
+    ...(notBeforeRollback ? { notBefore: notBeforeRollback } : {}),
   });
   await savePending(params.retryStore, pendingRollback);
   return {
@@ -319,6 +325,7 @@ interface PendingEventFactoryInput {
   readonly xmlAssinado: string;
   readonly error: Error;
   readonly transient: boolean;
+  readonly notBefore?: Date;
 }
 
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
@@ -335,6 +342,7 @@ function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
     xmlAssinado: input.xmlAssinado,
     firstAttemptAt: now,
     lastAttemptAt: now,
+    ...(input.notBefore ? { notBefore: input.notBefore } : {}),
     lastError: {
       message: input.error.message,
       errorName: input.error.name,
