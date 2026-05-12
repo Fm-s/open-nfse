@@ -1,4 +1,4 @@
-import { NetworkError, ServerError, TimeoutError } from '../errors/http.js';
+import { NetworkError, ServerError, TimeoutError, TooManyRequestsError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 
 /**
@@ -34,6 +34,7 @@ export function defaultIsTransient(err: unknown): boolean {
   if (err instanceof NetworkError) return true;
   if (err instanceof TimeoutError) return true;
   if (err instanceof ServerError) return true;
+  if (err instanceof TooManyRequestsError) return true;
   if (err instanceof ReceitaRejectionError) {
     return TRANSIENT_REJECTION_CODES.has(err.codigo);
   }

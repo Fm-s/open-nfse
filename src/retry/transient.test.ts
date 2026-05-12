@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NetworkError, ServerError, TimeoutError } from '../errors/http.js';
+import { NetworkError, ServerError, TimeoutError, TooManyRequestsError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import { defaultIsTransient } from './transient.js';
 
@@ -41,5 +41,9 @@ describe('defaultIsTransient', () => {
       ],
     });
     expect(defaultIsTransient(crl)).toBe(true);
+  });
+
+  it('treats TooManyRequestsError (429) as transient', () => {
+    expect(defaultIsTransient(new TooManyRequestsError(undefined))).toBe(true);
   });
 });
