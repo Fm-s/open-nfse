@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-12
+
+429-aware retry pipeline com `RetryPolicy` pluggable. Emissões e eventos que recebem rate-limit agora persistem no `RetryStore` e são retentados automaticamente, respeitando o cabeçalho `Retry-After` e máximos defensivos. Nenhuma quebra de API pública.
+
+### Added
+
+- **`TooManyRequestsError` (HTTP 429)** tipado, com `getRetryAfterMs()` na classe pai `HttpStatusError` que lê o cabeçalho `Retry-After` em ambas as formas RFC 7231 (delta-seconds ou HTTP-date).
+- **`RetryPolicy`** — interface pluggable que decide *quando* um erro transiente deve ser retentado. Default `createDefaultRetryPolicy()` respeita `Retry-After`, com fallback de 60s para 429/503 sem header e cap de 1h para valores absurdos.
+- **Campo opcional `notBefore?: Date`** em `PendingBase` (e portanto em `PendingEmission` / `PendingEventoCancelamento`). `replayPendingEvents` agora pula entradas com `notBefore > now` em vez de retentar imediatamente.
+- **`retryPolicy?: RetryPolicy`** em `NfseClientConfig` para customização global do cliente.
+
+### Changed
+
+- **`defaultIsTransient` agora classifica `TooManyRequestsError` como transiente** — emissões e eventos que recebem 429 viram `status: 'retry_pending'` em vez de lançar erro.
+- **Arquivos movidos**: `src/eventos/retry-store.ts` → `src/retry/store.ts` e `src/eventos/classify-error.ts` → `src/retry/transient.ts`. Re-exports públicos preservados em `open-nfse`.
+
+### Migration
+
+- Consumidores usando `createInMemoryRetryStore()` ou a interface `RetryStore` em código próprio: nenhuma mudança necessária. O novo campo `notBefore` é opcional.
+- Consumidores com store em banco: adicione coluna `not_before TIMESTAMP NULL` (ou equivalente). Linhas existentes ficam com `NULL` → elegíveis imediatamente no próximo sweep, comportamento idêntico ao anterior.
+- Consumidores que envolviam `emitir()` em retry custom para 429: remova o wrapper. A lib agora persiste no `RetryStore` automaticamente, evitando o bug em que cada retry consome um novo `nDPS` do counter.
+
 ## [0.7.3] — 2026-04-20
 
 Hardening pós-review. Tipagem mais precisa para eventos, enforcement local de regras que só apareciam no servidor. Nenhuma quebra de API pública.
