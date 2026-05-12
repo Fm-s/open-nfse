@@ -432,7 +432,10 @@ export async function emitSeguro(
     if (isTransient(error)) {
       if (!deps.retryStore) throw new MissingRetryStoreError();
       const now = new Date();
-      const notBefore = deps.retryPolicy.computeNotBefore(error, now);
+      const notBefore = deps.retryPolicy.computeNotBefore(error, now, {
+        attempt: 1,
+        firstAttemptAt: now,
+      });
       const pending: PendingEmission = {
         id: pendingEmissionId(dpsReal.infDPS.Id),
         kind: 'emission',
@@ -443,6 +446,7 @@ export async function emitSeguro(
         xmlAssinado: xmlSigned,
         firstAttemptAt: now,
         lastAttemptAt: now,
+        attempts: 1,
         ...(notBefore ? { notBefore } : {}),
         lastError: {
           message: error.message,

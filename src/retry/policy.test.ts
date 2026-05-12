@@ -6,7 +6,8 @@ import {
   TimeoutError,
   TooManyRequestsError,
 } from '../errors/http.js';
-import { createDefaultRetryPolicy } from './policy.js';
+import { noopLogger } from '../logging.js';
+import { type RetryPolicy, createDefaultRetryPolicy, makeSafePolicy } from './policy.js';
 
 const NOW = new Date('2026-05-12T10:00:00Z');
 
@@ -93,5 +94,77 @@ describe('createDefaultRetryPolicy', () => {
     const policy = createDefaultRetryPolicy();
     const err = new HttpStatusError(418, undefined);
     expect(policy.computeNotBefore(err, NOW)).toBeUndefined();
+  });
+
+  it('ignores RetryContext (default policy only respects Retry-After)', () => {
+    const policy = createDefaultRetryPolicy();
+    const err = new TooManyRequestsError(undefined, { headers: { 'retry-after': '30' } });
+    // Same outcome with or without context — default doesn't backoff by attempt.
+    expect(policy.computeNotBefore(err, NOW)).toEqual(new Date(NOW.getTime() + 30_000));
+    expect(policy.computeNotBefore(err, NOW, { attempt: 5, firstAttemptAt: NOW })).toEqual(
+      new Date(NOW.getTime() + 30_000),
+    );
+  });
+});
+
+describe('makeSafePolicy', () => {
+  it('passes through normal returns unchanged', () => {
+    const inner: RetryPolicy = {
+      computeNotBefore: vi.fn(() => new Date(NOW.getTime() + 5_000)),
+    };
+    const safe = makeSafePolicy(inner, noopLogger);
+    expect(safe.computeNotBefore(new Error('x'), NOW)).toEqual(new Date(NOW.getTime() + 5_000));
+    expect(inner.computeNotBefore).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes through undefined returns', () => {
+    const inner: RetryPolicy = { computeNotBefore: () => undefined };
+    const safe = makeSafePolicy(inner, noopLogger);
+    expect(safe.computeNotBefore(new Error('x'), NOW)).toBeUndefined();
+  });
+
+  it('forwards the RetryContext argument', () => {
+    const inner: RetryPolicy = {
+      computeNotBefore: vi.fn(() => undefined),
+    };
+    const safe = makeSafePolicy(inner, noopLogger);
+    const ctx = { attempt: 3, firstAttemptAt: NOW };
+    safe.computeNotBefore(new Error('x'), NOW, ctx);
+    expect(inner.computeNotBefore).toHaveBeenCalledWith(expect.any(Error), NOW, ctx);
+  });
+
+  it('catches thrown errors and returns undefined; logs a warning', () => {
+    const warn = vi.fn();
+    const logger = { ...noopLogger, warn };
+    const inner: RetryPolicy = {
+      computeNotBefore: () => {
+        throw new Error('bug em policy custom');
+      },
+    };
+    const safe = makeSafePolicy(inner, logger);
+    expect(safe.computeNotBefore(new Error('original 429'), NOW)).toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+    const [message, context] = warn.mock.calls[0] as [string, Record<string, unknown>];
+    expect(message).toMatch(/retryPolicy.*threw/);
+    expect(context).toMatchObject({
+      policyError: 'bug em policy custom',
+      originalError: 'original 429',
+    });
+  });
+
+  it('handles non-Error throws from the inner policy', () => {
+    const warn = vi.fn();
+    const logger = { ...noopLogger, warn };
+    const inner: RetryPolicy = {
+      computeNotBefore: () => {
+        // biome-ignore lint/suspicious/noExplicitAny: simulating user code that throws a non-Error
+        throw 'a string, not an Error' as any;
+      },
+    };
+    const safe = makeSafePolicy(inner, logger);
+    expect(safe.computeNotBefore(new Error('original'), NOW)).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+    const [, context] = warn.mock.calls[0] as [string, Record<string, unknown>];
+    expect(context.policyError).toBe('a string, not an Error');
   });
 });

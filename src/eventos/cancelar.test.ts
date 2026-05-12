@@ -183,6 +183,7 @@ describe('cancelar', () => {
         expect(r.pending.nPedRegEvento).toBe('001');
       }
       expect(r.pending.lastError.transient).toBe(true);
+      expect(r.pending.attempts).toBe(1); // first persist
       // Regression guard: the persisted xmlAssinado MUST contain an
       // XMLDSig signature. `replayPendingEvents` re-POSTs with
       // `xmlJaAssinado: true`, so unsigned XML in the store would be

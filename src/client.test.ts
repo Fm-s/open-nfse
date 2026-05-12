@@ -545,6 +545,7 @@ describe('NfseClient', () => {
       firstAttemptAt: ORIG_FIRST,
       lastAttemptAt: ORIG_LAST,
       notBefore: ORIG_NOT_BEFORE,
+      attempts: 1,
       lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
     });
 
@@ -565,6 +566,7 @@ describe('NfseClient', () => {
     expect(refreshed?.notBefore).toEqual(new Date('2026-05-12T10:02:00Z')); // now + 120s
     expect(refreshed?.lastAttemptAt).toEqual(new Date('2026-05-12T10:00:00Z')); // refreshed
     expect(refreshed?.firstAttemptAt).toEqual(ORIG_FIRST); // preserved
+    expect(refreshed?.attempts).toBe(2); // incremented
 
     vi.useRealTimers();
     await client.close();
@@ -618,6 +620,127 @@ describe('NfseClient', () => {
     expect(refreshed?.lastAttemptAt).toEqual(new Date('2026-05-12T10:00:00Z')); // refreshed
     expect(refreshed?.notBefore).toEqual(ORIG_NOT_BEFORE); // preserved (policy returned undefined)
     expect(refreshed?.firstAttemptAt).toEqual(ORIG_FIRST); // preserved
+
+    vi.useRealTimers();
+    await client.close();
+  });
+
+  it('replayPendingEvents passes RetryContext (attempt count + firstAttemptAt) to the policy', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(429, '', { headers: { 'Retry-After': '10' } });
+
+    const ORIG_FIRST = new Date('2026-05-12T09:00:00Z');
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-ctx',
+      kind: 'emission',
+      idDps: 'test-ctx',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado: '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="test-ctx"/></DPS>',
+      firstAttemptAt: ORIG_FIRST,
+      lastAttemptAt: ORIG_FIRST,
+      notBefore: new Date('2026-05-12T09:59:00Z'),
+      attempts: 4, // 4 prior attempts; this replay is the 5th
+      lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
+    });
+
+    const seenContexts: Array<{ attempt: number; firstAttemptAt: Date }> = [];
+    const trackingPolicy = {
+      computeNotBefore: (
+        _err: Error,
+        now: Date,
+        context?: { attempt: number; firstAttemptAt: Date },
+      ): Date | undefined => {
+        if (context) seenContexts.push(context);
+        return new Date(now.getTime() + 1_000);
+      },
+    };
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+      retryPolicy: trackingPolicy,
+    });
+
+    await client.replayPendingEvents();
+
+    expect(seenContexts).toHaveLength(1);
+    expect(seenContexts[0]).toEqual({ attempt: 5, firstAttemptAt: ORIG_FIRST });
+
+    const refreshed = (await store.list())[0];
+    expect(refreshed?.attempts).toBe(5);
+
+    vi.useRealTimers();
+    await client.close();
+  });
+
+  it('replayPendingEvents survives a custom RetryPolicy that throws (safe wrapping)', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T10:00:00Z'));
+
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(429, '', { headers: { 'Retry-After': '10' } });
+
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: 'emission:test-throws',
+      kind: 'emission',
+      idDps: 'test-throws',
+      emitenteCnpj: '00000000000000',
+      serie: '00001',
+      nDPS: '1',
+      xmlAssinado:
+        '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="test-throws"/></DPS>',
+      firstAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      notBefore: new Date('2026-05-12T09:59:00Z'),
+      attempts: 1,
+      lastError: { message: '429', errorName: 'TooManyRequestsError', transient: true },
+    });
+
+    const explodingPolicy = {
+      computeNotBefore: () => {
+        throw new Error('bug interno na policy');
+      },
+    };
+
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (message: string, context?: Record<string, unknown>) => {
+        warnings.push({ message, ...(context ? { context } : {}) });
+      },
+      error: () => {},
+    };
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+      retryPolicy: explodingPolicy,
+      logger,
+    });
+
+    // Must not throw — the safe wrapper catches and degrades to notBefore=undefined.
+    const results = await client.replayPendingEvents();
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('still_pending');
+
+    // A warning was emitted.
+    expect(warnings.some((w) => /retryPolicy.*threw/.test(w.message))).toBe(true);
 
     vi.useRealTimers();
     await client.close();

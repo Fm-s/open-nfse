@@ -64,7 +64,7 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from './parametros-municipais/types.js';
-import { type RetryPolicy, createDefaultRetryPolicy } from './retry/policy.js';
+import { type RetryPolicy, createDefaultRetryPolicy, makeSafePolicy } from './retry/policy.js';
 import { type PendingEvent, type RetryStore, isPendingEmission } from './retry/store.js';
 import { defaultIsTransient } from './retry/transient.js';
 
@@ -183,7 +183,12 @@ export class NfseClient {
     this.retryStore = config.retryStore;
     this.dpsCounter = config.dpsCounter;
     this.parametrosCache = config.parametrosCache ?? createInMemoryParametrosCache();
-    this.retryPolicy = config.retryPolicy ?? createDefaultRetryPolicy();
+    // Wrap defensively so a buggy custom policy can't mask the original
+    // fiscal error in catch paths. See makeSafePolicy + RetryPolicy contract.
+    this.retryPolicy = makeSafePolicy(
+      config.retryPolicy ?? createDefaultRetryPolicy(),
+      this.logger,
+    );
   }
 
   async fetchByChave(chaveAcesso: string): Promise<NfseQueryResult> {
@@ -390,12 +395,21 @@ export class NfseClient {
 
   /**
    * Re-POSTs each `PendingEvent` in the store. SEFIN deduplication on
-   * (chave + tipoEvento + nPedRegEvento) garante idempotência: itens já
-   * processados retornam o mesmo resultado ou uma rejeição determinística.
-   * Em sucesso, o item é removido do store. Em falha transiente, permanece.
-   * Em falha permanente, também é removido e o erro é retornado no item.
+   * `infDPS.Id` (emissão) ou `chave + tipoEvento + nPedRegEvento` (eventos)
+   * garante idempotência: itens já processados retornam o mesmo resultado
+   * ou uma rejeição determinística. Em sucesso, o item é removido do store.
+   * Em falha transiente, permanece com `lastAttemptAt`/`notBefore`/`attempts`
+   * atualizados. Em falha permanente, também é removido e o erro é
+   * retornado no item.
    *
-   * Consumidores tipicamente chamam isso em um cron (a cada 1–5 min).
+   * **Contrato: single-threaded.** Esta função NÃO é segura para execução
+   * concorrente — dois processos chamando-a ao mesmo tempo veriam a mesma
+   * lista, retentariam os mesmos itens, e dobrariam o consumo de
+   * rate-limit do SEFIN. Garanta exclusão mútua no caller (e.g., um cron
+   * single-instance, lock distribuído via Redis se múltiplos workers
+   * compartilham o mesmo `RetryStore`).
+   *
+   * Consumidores tipicamente chamam isso em um cron a cada 1–5 min.
    */
   async replayPendingEvents(override?: RetryStore): Promise<ReplayItem[]> {
     const state = await this.ensureState();
@@ -433,18 +447,23 @@ export class NfseClient {
           await store.delete(entry.id);
         } else {
           // Always refresh `lastAttemptAt` so observability/audit queries
-          // reflect the most recent attempt. Recompute `notBefore` from the
-          // fresh error so a recurring 429 doesn't get retried on the next
-          // sweep before the server is ready — when the policy returns
-          // `undefined` (e.g., NetworkError, TimeoutError, generic 5xx
-          // without a Retry-After header), preserve the previous `notBefore`
-          // (which is necessarily in the past at this point, since the
-          // entry was just deemed eligible). Same id, idempotent save.
+          // reflect the most recent attempt. Increment `attempts` so policies
+          // doing exponential/linear backoff see the right count. Recompute
+          // `notBefore` from the fresh error — when the policy returns
+          // `undefined` (NetworkError, TimeoutError, generic 5xx without a
+          // Retry-After header), preserve the previous `notBefore` (which
+          // is necessarily in the past at this point). Same id, idempotent
+          // save.
           const newAttemptAt = new Date();
-          const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt);
+          const newAttempts = (entry.attempts ?? 1) + 1;
+          const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt, {
+            attempt: newAttempts,
+            firstAttemptAt: entry.firstAttemptAt,
+          });
           await store.save({
             ...entry,
             lastAttemptAt: newAttemptAt,
+            attempts: newAttempts,
             ...(newNotBefore ? { notBefore: newNotBefore } : {}),
           });
         }

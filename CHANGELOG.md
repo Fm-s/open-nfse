@@ -13,10 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`TooManyRequestsError` (HTTP 429)** tipado, com `getRetryAfterMs()` na classe pai `HttpStatusError` que lê o cabeçalho `Retry-After` em ambas as formas RFC 7231 (delta-seconds ou HTTP-date).
-- **`RetryPolicy`** — interface pluggable que decide *quando* um erro transiente deve ser retentado. Default `createDefaultRetryPolicy()` respeita `Retry-After`, com fallback de 60s para 429/503 sem header e cap de 1h para valores absurdos.
-- **Campo opcional `notBefore?: Date`** em `PendingBase` (e portanto em `PendingEmission` / `PendingEventoCancelamento`). `replayPendingEvents` agora pula entradas com `notBefore > now` em vez de retentar imediatamente.
-- **`retryPolicy?: RetryPolicy`** em `NfseClientConfig` para customização global do cliente.
+- **`TooManyRequestsError` (HTTP 429)** tipado, com `getRetryAfterMs()` na classe pai `HttpStatusError` que lê o cabeçalho `Retry-After` em ambas as formas RFC 7231 (delta-seconds ou HTTP-date). Aceita também segundos decimais (`12.5` → 12s) como tolerância a desvios comuns de servidores.
+- **`RetryPolicy`** — interface pluggable que decide *quando* um erro transiente deve ser retentado. Default `createDefaultRetryPolicy()` respeita `Retry-After`, com fallback de 60s para 429/503 sem header e cap de 1h para valores absurdos. Recebe opcionalmente um `RetryContext` com `attempt` e `firstAttemptAt` — permite policies customizadas implementarem backoff exponencial / linear / com jitter baseado em histórico.
+- **`RetryContext`** — interface com `attempt: number` (tentativas até agora, ≥1) e `firstAttemptAt: Date` (primeira persistência). Passada ao `computeNotBefore` em todos os caminhos internos.
+- **Campos opcionais `notBefore?: Date` e `attempts?: number`** em `PendingBase`. `replayPendingEvents` pula entradas com `notBefore > now`, incrementa `attempts` a cada replay transiente, e passa o contador ao `RetryPolicy`.
+- **`retryPolicy?: RetryPolicy`** em `NfseClientConfig` para customização global do cliente. Sempre embrulhada por um wrapper defensivo internamente — exceções em `computeNotBefore` são capturadas, logadas como `warn`, e o `notBefore` cai para `undefined`. Garante que uma policy customizada com bug não mascare o erro fiscal original.
 
 ### Changed
 

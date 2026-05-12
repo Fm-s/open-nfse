@@ -29,6 +29,15 @@ interface PendingBase {
    * created before this field existed.
    */
   readonly notBefore?: Date;
+  /**
+   * Number of attempts made so far (including the one that just failed).
+   * `1` after the first persist, `2` after the first replay attempt, etc.
+   * Passed to `RetryPolicy.computeNotBefore` via `RetryContext.attempt`
+   * so custom policies can implement attempt-based backoff (exponential,
+   * linear, etc.). `undefined` is treated as `1` for entries persisted
+   * before this field existed.
+   */
+  readonly attempts?: number;
   readonly lastError: {
     readonly message: string;
     readonly errorName: string;

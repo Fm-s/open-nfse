@@ -35,23 +35,31 @@ export class HttpStatusError extends HttpError {
   }
 
   /**
-   * Parse `Retry-After` per RFC 7231 §7.1.3. Returns the delay in
-   * milliseconds, or `undefined` when the header is missing, malformed,
-   * or expresses a negative delta. HTTP-date values in the past return
-   * `0` (ready immediately).
+   * Parse `Retry-After` per RFC 7231 §7.1.3, returning the delay in
+   * milliseconds (or `undefined` when missing/malformed/signed).
+   *
+   * Strict RFC delta-seconds is non-negative integer only, but the
+   * parser is intentionally lenient on one real-world deviation:
+   * decimal seconds (`12.5`) — some servers send fractional values;
+   * we truncate to whole seconds via `Math.floor`.
+   *
+   * HTTP-date values in the past return `0` (ready immediately).
+   *
+   * Explicitly rejects any leading sign (`-5`, `+60`) before falling
+   * through to numeric / date branches. `Date.parse('-5')` returns `0`
+   * on V8, which would silently route to the past-date branch and
+   * yield a `0ms` delay — wrong.
    */
   getRetryAfterMs(): number | undefined {
     const raw = this.headers['retry-after'];
     if (!raw) return undefined;
     const trimmed = raw.trim();
     if (trimmed === '') return undefined;
-    // delta-seconds: pure non-negative integer.
-    if (/^\d+$/.test(trimmed)) {
-      return Number.parseInt(trimmed, 10) * 1000;
-    }
-    // Negative integer: return undefined (semantically invalid delta-seconds).
-    if (/^-\d+$/.test(trimmed)) {
-      return undefined;
+    if (trimmed.startsWith('-') || trimmed.startsWith('+')) return undefined;
+    // delta-seconds: non-negative integer OR decimal (truncated to floor).
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      const seconds = Number.parseFloat(trimmed);
+      return Math.floor(seconds) * 1000;
     }
     // HTTP-date.
     const parsedMs = Date.parse(trimmed);

@@ -222,6 +222,7 @@ describe('emitSeguro', () => {
       }
       expect(r.pending.lastError.transient).toBe(true);
       expect(r.pending.xmlAssinado).toContain('<Signature');
+      expect(r.pending.attempts).toBe(1); // first persist
     }
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);

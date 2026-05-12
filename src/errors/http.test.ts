@@ -125,6 +125,26 @@ describe('HttpStatusError.getRetryAfterMs', () => {
     const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '' } });
     expect(err.getRetryAfterMs()).toBeUndefined();
   });
+
+  it('truncates decimal seconds via floor (some servers send fractional values)', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '12.5' } });
+    expect(err.getRetryAfterMs()).toBe(12_000);
+  });
+
+  it('truncates decimal seconds even when fractional part is large', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '12.999' } });
+    expect(err.getRetryAfterMs()).toBe(12_000);
+  });
+
+  it('returns undefined for signed-positive (RFC delta-seconds is unsigned)', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '+60' } });
+    expect(err.getRetryAfterMs()).toBeUndefined();
+  });
+
+  it('returns 0 for `0` delta-seconds (retry immediately per server)', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '0' } });
+    expect(err.getRetryAfterMs()).toBe(0);
+  });
 });
 
 describe('TooManyRequestsError', () => {

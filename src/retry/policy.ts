@@ -1,4 +1,24 @@
 import { HttpStatusError, ServerError, TooManyRequestsError } from '../errors/http.js';
+import type { Logger } from '../logging.js';
+
+/**
+ * Contexto opcional sobre a entrada que está sendo retentada. Permite
+ * policies que precisam de informação histórica — exponential backoff
+ * baseado em número de tentativas, deadline absoluto a partir da
+ * primeira falha, jitter dependente do tempo decorrido, etc.
+ *
+ * Sempre presente quando a lib chama `computeNotBefore` internamente.
+ * Pode ser omitido se o consumidor chamar a policy diretamente.
+ */
+export interface RetryContext {
+  /**
+   * Tentativas realizadas até agora, incluindo a que acabou de falhar.
+   * `1` após a primeira persistência, `2` após o primeiro replay, etc.
+   */
+  readonly attempt: number;
+  /** Quando o item entrou no `RetryStore` pela primeira vez. */
+  readonly firstAttemptAt: Date;
+}
 
 /**
  * Decide *when* a transient error becomes eligible for replay. Transience
@@ -9,7 +29,14 @@ import { HttpStatusError, ServerError, TooManyRequestsError } from '../errors/ht
  * The default implementation reads `Retry-After` per RFC 7231 and falls
  * back to a constant for 429 / 503 (which semantically mean "back off").
  * Consumers can implement their own to add jitter, exponential backoff,
- * or environment-specific defaults.
+ * or environment-specific defaults — see `RetryContext` for the data
+ * available on each call.
+ *
+ * **Contract:** `computeNotBefore` MUST NOT throw. The lib wraps every
+ * configured policy defensively (logging a warning and falling back to
+ * `undefined`) so that a broken custom policy can't mask the original
+ * fiscal error, but the wrapper should not be relied upon — assume it
+ * isn't there and make the policy itself bulletproof.
  */
 export interface RetryPolicy {
   /**
@@ -17,7 +44,7 @@ export interface RetryPolicy {
    * `undefined` means "eligible on the next replay tick" — no specific
    * wait beyond whatever cadence the caller already drives.
    */
-  computeNotBefore(err: Error, now: Date): Date | undefined;
+  computeNotBefore(err: Error, now: Date, context?: RetryContext): Date | undefined;
 }
 
 export interface DefaultRetryPolicyOptions {
@@ -42,7 +69,9 @@ export function createDefaultRetryPolicy(options?: DefaultRetryPolicyOptions): R
   const maxMs = options?.maxRetryAfterMs ?? DEFAULT_MAX_RETRY_AFTER_MS;
 
   return {
-    computeNotBefore(err: Error, now: Date): Date | undefined {
+    computeNotBefore(err: Error, now: Date, _context?: RetryContext): Date | undefined {
+      // _context é ignorado pela default — a default não faz backoff baseado
+      // em tentativas, só respeita Retry-After. Policies customizadas usam.
       if (err instanceof HttpStatusError) {
         const headerMs = err.getRetryAfterMs();
         if (headerMs !== undefined) {
@@ -60,4 +89,31 @@ export function createDefaultRetryPolicy(options?: DefaultRetryPolicyOptions): R
 
 function isBackoffStatus(err: HttpStatusError): boolean {
   return err instanceof TooManyRequestsError || (err instanceof ServerError && err.status === 503);
+}
+
+/**
+ * Wraps a `RetryPolicy` so that exceptions thrown by `computeNotBefore`
+ * are caught, logged, and converted to a `undefined` notBefore. Internal
+ * to the lib — every `NfseClient` wraps the configured (or default)
+ * policy with this in its constructor, so a buggy custom policy can't
+ * mask the original fiscal error.
+ *
+ * @internal
+ */
+export function makeSafePolicy(inner: RetryPolicy, logger: Logger): RetryPolicy {
+  return {
+    computeNotBefore(err, now, context) {
+      try {
+        return inner.computeNotBefore(err, now, context);
+      } catch (policyErr) {
+        logger.warn('retryPolicy.computeNotBefore threw — caindo para notBefore=undefined', {
+          policyError: policyErr instanceof Error ? policyErr.message : String(policyErr),
+          policyErrorName: policyErr instanceof Error ? policyErr.name : 'unknown',
+          originalError: err.message,
+          originalErrorName: err.name,
+        });
+        return undefined;
+      }
+    },
+  };
 }

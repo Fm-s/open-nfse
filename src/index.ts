@@ -260,7 +260,7 @@ export type {
   RetryStore,
 } from './retry/store.js';
 export { createDefaultRetryPolicy } from './retry/policy.js';
-export type { DefaultRetryPolicyOptions, RetryPolicy } from './retry/policy.js';
+export type { DefaultRetryPolicyOptions, RetryContext, RetryPolicy } from './retry/policy.js';
 
 // v0.5 — Parâmetros Municipais
 export {

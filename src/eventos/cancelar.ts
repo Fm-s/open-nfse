@@ -88,7 +88,10 @@ export async function cancelar(
       throw error; // regra fiscal — caller loga e segue
     }
     const now = new Date();
-    const notBefore = retryPolicy.computeNotBefore(error, now);
+    const notBefore = retryPolicy.computeNotBefore(error, now, {
+      attempt: 1,
+      firstAttemptAt: now,
+    });
     const pending = buildPendingEvent({
       kind: 'cancelamento_simples',
       chaveNfse: params.chaveAcesso,
@@ -219,7 +222,10 @@ export async function substituir(
   if (isTransient(cancelamentoErr)) {
     // Persistir para retry.
     const now = new Date();
-    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, now);
+    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, now, {
+      attempt: 1,
+      firstAttemptAt: now,
+    });
     const pending = buildPendingEvent({
       kind: 'cancelamento_por_substituicao',
       chaveNfse: params.chaveOriginal,
@@ -272,7 +278,10 @@ export async function substituir(
   }
 
   const nowRollback = new Date();
-  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, nowRollback);
+  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, nowRollback, {
+    attempt: 1,
+    firstAttemptAt: nowRollback,
+  });
   const pendingRollback = buildPendingEvent({
     kind: 'rollback_cancelamento',
     chaveNfse: novaNfse.chaveAcesso,
@@ -348,6 +357,8 @@ interface PendingEventFactoryInput {
    */
   readonly now: Date;
   readonly notBefore?: Date;
+  /** Tentativas até agora; default 1 quando omitido. */
+  readonly attempts?: number;
 }
 
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
@@ -363,6 +374,7 @@ function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
     xmlAssinado: input.xmlAssinado,
     firstAttemptAt: input.now,
     lastAttemptAt: input.now,
+    attempts: input.attempts ?? 1,
     ...(input.notBefore ? { notBefore: input.notBefore } : {}),
     lastError: {
       message: input.error.message,
