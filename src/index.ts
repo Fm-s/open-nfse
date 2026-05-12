@@ -30,6 +30,7 @@ export {
   NotFoundError,
   ServerError,
   TimeoutError,
+  TooManyRequestsError,
   UnauthorizedError,
 } from './errors/http.js';
 export type { HttpStatusErrorOptions } from './errors/http.js';
@@ -220,7 +221,6 @@ export type {
   SubstituirParams,
   SubstituirResult,
 } from './eventos/cancelar.js';
-export { defaultIsTransient } from './retry/transient.js';
 export {
   buildEventoPedidoId,
   InvalidEventoPedidoIdParamError,
@@ -239,6 +239,11 @@ export type {
 } from './eventos/parse-event.js';
 export { postEvento } from './eventos/post-evento.js';
 export type { EventoResult } from './eventos/post-evento.js';
+export { signPedRegEventoXml } from './eventos/sign-event.js';
+export type { ReplayItem } from './client.js';
+
+// retry pipeline — transient classification + persistence + timing policy
+export { defaultIsTransient } from './retry/transient.js';
 export {
   createInMemoryRetryStore,
   isPendingEmission,
@@ -254,8 +259,8 @@ export type {
   PendingEventoCancelamento,
   RetryStore,
 } from './retry/store.js';
-export { signPedRegEventoXml } from './eventos/sign-event.js';
-export type { ReplayItem } from './client.js';
+export { createDefaultRetryPolicy } from './retry/policy.js';
+export type { DefaultRetryPolicyOptions, RetryPolicy } from './retry/policy.js';
 
 // v0.5 — Parâmetros Municipais
 export {
