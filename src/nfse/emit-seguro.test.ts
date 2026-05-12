@@ -228,6 +228,72 @@ describe('emitSeguro', () => {
     expect(stored[0]?.kind).toBe('emission');
   });
 
+  it('on 429 with Retry-After, persists pending with notBefore = now + retryAfter', async () => {
+    vi.useFakeTimers();
+    const NOW = new Date('2026-05-12T10:00:00Z');
+    vi.setSystemTime(NOW);
+
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(429, '', { headers: { 'Retry-After': '90' } });
+
+    const counter = createInMemoryDpsCounter(7);
+    const retryStore = createInMemoryRetryStore();
+    const r = await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
+      baseParams(),
+    );
+
+    expect('status' in r && r.status).toBe('retry_pending');
+    if ('status' in r && r.status === 'retry_pending') {
+      expect(r.pending.notBefore).toEqual(new Date(NOW.getTime() + 90_000));
+    }
+    const stored = await retryStore.list();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.notBefore).toEqual(new Date(NOW.getTime() + 90_000));
+
+    vi.useRealTimers();
+  });
+
+  it('on 429 without Retry-After, persists pending with default-60s notBefore', async () => {
+    vi.useFakeTimers();
+    const NOW = new Date('2026-05-12T10:00:00Z');
+    vi.setSystemTime(NOW);
+
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(429, '');
+
+    const counter = createInMemoryDpsCounter(7);
+    const retryStore = createInMemoryRetryStore();
+    const r = await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+      },
+      baseParams(),
+    );
+
+    if ('status' in r && r.status === 'retry_pending') {
+      expect(r.pending.notBefore).toEqual(new Date(NOW.getTime() + 60_000));
+    } else {
+      throw new Error('expected retry_pending');
+    }
+
+    vi.useRealTimers();
+  });
+
   it('throws MissingRetryStoreError on transient failure when retryStore absent', async () => {
     mockAgent
       .get('https://sefin.example.test')
