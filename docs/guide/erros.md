@@ -10,10 +10,11 @@ Error
       ├─ HttpError                  (grupo)
       │    ├─ NetworkError
       │    ├─ TimeoutError
-      │    ├─ HttpStatusError       (genérico)
+      │    ├─ HttpStatusError       (genérico — método getRetryAfterMs())
       │    ├─ UnauthorizedError     (HTTP 401)
       │    ├─ ForbiddenError        (HTTP 403)
       │    ├─ NotFoundError         (HTTP 404)
+      │    ├─ TooManyRequestsError  (HTTP 429)
       │    └─ ServerError           (HTTP 5xx)
       ├─ CertificateError           (grupo)
       │    ├─ ExpiredCertificateError
@@ -83,6 +84,19 @@ class HttpStatusError extends HttpError {
   readonly status: number;
   readonly body: string | undefined;
   readonly headers: Record<string, string>;
+  /**
+   * Parse RFC 7231 `Retry-After`. Retorna o delay em ms ou `undefined`
+   * (header ausente/malformado/com sinal). Aceita delta-seconds (incl.
+   * decimais, arredondados pra cima via `Math.ceil`) e HTTP-date.
+   * Datas no passado → 0ms.
+   */
+  getRetryAfterMs(): number | undefined;
+}
+
+class TooManyRequestsError extends HttpStatusError {
+  // status sempre 429. Classificada como transiente — emissões e eventos
+  // viram `retry_pending` automaticamente, com `notBefore` calculado pela
+  // `RetryPolicy` configurada (default respeita Retry-After).
 }
 
 class InvalidCepError extends ValidationError {
@@ -107,13 +121,42 @@ class InvalidCepError extends ValidationError {
 
 ### Classificação padrão transiente vs permanente
 
-`defaultIsTransient` (de `src/eventos/classify-error.ts`) decide o que vai para `retry_pending` vs lançar. Resumo:
+`defaultIsTransient` (de `src/retry/transient.ts`) decide o que vai para `retry_pending` vs lançar. Resumo:
 
-- **Sempre transiente**: `NetworkError`, `TimeoutError`, `ServerError` (5xx).
+- **Sempre transiente**: `NetworkError`, `TimeoutError`, `ServerError` (5xx), `TooManyRequestsError` (429).
 - **Transiente por código** (em `ReceitaRejectionError`): `E1217` (manutenção SEFIN), `E1206` (erro de acesso a LCR) — dois códigos da camada de recepção que são intermitentes.
 - **Permanente**: qualquer outro `ReceitaRejectionError` (426 dos 428 códigos do Anexo I) e tudo o mais.
 
-Sobrescreva passando `isTransient: (err) => boolean` em `EmitirParams`, `CancelarParams`, ou `SubstituirParams`.
+Sobrescreva passando `isTransient: (err) => boolean` em `CancelarParams` ou `SubstituirParams` (não disponível em `EmitirParams`).
+
+### 429 e RetryPolicy
+
+429 vira `retry_pending` no `RetryStore` com um `notBefore` calculado pela `RetryPolicy` configurada. A default (`createDefaultRetryPolicy()`):
+
+- Respeita o cabeçalho `Retry-After` quando presente — delta-seconds ou HTTP-date.
+- Fallback de 60s para 429/503 sem header.
+- Cap de 1h para valores absurdos (servidor mandando dias/semanas).
+- Decimais (`12.5`) arredondados para cima via `Math.ceil` (servidor disse "pelo menos X segundos").
+
+Para backoff exponencial, jitter, ou política específica, implemente `RetryPolicy` e passe em `NfseClientConfig.retryPolicy`:
+
+```typescript
+import type { RetryPolicy, RetryContext } from 'open-nfse';
+
+const exponentialPolicy: RetryPolicy = {
+  computeNotBefore(err, now, ctx?: RetryContext) {
+    if (!ctx) return undefined;
+    const baseMs = 1_000;
+    const jitter = Math.random() * 500;
+    const delay = Math.min(baseMs * 2 ** (ctx.attempt - 1) + jitter, 3_600_000);
+    return new Date(now.getTime() + delay);
+  },
+};
+
+const cliente = new NfseClient({ /* ... */, retryPolicy: exponentialPolicy });
+```
+
+A lib embrulha a sua policy num wrapper defensivo: se `computeNotBefore` lançar, captura, loga `warn`, e cai para `notBefore: undefined` — a entrada permanece no store, elegível na próxima passada. Não confie no wrapper como rede de segurança; faça a sua policy à prova de bala.
 
 Signatures e parâmetros exatos: veja o [API cheat sheet](../api-cheatsheet) ou [API completa (TypeDoc)](../api/).
 

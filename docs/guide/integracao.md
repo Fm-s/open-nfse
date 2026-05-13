@@ -176,6 +176,8 @@ CREATE TABLE nfse_pending_events (
   xml_assinado         TEXT NOT NULL,
   first_attempt_at     TIMESTAMPTZ NOT NULL,
   last_attempt_at      TIMESTAMPTZ NOT NULL,
+  not_before           TIMESTAMPTZ,                       -- v0.8: backoff até esse instante
+  attempts             INT NOT NULL DEFAULT 1 CHECK (attempts >= 1),  -- v0.8: tentativas até agora
   last_error_msg       TEXT NOT NULL,
   last_error_name      TEXT NOT NULL,
   last_error_transient BOOLEAN NOT NULL,
@@ -189,7 +191,19 @@ CREATE INDEX ix_pending_kind         ON nfse_pending_events (kind);
 CREATE INDEX ix_pending_chave        ON nfse_pending_events (chave_nfse) WHERE chave_nfse IS NOT NULL;
 CREATE INDEX ix_pending_emitente     ON nfse_pending_events (emitente_cnpj) WHERE emitente_cnpj IS NOT NULL;
 CREATE INDEX ix_pending_last_attempt ON nfse_pending_events (last_attempt_at);
+CREATE INDEX ix_pending_not_before   ON nfse_pending_events (not_before) WHERE not_before IS NOT NULL;
 ```
+
+> **Migração de v0.7.x →** Se você está atualizando uma instalação que já tem a tabela:
+>
+> ```sql
+> ALTER TABLE nfse_pending_events
+>   ADD COLUMN not_before TIMESTAMPTZ,
+>   ADD COLUMN attempts   INT NOT NULL DEFAULT 1 CHECK (attempts >= 1);
+> CREATE INDEX ix_pending_not_before ON nfse_pending_events (not_before) WHERE not_before IS NOT NULL;
+> ```
+>
+> Linhas existentes ficam com `not_before NULL` (elegíveis imediatamente no próximo sweep) e `attempts = 1` — comportamento idêntico ao anterior. **Drene o store via `replayPendingEvents()` antes de upgradar** se você tem pendentes de eventos: v0.7.2/v0.7.3 persistia XML não-assinado no caminho transiente (bug, corrigido em 0.8.0). A v0.8 detecta e re-assina entradas legadas automaticamente, mas planeje desligar o tráfego durante a primeira passada.
 
 Impl do `RetryStore`:
 
@@ -202,6 +216,8 @@ const pgStore: RetryStore = {
     const common = {
       id: e.id, kind: e.kind, xml_assinado: e.xmlAssinado,
       first_attempt_at: e.firstAttemptAt, last_attempt_at: e.lastAttemptAt,
+      not_before: e.notBefore ?? null,
+      attempts: e.attempts ?? 1,
       last_error_msg: e.lastError.message,
       last_error_name: e.lastError.errorName,
       last_error_transient: e.lastError.transient,
@@ -213,7 +229,13 @@ const pgStore: RetryStore = {
           c_motivo: e.cMotivo, x_motivo: e.xMotivo ?? null };
     await db.insertOrUpdate('nfse_pending_events', row, { onConflict: 'id' });
   },
-  async list() { /* SELECT * → map por kind como no narrow inverso acima */ },
+  async list() {
+    // SELECT * → map por kind como no narrow inverso acima.
+    // IMPORTANTE: certifique-se de retornar Date objects (não strings ISO)
+    // para os três campos de timestamp — a lib compara `notBefore > now`
+    // com Date e string-vs-Date faz coerção JS imprevisível. node-postgres
+    // já retorna Date para TIMESTAMPTZ; verifique o driver que você usa.
+  },
   async delete(id) { await db.query(`DELETE FROM nfse_pending_events WHERE id = $1`, [id]); },
 };
 ```
@@ -247,9 +269,15 @@ for (const r of results) {
   if (r.status === 'success_emission') await db.insert('nfse_autorizadas', { ...r.emission });
   if (r.status === 'success')          await db.insert('nfse_eventos', { ...r.evento });
   if (r.status === 'failed_permanent') logger.error('permanent fail', r.id, r.error);
-  // still_pending fica no store
+  // still_pending fica no store; entradas com notBefore no futuro nem aparecem
 }
 ```
+
+**Contratos críticos do cron:**
+
+- **Single-instance.** `replayPendingEvents` não é concorrência-safe — dois processos chamando ao mesmo tempo veriam a mesma lista e duplicariam o tráfego para o SEFIN. Garanta exclusão mútua: cron single-instance (Vercel/Railway cron, `node-cron` num worker dedicado), lock distribuído via Redis se múltiplos serviços compartilham o `RetryStore`, ou a coluna `pg_try_advisory_lock(987654321)` no início do cron.
+- **`notBefore` é honrado.** Entradas com `notBefore > now` são puladas silenciosamente (não aparecem em `results`). 429 com `Retry-After: 120` fica invisível pro cron por 2 min, sem chamadas perdidas pro SEFIN.
+- **`attempts` cresce a cada falha transiente no replay.** Útil pra dashboards: pendente com `attempts > 10` provavelmente é problema de configuração, não rede. Veja [Erros tipados — RetryPolicy](./erros#429-e-retrypolicy) para backoff customizado baseado em `attempts`.
 
 ### Reconciliação residual
 

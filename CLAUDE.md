@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.7.0 shipped — feature-complete.** Full fiscal lifecycle covered:
+**v0.8.0 shipped — 429-aware retry pipeline.** Full fiscal lifecycle covered:
 
 - **v0.1** — `fetchByChave`, `fetchByNsu`, parser RTC v1.01.
 - **v0.2** — `emitirDpsPronta` / `emitirEmLote`, dry-run, XMLDSig, XSD WASM, CPF/CNPJ DV, ViaCEP, `buildDps`.
@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **v0.5** — 6 `consultar*` methods against ADN `/parametrizacao`, with pluggable `ParametrosCache` (default in-memory + TTL).
 - **v0.6** — `NfseClientFake` in `open-nfse/testing` subpath, structurally compatible via `NfseClientLike`.
 - **v0.7** — DANFSe PDF: `gerarDanfse(nfse, options)` with strategy `'auto' | 'online' | 'local'` (default `'auto'` = ADN online + fallback to local pdfkit renderer); `fetchDanfse(chave)` online-only.
+- **v0.8** — 429 handling: typed `TooManyRequestsError`, classified as transient, persisted in `RetryStore` with `notBefore` (from `Retry-After`) and `attempts`. Pluggable `RetryPolicy` (interface + `createDefaultRetryPolicy`); the lib wraps every configured policy via internal `makeSafePolicy` so a buggy custom policy can't mask the original fiscal error. **Fixed** a critical pre-existing bug from v0.7.2: events persisted to `RetryStore` were unsigned (replay rejected by SEFIN); legacy data rescued automatically.
 
 Docs site: VitePress + TypeDoc → https://fm-s.github.io/open-nfse/. Roadmap ahead: stabilization until 1.0 — public API may still receive tweaks. Details per-version in CHANGELOG.
 
@@ -68,7 +69,14 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 │  nfse/fetch-by-chave    │  nfse/emit        │  eventos/cancelar │
 │  dfe/fetch-by-nsu       │  (emitSeguro,     │  (substituir 4-st)│
 │  nfse/parse-xml         │   emitDpsPronta,  │  eventos/post-ev  │
-│                         │   emitMany)       │  eventos/retry-st │
+│                         │   emitMany)       │                   │
+│                                                                │
+│  Retry pipeline (v0.8): retry/{store, transient, policy}       │
+│   · store         — PendingEvent shape + RetryStore interface  │
+│   · transient     — defaultIsTransient classifier              │
+│   · policy        — RetryPolicy + createDefaultRetryPolicy +   │
+│                     makeSafePolicy (internal)                  │
+│   replayPendingEvents (in NfseClient) drives the recovery.     │
 │                                                                │
 │  Helpers: buildDps · buildDpsXml · signDpsXml · dps-id         │
 │  Validations: validate-xml (XSD WASM) · fiscal DV · cep/viacep │
@@ -76,6 +84,8 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 │  DANFSe: danfse/{fetch ADN, gerar pdfkit+qrcode}               │
 ├────────────────────────────────────────────────────────────────┤
 │  http/client (undici + mTLS + HTTP/1.1, JSON/gzip/base64, PDF) │
+│  · mapStatusError → typed errors incl. TooManyRequestsError    │
+│  · HttpStatusError.getRetryAfterMs() (RFC 7231)                │
 ├────────────────────────────────────────────────────────────────┤
 │  certificate (ICP-Brasil A1, node-forge, pluggable)            │
 └────────────────────────────────────────────────────────────────┘
@@ -90,6 +100,10 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 - **Identifiers stay `string` (CNPJ, CPF, CEP, cMun, cTribNac)** to preserve leading zeros. **Decimals → `number`** (document this precision tradeoff; consumers needing exact fiscal math wrap in Decimal.js). **Dates → `Date`**.
 - **Some Receita endpoints return 4xx with meaningful bodies.** ADN Contribuintes `/DFe/{NSU}` returns **400 with the full response body** for rejeição and **404 with the full body** for "nenhum documento localizado". These are NOT HTTP errors — the real status is in `body.StatusProcessamento`. `HttpClient.get/post` accepts a `RequestOptions.acceptedStatuses: number[]` list; statuses in the list bypass `mapStatusError` and are parsed normally. `fetchByNsu` uses `[400, 404]`. When implementing v0.2 emission, `POST /nfse` 400 also carries a rejection body (`NFSePostResponseErro`) — same pattern, use `acceptedStatuses: [400]`.
 - **Force HTTP/1.1 — SEFIN Nacional rejects HTTP/2.** The server responds `HTTP_1_1_REQUIRED` on H2 streams for authenticated paths. undici's Agent must be constructed with `allowH2: false` AND `ALPNProtocols: ['http/1.1']` in `connect` — without both, undici may hang silently when the server kills H2 streams (the error closes the socket in a way that doesn't surface as a promise rejection). Both `createMtlsDispatcher` and the inline Agent construction inside `NfseClient.ensureState` already do this; don't remove it.
+- **`PendingEvent.xmlAssinado` MUST always be signed before persistence.** A pre-existing bug (v0.7.2–v0.7.3) stored unsigned XML for transient cancellation/substitution failures — replay sent unsigned bytes, SEFIN rejected with a signature error, `defaultIsTransient` classified the rejection as permanent → entry deleted, operation silently lost. Fixed in v0.8.0 by signing up-front in `cancelar` / `substituir` and passing `xmlJaAssinado: true` to `postEvento`. The pattern mirrors `emitSeguro`, which always signed up-front. Don't re-introduce the postEvento-signs-internally pattern in `src/eventos/`. `replayPendingEvents` also rescues legacy unsigned event data (re-signs before POST + logs `warn`) — keep that path until 1.0.
+- **`RetryPolicy.computeNotBefore` must NOT throw — but the lib wraps defensively anyway.** `NfseClient` constructor wraps the configured (or default) policy via internal `makeSafePolicy(inner, logger)`. Exceptions in `computeNotBefore` are caught + logged + degraded to `notBefore: undefined` (entry stays eligible on next sweep). The wrap is idempotent for `emitSeguro` consumers (not exported, only NfseClient calls it), but advanced users importing `cancelar` / `substituir` directly receive the unwrapped policy. Document the contract loudly.
+- **`replayPendingEvents` is single-threaded.** Two concurrent calls would double SEFIN's rate-limit consumption — replay reads the full list at the start, iterates serially, and saves back on transient catches. JSDoc on the method says this; if you change the contract (e.g., add internal locking) update the doc and the integration guide.
+- **`Retry-After` parsing is intentionally lenient.** `HttpStatusError.getRetryAfterMs()` accepts both RFC delta-seconds (`120`) and HTTP-date forms, plus decimal seconds (`12.5` → 13s via `Math.ceil`) for servers that send fractional values. Rejects signed values (`+60`, `-5`) explicitly — `Date.parse('-5')` returns `0` on V8 which would silently route to the past-date branch. The default `RetryPolicy` clamps absurd values to `maxRetryAfterMs` (1h default).
 
 ## Schema provenance
 

@@ -74,6 +74,7 @@ Após `close()`, qualquer método lança `ClientClosedError`.
 | `retryStore`       | `RetryStore?`                     | —                               | `emitir`/`cancelar`/`substituir` transientes |
 | `dpsCounter`       | `DpsCounter?`                     | —                               | `emitir(params)` sem `nDPS` explícito  |
 | `parametrosCache`  | `ParametrosCache?`                | `createInMemoryParametrosCache()`| —                                     |
+| `retryPolicy`      | `RetryPolicy?`                    | `createDefaultRetryPolicy()`    | override de timing (backoff exponencial, jitter, etc.) |
 
 ## Helpers standalone
 
@@ -107,6 +108,7 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 | `collectCepsFromDps`       | `(dps: DPS) → readonly CollectedCep[]`                                              | Extrai todos CEPs (debug, dashboards)                    |
 | `collectIdentifiersFromDps`| `(dps: DPS) → readonly CollectedIdentifier[]`                                       | Extrai CNPJs/CPFs (debug, dashboards)                    |
 | `defaultIsTransient`       | `(err: unknown) → boolean`                                                          | Classificação default de erro transiente                 |
+| `createDefaultRetryPolicy` | `(options?: DefaultRetryPolicyOptions) → RetryPolicy`                               | Policy default: respeita Retry-After + cap 1h            |
 
 ## Fake (testing)
 
@@ -125,8 +127,22 @@ interface DpsCounter {
 
 interface RetryStore {
   save(entry: PendingEvent): Promise<void>;
-  list(): Promise<readonly PendingEvent[]>;
+  list(): Promise<readonly PendingEvent[]>;       // MUST return Date (não string)
   delete(id: string): Promise<void>;
+}
+
+interface RetryPolicy {
+  computeNotBefore(err: Error, now: Date, context?: RetryContext): Date | undefined;
+}
+
+interface RetryContext {
+  readonly attempt: number;        // 1+ (incl. a tentativa que acabou de falhar)
+  readonly firstAttemptAt: Date;   // primeira persistência da entrada
+}
+
+interface DefaultRetryPolicyOptions {
+  readonly defaultRetryAfterMs?: number;  // fallback p/ 429/503 sem header (default 60_000)
+  readonly maxRetryAfterMs?: number;      // cap defensivo (default 3_600_000 = 1h)
 }
 
 interface ParametrosCache {
@@ -184,7 +200,8 @@ Todos herdam de `OpenNfseError`. Árvore e comportamento por método em [Erros t
 | `ForbiddenError` (403)            | CNPJ sem permissão                                                           |
 | `NotFoundError` (404)             | Recurso inexistente (chave, etc.)                                            |
 | `ServerError` (5xx)               | Erro do lado da Receita                                                      |
-| `HttpStatusError`                 | Base genérica para status não mapeados                                       |
+| `TooManyRequestsError` (429)      | Rate limit; transiente — vira `retry_pending` com `notBefore` do Retry-After |
+| `HttpStatusError`                 | Base genérica + método `getRetryAfterMs()` (RFC 7231)                        |
 | `ExpiredCertificateError`         | A1 vencido (detectado no load)                                               |
 | `InvalidCertificateError`         | A1 malformado / PKCS#12 corrompido                                           |
 | `InvalidCertificatePasswordError` | Senha errada do .pfx                                                         |

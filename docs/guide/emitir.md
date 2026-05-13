@@ -12,6 +12,10 @@ counter.next() → nDPS real → sign → POST /nfse
 throw ReceitaRejectionError            ← regra fiscal violada (nDPS consumido)
 ```
 
+Erros transientes cobrem `NetworkError`, `TimeoutError`, `ServerError` (5xx) e `TooManyRequestsError` (429). O 429 respeita o cabeçalho `Retry-After` do servidor — a entrada fica no `RetryStore` com `notBefore` calculado pela `RetryPolicy` configurada e o cron de replay só toca nela quando elegível. Detalhes em [Erros tipados](./erros#429-e-retrypolicy).
+
+**Não envolva esta chamada em retry loop próprio para 429/5xx.** Cada `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta e retenta queima números da série e cria buracos permanentes no sequencial. A lib já persiste o pendente — use `replayPendingEvents` (ver seção 4).
+
 ## Setup
 
 `dpsCounter` é obrigatório (ou passe `nDPS` explícito em cada chamada); `retryStore` é obrigatório se você quiser que falhas transientes sejam persistidas em vez de lançar:
@@ -143,7 +147,9 @@ Três regras que emergem dessa estrutura:
 
 ## 4. Cron de replay
 
-Tudo que cai em `retry_pending` (e em `rollback_pending` vindo de `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um; SEFIN deduplica no `infDPS.Id` (emissões) e em `(chave, tipoEvento, nPedRegEvento)` (eventos), então chamar N vezes é idempotente:
+Tudo que cai em `retry_pending` (e em `rollback_pending` vindo de `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um; SEFIN deduplica no `infDPS.Id` (emissões) e em `(chave, tipoEvento, nPedRegEvento)` (eventos), então chamar N vezes é idempotente.
+
+Entradas com `notBefore` no futuro (caso clássico: 429 com `Retry-After: 120`) são puladas silenciosamente — não aparecem no resultado e ficam no store até `notBefore <= now`. A cada falha transiente no replay, `notBefore` é recalculado pela `RetryPolicy` e `attempts` incrementado. **`replayPendingEvents` é single-threaded** — dois processos chamando concorrentemente duplicariam o tráfego para o SEFIN. Garanta exclusão mútua no caller (cron single-instance ou lock distribuído).
 
 ```typescript
 // schedule: a cada 1-5 minutos, um worker só
