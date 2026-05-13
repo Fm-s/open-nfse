@@ -56,10 +56,14 @@ export class HttpStatusError extends HttpError {
     const trimmed = raw.trim();
     if (trimmed === '') return undefined;
     if (trimmed.startsWith('-') || trimmed.startsWith('+')) return undefined;
-    // delta-seconds: non-negative integer OR decimal (truncated to floor).
+    // delta-seconds: non-negative integer OR decimal (rounded UP via ceil).
+    // Ceil instead of floor so that fractional seconds over-wait rather than
+    // under-wait — a `Retry-After: 1.5` from a server means "at least 1.5s",
+    // and for a fiscal API where re-hitting 429 compounds the problem, an
+    // extra 500ms is cheap insurance.
     if (/^\d+(\.\d+)?$/.test(trimmed)) {
       const seconds = Number.parseFloat(trimmed);
-      return Math.floor(seconds) * 1000;
+      return Math.ceil(seconds) * 1000;
     }
     // HTTP-date.
     const parsedMs = Date.parse(trimmed);

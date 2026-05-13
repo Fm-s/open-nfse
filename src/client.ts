@@ -19,6 +19,7 @@ import {
 } from './eventos/cancelar.js';
 import type { EventoResult } from './eventos/post-evento.js';
 import { postEvento } from './eventos/post-evento.js';
+import { signPedRegEventoXml } from './eventos/sign-event.js';
 import { HttpClient } from './http/client.js';
 import { type Logger, noopLogger } from './logging.js';
 import type { DPS } from './nfse/domain.js';
@@ -86,6 +87,17 @@ function dropInternal(r: EventoResult & { xmlAssinado: string }): EventoResult {
 
 function isRetryableError(err: Error): boolean {
   return defaultIsTransient(err);
+}
+
+/**
+ * Detecta se um XML de evento já foi assinado (carrega `<SignatureValue>`,
+ * elemento obrigatório XMLDSig). Usado em `replayPendingEvents` para
+ * resgatar entradas legadas — a v0.7.2/v0.7.3 persistia eventos sem
+ * assinatura no caminho transiente (bug corrigido em 0.8.0); detectamos
+ * e re-assinamos antes do POST para não perder a operação.
+ */
+function isEventoXmlSigned(xml: string): boolean {
+  return xml.includes('<SignatureValue>') && xml.includes('</SignatureValue>');
 }
 
 export interface EmitenteConfig {
@@ -429,14 +441,44 @@ export class NfseClient {
           await store.delete(entry.id);
           results.push({ id: entry.id, status: 'success_emission', emission: r });
         } else {
-          // Evento de cancelamento/substituição — re-POST no endpoint de eventos
-          const r = await postEvento(
-            state.sefin,
-            state.certificate,
-            entry.chaveNfse,
-            entry.xmlAssinado,
-            { xmlJaAssinado: true },
-          );
+          // Evento de cancelamento/substituição — re-POST no endpoint de eventos.
+          // Defensivo: entradas persistidas em 0.7.2/0.7.3 podem ter sido
+          // gravadas com XML não-assinado (bug corrigido em 0.8.0). Detectamos
+          // e re-assinamos para não perder a operação — re-assinar é seguro
+          // porque SEFIN deduplica por (chave + tipoEvento + nPedRegEvento)
+          // independente da assinatura.
+          let xmlToPost = entry.xmlAssinado;
+          if (!isEventoXmlSigned(xmlToPost)) {
+            this.logger.warn(
+              'Pending event entry sem XMLDSig — re-assinando antes do replay (provavelmente dado legado de v0.7.x; pré-fix). Considere drenar o RetryStore antes de atualizar para evitar este caminho.',
+              {
+                id: entry.id,
+                chaveNfse: entry.chaveNfse,
+                tipoEvento: entry.tipoEvento,
+              },
+            );
+            try {
+              xmlToPost = signPedRegEventoXml(xmlToPost, state.certificate);
+            } catch (signErr) {
+              // Re-sign failed (malformed legacy XML, cert problem, etc.).
+              // Continue with the unsigned bytes — SEFIN will reject as a
+              // permanent signature error and the catch below will delete
+              // the entry. This is no worse than pre-rescue behavior; the
+              // error log gives the consumer a chance to investigate the
+              // specific entry before it disappears.
+              this.logger.error(
+                'Re-assinatura do XML legado falhou — POSTando bytes originais; SEFIN provavelmente rejeitará como permanente e a entrada será deletada do RetryStore.',
+                {
+                  id: entry.id,
+                  signError: signErr instanceof Error ? signErr.message : String(signErr),
+                  signErrorName: signErr instanceof Error ? signErr.name : 'unknown',
+                },
+              );
+            }
+          }
+          const r = await postEvento(state.sefin, state.certificate, entry.chaveNfse, xmlToPost, {
+            xmlJaAssinado: true,
+          });
           await store.delete(entry.id);
           results.push({ id: entry.id, status: 'success', evento: dropInternal(r) });
         }

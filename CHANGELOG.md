@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Eventos persistidos no `RetryStore` agora carregam XML assinado** (bug pré-existente desde 0.7.2). `cancelar()` / `substituir()` antes guardavam o XML pré-assinatura como `xmlAssinado` quando o POST falhava transitoriamente; o `replayPendingEvents` então enviava XML sem `<Signature>` ao SEFIN com `xmlJaAssinado: true`, levando à rejeição imediata e à perda do evento (entrada deletada como falha permanente). O fluxo de emissão (`emitir`) sempre persistiu assinado e não foi afetado. Tornou-se urgente em 0.8.0 porque 429 agora roteia pelo mesmo pipeline.
+- **`replayPendingEvents` resgata entradas legadas sem `<Signature>`** — detecta XML não-assinado de eventos persistidos por 0.7.2/0.7.3 (pré-fix), re-assina com o certificado configurado antes de fazer o POST, e emite um `logger.warn` com a `id` da entrada para que o consumidor saiba que tinha dado legado. Sem isso, usuários atualizando de 0.7.x perderiam eventos pendentes silenciosamente no primeiro replay pós-upgrade.
+- **`getRetryAfterMs()` arredonda decimais para cima** (Math.ceil) em vez de truncar. Servidores que enviam `Retry-After: 1.5` provavelmente querem dizer "no mínimo 1,5s"; arredondar para cima (2s) é mais conservador do que truncar para 1s, e em uma API fiscal a chance de re-trigger 429 por sub-wait é pior do que esperar 500ms a mais.
 
 ### Migration
 

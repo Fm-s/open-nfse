@@ -745,4 +745,83 @@ describe('NfseClient', () => {
     vi.useRealTimers();
     await client.close();
   });
+
+  it('replayPendingEvents re-signs legacy unsigned event XML (rescue for v0.7.x data)', async () => {
+    // An entry persisted by 0.7.2/0.7.3 transient cancellation path: xmlAssinado
+    // is actually the UNSIGNED pedido. Without rescue, replay would re-POST
+    // with `xmlJaAssinado: true`, SEFIN rejects for missing signature, and the
+    // entry is deleted as failed_permanent → silent loss of cancellation.
+    const UNSIGNED_PEDIDO =
+      '<?xml version="1.0"?><pedRegEvento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infPedReg Id="PRE21113001..."></infPedReg></pedRegEvento>';
+
+    let capturedBody: string | undefined;
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE}/eventos`, method: 'POST' })
+      .reply((opts) => {
+        capturedBody = opts.body as string;
+        return {
+          statusCode: 200,
+          data: {
+            tipoAmbiente: 2,
+            versaoAplicativo: 'v',
+            dataHoraProcessamento: '2026-05-12T10:00:00-03:00',
+            eventoXmlGZipB64: gzipBase64Encode(
+              `<?xml version="1.0"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-05-12T10:00:00Z</dhProc><nDFe>1</nDFe><pedRegEvento versao="1.01"><infPedReg Id="PRE"><tpAmb>2</tpAmb><verAplic>v</verAplic><dhEvento>2026-05-12T10:00:00Z</dhEvento><CNPJAutor>00000000000000</CNPJAutor><chNFSe>${CHAVE}</chNFSe><nPedRegEvento>001</nPedRegEvento><e101101><xDesc>x</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101></infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>x</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature></evento>`,
+            ),
+          },
+        };
+      });
+
+    const warnings: Array<{ message: string }> = [];
+    const logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (message: string) => warnings.push({ message }),
+      error: () => {},
+    };
+
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: `${CHAVE}:101101:001`,
+      kind: 'cancelamento_simples',
+      chaveNfse: CHAVE,
+      tipoEvento: '101101',
+      nPedRegEvento: '001',
+      cMotivo: '1',
+      xmlAssinado: UNSIGNED_PEDIDO, // legacy — no signature
+      firstAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastError: { message: '500', errorName: 'ServerError', transient: true },
+    });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+      logger,
+    });
+
+    const results = await client.replayPendingEvents();
+    expect(results).toHaveLength(1);
+    expect(results[0]?.status).toBe('success');
+    expect(await store.list()).toHaveLength(0); // evicted after rescue + success
+
+    // Verify the body actually sent was signed (rescue applied).
+    expect(capturedBody).toBeDefined();
+    const parsed = JSON.parse(capturedBody as string) as {
+      pedidoRegistroEventoXmlGZipB64: string;
+    };
+    const decodedXml = Buffer.from(parsed.pedidoRegistroEventoXmlGZipB64, 'base64');
+    // gzip-decode for inspection
+    const zlib = await import('node:zlib');
+    const xmlBytes = zlib.gunzipSync(decodedXml).toString('utf-8');
+    expect(xmlBytes).toContain('<SignatureValue>');
+
+    // And a warning was emitted explaining the rescue.
+    expect(warnings.some((w) => /sem XMLDSig.*re-assinando/.test(w.message))).toBe(true);
+
+    await client.close();
+  });
 });

@@ -126,14 +126,24 @@ describe('HttpStatusError.getRetryAfterMs', () => {
     expect(err.getRetryAfterMs()).toBeUndefined();
   });
 
-  it('truncates decimal seconds via floor (some servers send fractional values)', () => {
+  it('rounds decimal seconds UP via ceil (server intent: "at least Xs")', () => {
     const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '12.5' } });
-    expect(err.getRetryAfterMs()).toBe(12_000);
+    expect(err.getRetryAfterMs()).toBe(13_000);
   });
 
-  it('truncates decimal seconds even when fractional part is large', () => {
-    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '12.999' } });
-    expect(err.getRetryAfterMs()).toBe(12_000);
+  it('rounds even tiny fractional parts up to the next whole second', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '12.001' } });
+    expect(err.getRetryAfterMs()).toBe(13_000);
+  });
+
+  it('sub-second values round up to 1 second (never 0 unless explicitly 0)', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '0.5' } });
+    expect(err.getRetryAfterMs()).toBe(1_000);
+  });
+
+  it('integer values are unaffected by the decimal-handling path', () => {
+    const err = new HttpStatusError(429, undefined, { headers: { 'retry-after': '60' } });
+    expect(err.getRetryAfterMs()).toBe(60_000);
   });
 
   it('returns undefined for signed-positive (RFC delta-seconds is unsigned)', () => {
