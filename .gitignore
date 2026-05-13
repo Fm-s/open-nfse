@@ -32,6 +32,7 @@ npm-debug.log*
 .DS_Store
 .AppleDouble
 .LSOverride
+.superpowers
 ._*
 .Spotlight-V100
 .Trashes
