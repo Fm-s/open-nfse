@@ -9,9 +9,10 @@ Até 2025, cada um dos **~5.570 municípios** brasileiros operava seu próprio s
 ## O que esta lib cobre
 
 - **Consulta** — NFS-e por chave de acesso, distribuição de DF-e por NSU.
-- **Emissão segura** — `emitir(params)` roda validações offline, consulta o `DpsCounter` só depois que tudo passa, e persiste falhas transientes no `RetryStore` para replay idempotente via `replayPendingEvents`. Escape hatch `emitirDpsPronta(dps)` para pipelines manuais.
+- **Emissão segura** — `emitir(params)` roda validações offline, consulta o `DpsCounter` só depois que tudo passa, e persiste falhas transientes (rede, timeout, 5xx, **429**) no `RetryStore` para replay idempotente via `replayPendingEvents`. Escape hatch `emitirDpsPronta(dps)` para pipelines manuais.
 - **Emissão em lote** — `emitirEmLote` paraleliza no cliente, com concorrência configurável.
 - **Cancelamento e substituição** — eventos 101101 e 105102, com máquina de 4 estados para compensação em falhas transitórias/permanentes.
+- **Rate-limit (429) pluggable** — `RetryPolicy` decide `notBefore` para cada erro transiente. Default respeita `Retry-After` (RFC 7231); customize para backoff exponencial / linear / com jitter usando `RetryContext.attempt`.
 - **Validações pré-envio** — XSD local (RTC v1.01 via libxml2 WASM), CPF/CNPJ check-digit, lookup de CEP (ViaCEP por default, pluggable).
 - **Parâmetros municipais** — seis métodos `consultar*` (alíquotas, benefícios, convênio, regimes especiais, retenções) com cache pluggable e TTLs sensatos.
 - **DANFSe PDF** — `gerarDanfse(nfse)` tenta o PDF oficial do ADN e cai num renderer local (`pdfkit` + QR code) quando o ADN falha. Estratégia `'auto' | 'online' | 'local'`.
@@ -39,12 +40,16 @@ Escopo deliberadamente limitado para manter a biblioteca focada e auditável:
 │  fetchByNsu     │  emitirEmLote     │  substituir (4 estados)│
 │                 │  emitirDpsPronta  │  replayPendingEvents  │
 │                                                            │
+│  Retry pipeline: PendingEvent + RetryStore + RetryPolicy   │
+│   · notBefore (Retry-After) + attempts + safe-wrap         │
+│                                                            │
 │  parse-xml ↔ build-xml + sign-xml (RTC v1.01 ↔ DTO)         │
 │  buildDps · validate-xml (XSD WASM) · CPF/CNPJ DV · ViaCEP  │
 │  Parâmetros municipais (6× consultar + cache pluggable)    │
 │  DANFSe (fetch ADN + renderer local pdfkit)                │
 ├────────────────────────────────────────────────────────────┤
 │  HTTP client (undici + mTLS + HTTP/1.1, GZip/Base64, PDF)  │
+│  · TooManyRequestsError (429) + getRetryAfterMs()          │
 ├────────────────────────────────────────────────────────────┤
 │  Certificado A1 (node-forge, ICP-Brasil, pluggable)        │
 └────────────────────────────────────────────────────────────┘

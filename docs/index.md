@@ -89,4 +89,4 @@ Para o ciclo completo (persistência, cron de replay, bulk com counter+retry), v
 
 ## Status
 
-**v0.7.1 — feature-complete.** Ciclo fiscal inteiro coberto. Foco atual é estabilização até 1.0; a API pública pode receber ajustes pontuais, sem breaking changes sem aviso em CHANGELOG. Não afiliado à Receita Federal.
+**v0.8.0 — 429-aware retry pipeline.** Ciclo fiscal inteiro coberto. Em v0.8: `TooManyRequestsError` (429) classificado como transiente, `RetryPolicy` pluggable, `notBefore` + `attempts` em `PendingEvent`, bug crítico de evento sem assinatura no replay corrigido (com rescue automático de dados v0.7.x). Foco atual é estabilização até 1.0; a API pública pode receber ajustes pontuais, sem breaking changes sem aviso em CHANGELOG. Não afiliado à Receita Federal.

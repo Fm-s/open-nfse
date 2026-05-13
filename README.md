@@ -10,7 +10,11 @@ Cliente TypeScript/Node.js para o **Padrão Nacional de NFS-e** (nfse.gov.br) �
 
 ## Status
 
-**v0.7.1 — feature-complete.** Ciclo fiscal completo: consulta (chave + NSU), emissão segura com `DpsCounter` + `RetryStore`, cancelamento e substituição com máquina de 4 estados, validações locais (XSD / CPF+CNPJ / CEP), parâmetros municipais com cache, DANFSe em PDF (online + fallback local), `NfseClientFake` em `open-nfse/testing`. Foco até 1.0 é estabilização; a API pública pode receber ajustes, sem breaking changes sem aviso em CHANGELOG.
+**v0.8.0 — 429-aware retry pipeline.** Ciclo fiscal completo: consulta (chave + NSU), emissão segura com `DpsCounter` + `RetryStore`, cancelamento e substituição com máquina de 4 estados, validações locais (XSD / CPF+CNPJ / CEP), parâmetros municipais com cache, DANFSe em PDF (online + fallback local), `NfseClientFake` em `open-nfse/testing`.
+
+**Novidades em v0.8** — `TooManyRequestsError` (429) classificado como transiente: emissões e eventos viram `retry_pending` no `RetryStore` automaticamente, com `notBefore` honrando `Retry-After`. `RetryPolicy` pluggable (`createDefaultRetryPolicy()` por default; implemente custom para backoff exponencial / jitter usando `RetryContext.attempt`). Bug crítico pré-existente (v0.7.2) corrigido: eventos persistidos no `RetryStore` agora carregam XML assinado; dados legados são re-assinados automaticamente no replay. Veja [CHANGELOG](./CHANGELOG.md) para a lista completa.
+
+Foco até 1.0 é estabilização; a API pública pode receber ajustes, sem breaking changes sem aviso em CHANGELOG.
 
 ## Instalar
 
@@ -116,6 +120,9 @@ Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão co
 │  fetch-by-nsu       │  emitir-em-lote │  substituir (4-st)  │
 │                     │  emitirDpsPronta│  replayPendingEvents│
 │                                                            │
+│  Retry pipeline (v0.8): PendingEvent + RetryStore +        │
+│   RetryPolicy (notBefore + attempts + safe-wrap)           │
+│                                                            │
 │  parse-xml ↔ build-xml + sign-xml (RTC v1.01 ↔ DTO)         │
 │  build-dps (helper) + dps-id + validate-xml (XSD WASM)      │
 ├────────────────────────────────────────────────────────────┤
@@ -124,6 +131,7 @@ Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão co
 │  DANFSe: fetch (ADN) + gerar (pdfkit local)                │
 ├────────────────────────────────────────────────────────────┤
 │  HTTP client (undici + mTLS + HTTP/1.1, GZip/Base64, PDF)  │
+│  · TooManyRequestsError (429) + getRetryAfterMs()          │
 ├────────────────────────────────────────────────────────────┤
 │  Certificado A1 (node-forge, ICP-Brasil, pluggable)        │
 └────────────────────────────────────────────────────────────┘
@@ -133,7 +141,7 @@ A API oficial está dividida em **quatro hosts distintos** (SEFIN Nacional, ADN 
 
 ## Princípios
 
-DTO in, DTO out. Erros tipados em 3 níveis. Sem estado interno, com primitives de orquestração (`emitirEmLote`, máquina de 4 estados de `substituir`) e retry (`RetryStore` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais; `xs:choice` vira discriminated union. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://fm-s.github.io/open-nfse/guide/principios).
+DTO in, DTO out. Erros tipados em 3 níveis. Sem estado interno, com primitives de orquestração (`emitirEmLote`, máquina de 4 estados de `substituir`) e retry (`RetryStore` + `RetryPolicy` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais; `xs:choice` vira discriminated union. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://fm-s.github.io/open-nfse/guide/principios).
 
 ## Ambientes
 
