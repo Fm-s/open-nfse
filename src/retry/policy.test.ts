@@ -6,7 +6,7 @@ import {
   TimeoutError,
   TooManyRequestsError,
 } from '../errors/http.js';
-import { noopLogger } from '../logging.js';
+import { type Logger, noopLogger } from '../logging.js';
 import { type RetryPolicy, createDefaultRetryPolicy, makeSafePolicy } from './policy.js';
 
 const NOW = new Date('2026-05-12T10:00:00Z');
@@ -166,5 +166,27 @@ describe('makeSafePolicy', () => {
     expect(warn).toHaveBeenCalled();
     const [, context] = warn.mock.calls[0] as [string, Record<string, unknown>];
     expect(context.policyError).toBe('a string, not an Error');
+  });
+
+  it('never throws even when the LOGGER itself throws on warn', () => {
+    // Defense-in-depth: the whole point of makeSafePolicy is to never let
+    // anything escape. If the consumer provides a buggy logger that throws,
+    // we still must return undefined and let the caller continue.
+    const explodingLogger: Logger = {
+      debug: () => {},
+      info: () => {},
+      warn: () => {
+        throw new Error('logger is also broken');
+      },
+      error: () => {},
+    };
+    const inner: RetryPolicy = {
+      computeNotBefore: () => {
+        throw new Error('policy bug');
+      },
+    };
+    const safe = makeSafePolicy(inner, explodingLogger);
+    expect(() => safe.computeNotBefore(new Error('original'), NOW)).not.toThrow();
+    expect(safe.computeNotBefore(new Error('original'), NOW)).toBeUndefined();
   });
 });

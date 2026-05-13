@@ -329,10 +329,22 @@ export class NfseClient {
   }
 
   /**
-   * Emissão em lote: paraleliza `emitir()` para uma lista de DPS (SEFIN não
-   * oferece endpoint de batch — a paralelização acontece no cliente). Cada
-   * item vira um `EmitLoteItem` com `status: 'success' | 'failure' | 'skipped'`
-   * para que o chamador decida como reagir a falhas parciais.
+   * Emissão em lote: paraleliza `emitirDpsPronta()` para uma lista de DPS já
+   * montadas (SEFIN não oferece endpoint de batch — a paralelização acontece
+   * no cliente, com cap de concorrência). Cada item vira um `EmitLoteItem`
+   * com `status: 'success' | 'failure' | 'skipped'`.
+   *
+   * **Não usa `DpsCounter` nem `RetryStore`.** Cada DPS deve vir com `nDPS`
+   * já preenchido pelo caller, e falhas (incluindo 429 / 5xx) são reportadas
+   * como `{ status: 'failure', dps, error }` sem persistência automática.
+   * Se o caller quer retry transparente do pipeline `emitir(params)`, ele
+   * deve orquestrar `emitir(...)` calls manualmente. Esta API é deliberadamente
+   * mais baixa-nível para casos onde o caller já controla o sequencial.
+   *
+   * Em 429 a falha é capturada como `failure` com `error instanceof
+   * TooManyRequestsError`; o caller pode inspecionar `error.getRetryAfterMs()`
+   * para decidir quando re-emitir os itens que falharam (mesmo `nDPS` —
+   * SEFIN deduplica via `infDPS.Id`).
    */
   async emitirEmLote(dpsList: readonly DPS[], options?: EmitManyOptions): Promise<EmitLoteResult> {
     const state = await this.ensureState();
@@ -517,10 +529,23 @@ export class NfseClient {
           // is necessarily in the past at this point). Same id, idempotent
           // save.
           const newAttemptAt = new Date();
-          const newAttempts = (entry.attempts ?? 1) + 1;
+          // Defesa contra entry.attempts corrompido (NaN/Infinity/negativo
+          // vindo de um RetryStore que não respeitou o contrato do tipo).
+          // Se inválido, tratamos como "primeira tentativa registrada" (= 1)
+          // e o incremento abaixo leva para 2.
+          const prevAttempts =
+            typeof entry.attempts === 'number' &&
+            Number.isFinite(entry.attempts) &&
+            entry.attempts >= 1
+              ? entry.attempts
+              : 1;
+          const newAttempts = prevAttempts + 1;
+          // firstAttemptAt pode estar undefined em entrada corrompida —
+          // fallback para o `now` atual para que o RetryContext não
+          // propague undefined para policies customizadas.
           const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt, {
             attempt: newAttempts,
-            firstAttemptAt: entry.firstAttemptAt,
+            firstAttemptAt: entry.firstAttemptAt ?? newAttemptAt,
           });
           await store.save({
             ...entry,

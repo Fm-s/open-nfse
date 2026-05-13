@@ -106,12 +106,20 @@ export function makeSafePolicy(inner: RetryPolicy, logger: Logger): RetryPolicy 
       try {
         return inner.computeNotBefore(err, now, context);
       } catch (policyErr) {
-        logger.warn('retryPolicy.computeNotBefore threw — caindo para notBefore=undefined', {
-          policyError: policyErr instanceof Error ? policyErr.message : String(policyErr),
-          policyErrorName: policyErr instanceof Error ? policyErr.name : 'unknown',
-          originalError: err.message,
-          originalErrorName: err.name,
-        });
+        // Defesa também contra logger que joga (logger é injetado pelo
+        // consumidor — se for buggy, NÃO queremos que o throw escape
+        // daqui e mascare o erro original. O ponto de makeSafePolicy é
+        // ser à prova de bala.).
+        try {
+          logger.warn('retryPolicy.computeNotBefore threw — caindo para notBefore=undefined', {
+            policyError: policyErr instanceof Error ? policyErr.message : String(policyErr),
+            policyErrorName: policyErr instanceof Error ? policyErr.name : 'unknown',
+            originalError: err.message,
+            originalErrorName: err.name,
+          });
+        } catch {
+          /* logger threw — silently swallow; not much else we can do */
+        }
         return undefined;
       }
     },
