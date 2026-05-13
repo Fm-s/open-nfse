@@ -77,6 +77,13 @@ export type PendingEvent = PendingEmission | PendingEventoCancelamento;
  *
  * Operações devem ser **idempotentes** — `save` com mesmo `id` sobrescreve,
  * `delete` com id inexistente não lança.
+ *
+ * **Contrato de tipos:** ao serializar para banco/JSON, lembre de
+ * re-hidratar os campos `Date` (`firstAttemptAt`, `lastAttemptAt`,
+ * `notBefore`) na volta de `list()`. A lib compara `notBefore > now`
+ * onde `now` é um `Date`; uma string ISO no lugar daria coerção JS
+ * imprevisível. Se você persiste em SQL/MongoDB, retorne `Date` objects
+ * (não strings) do método `list`.
  */
 export interface RetryStore {
   save(entry: PendingEvent): Promise<void>;

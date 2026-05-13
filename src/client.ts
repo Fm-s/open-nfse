@@ -90,14 +90,25 @@ function isRetryableError(err: Error): boolean {
 }
 
 /**
- * Detecta se um XML de evento já foi assinado (carrega `<SignatureValue>`,
- * elemento obrigatório XMLDSig). Usado em `replayPendingEvents` para
- * resgatar entradas legadas — a v0.7.2/v0.7.3 persistia eventos sem
- * assinatura no caminho transiente (bug corrigido em 0.8.0); detectamos
- * e re-assinamos antes do POST para não perder a operação.
+ * Detecta se um XML de evento já foi assinado. Usado em
+ * `replayPendingEvents` para resgatar entradas legadas — a v0.7.2/v0.7.3
+ * persistia eventos sem assinatura no caminho transiente (bug corrigido
+ * em 0.8.0); detectamos e re-assinamos antes do POST para não perder a
+ * operação.
+ *
+ * A detecção checa **três marcadores XMLDSig independentes** para
+ * minimizar falso-positivos em dados controlados pelo usuário (xMotivo,
+ * por exemplo). Falso-positivo aqui significa "POSTar XML não-assinado
+ * achando que está assinado" → SEFIN rejeita → entrada deletada → perda
+ * da operação. Vale ser conservador.
  */
-function isEventoXmlSigned(xml: string): boolean {
-  return xml.includes('<SignatureValue>') && xml.includes('</SignatureValue>');
+function isEventoXmlSigned(xml: string | undefined | null): boolean {
+  if (typeof xml !== 'string' || xml.length === 0) return false;
+  return (
+    xml.includes('http://www.w3.org/2000/09/xmldsig#') &&
+    xml.includes('<SignatureValue>') &&
+    xml.includes('<X509Certificate>')
+  );
 }
 
 export interface EmitenteConfig {
@@ -420,6 +431,15 @@ export class NfseClient {
    * rate-limit do SEFIN. Garanta exclusão mútua no caller (e.g., um cron
    * single-instance, lock distribuído via Redis se múltiplos workers
    * compartilham o mesmo `RetryStore`).
+   *
+   * **Cuidado com rotação de certificado.** O XML persistido foi assinado
+   * com o certificado A1 vigente no momento da emissão original. Se você
+   * rotacionar o certificado (renovação anual, troca de fornecedor) antes
+   * que pendentes drenem, a assinatura ainda é tecnicamente válida desde
+   * que o certificado antigo não esteja expirado ou revogado. Mas se a
+   * janela de validade do antigo passou, SEFIN rejeita a assinatura como
+   * permanente → pendente deletado, operação perdida. Drene o RetryStore
+   * via `replayPendingEvents` antes de instalar o novo certificado.
    *
    * Consumidores tipicamente chamam isso em um cron a cada 1–5 min.
    */
