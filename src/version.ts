@@ -3,7 +3,7 @@
  * o `rootDir: src` do tsconfig impede que importemos o JSON de fora do
  * source tree. Bumpado junto com `package.json` no processo de release.
  */
-export const LIB_VERSION = '0.7.3';
+export const LIB_VERSION = '0.8.3';
 
 /**
  * Valor default de `verAplic` usado pelos builders quando o caller não
