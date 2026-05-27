@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { TipoAmbiente } from '../ambiente.js';
 import { OpenNfseError } from './base.js';
 import {
+  type RawNfsePostErrorBody,
+  type RawResponseErroBody,
   ReceitaRejectionError,
   receitaRejectionFromPostError,
   receitaRejectionFromResponseErro,
@@ -179,7 +181,7 @@ describe('receitaRejectionFromPostError', () => {
         },
       ],
     };
-    const err = receitaRejectionFromPostError(body as any);
+    const err = receitaRejectionFromPostError(body as unknown as RawNfsePostErrorBody);
     expect(err).toBeInstanceOf(ReceitaRejectionError);
     expect(err?.codigo).toBe('E0006');
     expect(err?.descricao).toContain('Ambiente informado diverge');
@@ -216,7 +218,7 @@ describe('receitaRejectionFromResponseErro', () => {
       tipoAmbiente: 1 as const,
       erro: { Codigo: 'E0006', Descricao: 'Ambiente diverge' },
     };
-    const err = receitaRejectionFromResponseErro(body as any);
+    const err = receitaRejectionFromResponseErro(body as unknown as RawResponseErroBody);
     expect(err).toBeInstanceOf(ReceitaRejectionError);
     expect(err?.codigo).toBe('E0006');
     expect(err?.descricao).toBe('Ambiente diverge');
