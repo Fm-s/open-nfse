@@ -98,6 +98,7 @@ O exemplo imprime o código e a descrição. Para lógica de retry/fila, capture
 O script cria uma DPS **mínima** de Homologação. Para emitir em Produção real, você precisa ajustar ao menos:
 
 - `cServ.cTribNac` — código de tributação nacional correto para o serviço
+- `valores.pTotTribSN` — alíquota aproximada do Simples Nacional (obrigatório para optantes SN)
 - `valores.trib.tribMun.tribISSQN` e `pAliq` — alíquota do município
 - `prest.regTrib` — regime tributário real do emitente (SN/LP/LR/MEI)
 - `toma` — dados do tomador (CNPJ ou CPF) se aplicável

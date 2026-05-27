@@ -53,6 +53,8 @@ const resultado = await cliente.emitir({
   serie: '1',
   servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
   valores: { vServ: 1500.0, aliqIss: 2.5 },
+  // Simples Nacional? informe a alíquota aproximada:
+  // valores: { vServ: 1500.0, pTotTribSN: 6.0 },
 });
 
 if (resultado.status === 'ok') {
@@ -342,7 +344,7 @@ const nfseAutorizada = await cliente.emitirDpsPronta(dps);
 console.log(nfseAutorizada.chaveAcesso);
 ```
 
-`buildDps` monta DPS completa a partir de ~10 campos semânticos (vs 50+ manuais). Defaults aplicados: `versao='1.01'`, `tpAmb='2'`, `tpEmit='1'`, `dhEmi=now`, `dCompet=now`, `tribISSQN='1'`, `tpRetISSQN='1'`, `indTotTrib='0'`, `locPrest=emitente.codMunicipio`. Cobre ~85% dos casos; para **tomador exterior, obra, atividade-evento, dedução/redução, IBS/CBS**, construa `InfDPS` manualmente (todos os tipos RTC estão exportados).
+`buildDps` monta DPS completa a partir de ~10 campos semânticos (vs 50+ manuais). Defaults aplicados: `versao='1.01'`, `tpAmb='2'`, `tpEmit='1'`, `dhEmi=now`, `dCompet=now`, `tribISSQN='1'`, `tpRetISSQN='1'`, `indTotTrib='0'`, `locPrest=emitente.codMunicipio`. Contribuintes do **Simples Nacional** podem informar `valores: { vServ, pTotTribSN: 6.0 }` — quando `pTotTribSN` é fornecido, prevalece sobre `indTotTrib`. Cobre ~85% dos casos; para **tomador exterior, obra, atividade-evento, dedução/redução, IBS/CBS**, construa `InfDPS` manualmente (todos os tipos RTC estão exportados).
 
 `emitirEmLote(dpsList, options)` segue o mesmo contrato — worker pool client-side sobre `DPS[]` pré-montado. A seção **5. Bulk com o mesmo fluxo seguro** acima é o equivalente idiomático para quem quer manter o `DpsCounter` + `RetryStore` no caminho.
 

@@ -69,7 +69,7 @@ function montarDps(): DPS {
       cNBS: '123456789',          // required — consulte o Anexo B da RTC
       descricao: 'Serviço de teste emitido pelo exemplo open-nfse',
     },
-    valores: { vServ: valorServico },
+    valores: { vServ: valorServico },      // SN? adicione pTotTribSN: 6.0
   });
 }
 

@@ -94,8 +94,10 @@ export interface ValoresInput {
   readonly tribISSQN?: TipoTribISSQN;
   /** Default `'1'` (sem retenção). */
   readonly tpRetISSQN?: TipoRetISSQN;
-  /** Default `'0'` (não informado). */
+  /** Default `'0'` (não informado). Ignorado se `pTotTribSN` for fornecido. */
   readonly indTotTrib?: IndicadorTotalTributos;
+  /** Alíquota aproximada do Simples Nacional (%). Quando fornecido, prevalece sobre `indTotTrib`. */
+  readonly pTotTribSN?: number;
 }
 
 export interface BuildDpsParams {
@@ -232,7 +234,9 @@ function buildInfoValores(v: ValoresInput) {
     tpRetISSQN: v.tpRetISSQN ?? DEFAULT_TP_RET_ISSQN,
     ...(v.aliqIss !== undefined ? { pAliq: v.aliqIss } : {}),
   };
-  const totTrib: TribTotal = { indTotTrib: v.indTotTrib ?? DEFAULT_IND_TOT_TRIB };
+  const totTrib: TribTotal = v.pTotTribSN !== undefined
+    ? { pTotTribSN: v.pTotTribSN }
+    : { indTotTrib: v.indTotTrib ?? DEFAULT_IND_TOT_TRIB };
   return {
     vServPrest,
     trib: { tribMun, totTrib },

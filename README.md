@@ -64,6 +64,8 @@ try {
     serie: '1',
     servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
     valores: { vServ: 1500.0, aliqIss: 2.5 },
+    // Simples Nacional? informe a alíquota aproximada:
+    // valores: { vServ: 1500.0, pTotTribSN: 6.0 },
     tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
   });
 

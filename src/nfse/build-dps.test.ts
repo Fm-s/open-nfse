@@ -126,6 +126,15 @@ describe('buildDps', () => {
     expect(trib.tribMun.pAliq).toBeUndefined();
   });
 
+  it('uses pTotTribSN when provided instead of indTotTrib', () => {
+    const dps = buildDps({
+      ...baseParams(),
+      valores: { vServ: 100, pTotTribSN: 6 },
+    });
+    const tot = dps.infDPS.valores.trib.totTrib;
+    expect('pTotTribSN' in tot && tot.pTotTribSN).toBe(6);
+  });
+
   it('includes pAliq only when aliqIss is supplied', () => {
     const dps = buildDps({
       ...baseParams(),

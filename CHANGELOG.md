@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`buildDps` agora aceita `pTotTribSN`** em `ValoresInput`. Contribuintes do Simples Nacional não conseguiam informar a alíquota aproximada via builder — o campo era ignorado e `indTotTrib: '0'` era sempre aplicado. Agora `valores: { vServ: 1500, pTotTribSN: 6 }` gera `{ pTotTribSN: 6 }` no `totTrib` da DPS.
+
 ## [0.8.0] — 2026-05-12
 
 429-aware retry pipeline com `RetryPolicy` pluggable. Emissões e eventos que recebem rate-limit agora persistem no `RetryStore` e são retentados automaticamente, respeitando o cabeçalho `Retry-After` e máximos defensivos. Nenhuma quebra de API pública.

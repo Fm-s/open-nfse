@@ -82,7 +82,7 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 
 | Função                     | Assinatura                                                                          | Para quê                                                 |
 |----------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------|
-| `buildDps`                 | `(params: BuildDpsParams) → DPS`                                                    | Monta DPS completa a partir de ~10 campos                |
+| `buildDps`                 | `(params: BuildDpsParams) → DPS`                                                    | Monta DPS completa a partir de ~10 campos; aceita `pTotTribSN` para Simples Nacional |
 | `buildDpsId`               | `(params: BuildDpsIdParams) → string`                                               | Gera os 45 chars do `infDPS.Id`                          |
 | `buildDpsXml`              | `(dps: DPS, options?: BuildDpsXmlOptions) → string`                                 | Serializa DPS em XML (sem assinar)                       |
 | `signDpsXml`               | `(xml: string, cert: A1Certificate) → string`                                       | XMLDSig (RSA-SHA256 + exc-c14n + enveloped)              |
