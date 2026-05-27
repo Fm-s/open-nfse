@@ -76,7 +76,12 @@ export async function postEvento(
   if (rejection) throw rejection;
 
   throw new ReceitaRejectionError({
-    mensagens: [{ codigo: 'UNKNOWN', descricao: 'Corpo de erro sem mensagens reconhecíveis.' }],
+    mensagens: [
+      {
+        codigo: 'UNKNOWN',
+        descricao: `Corpo de erro sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
+      },
+    ],
   });
 }
 

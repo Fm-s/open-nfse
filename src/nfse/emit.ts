@@ -159,7 +159,12 @@ export async function emitDpsPronta(
   if (rejection) throw rejection;
 
   throw new ReceitaRejectionError({
-    mensagens: [{ codigo: 'UNKNOWN', descricao: 'Corpo de erro sem mensagens reconhecíveis.' }],
+    mensagens: [
+      {
+        codigo: 'UNKNOWN',
+        descricao: `Corpo de erro sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
+      },
+    ],
   });
 }
 
@@ -425,7 +430,12 @@ export async function emitSeguro(
     const rejection = receitaRejectionFromPostError(body);
     if (rejection) throw rejection;
     throw new ReceitaRejectionError({
-      mensagens: [{ codigo: 'UNKNOWN', descricao: 'Corpo de erro sem mensagens reconhecíveis.' }],
+      mensagens: [
+        {
+          codigo: 'UNKNOWN',
+          descricao: `Corpo de erro sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
+        },
+      ],
     });
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
@@ -479,7 +489,12 @@ export async function replayEmission(
   const rejection = receitaRejectionFromPostError(body);
   if (rejection) throw rejection;
   throw new ReceitaRejectionError({
-    mensagens: [{ codigo: 'UNKNOWN', descricao: 'replay: corpo sem mensagens.' }],
+    mensagens: [
+      {
+        codigo: 'UNKNOWN',
+        descricao: `replay: corpo sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
+      },
+    ],
   });
 }
 
