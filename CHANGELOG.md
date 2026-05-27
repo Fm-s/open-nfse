@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`buildDpsId` usava dígito de tipo de inscrição invertido** — CNPJ gerava `1` e CPF gerava `2`, quando o correto (confirmado por XMLs reais da Produção Restrita) é CNPJ = `2`, CPF = `1`. Causava rejeição E0004 ("Conteúdo do identificador informado na DPS difere da concatenação dos campos correspondentes") em toda emissão via `buildDps`.
+- **Parsing de erros SEFIN ignorava PascalCase** — o SEFIN Nacional retorna `Codigo`/`Descricao` (PascalCase) em itens de `erros`, mas `receitaRejectionFromPostError`, `receitaRejectionFromResponseErro` e `normalizeAlerta` só liam `codigo`/`descricao` (camelCase). Resultado: rejeições legítimas caíam no fallback genérico "Corpo de erro sem mensagens reconhecíveis" em vez de produzir `ReceitaRejectionError` tipado com código e descrição corretos.
 - **`buildDps` agora aceita `pTotTribSN`** em `ValoresInput`. Contribuintes do Simples Nacional não conseguiam informar a alíquota aproximada via builder — o campo era ignorado e `indTotTrib: '0'` era sempre aplicado. Agora `valores: { vServ: 1500, pTotTribSN: 6 }` gera `{ pTotTribSN: 6 }` no `totTrib` da DPS.
 
 ## [0.8.0] — 2026-05-12

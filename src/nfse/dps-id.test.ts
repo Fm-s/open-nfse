@@ -12,10 +12,10 @@ describe('buildDpsId', () => {
     });
 
     expect(id).toHaveLength(45);
-    expect(id).toBe('DPS211130012200574753000100001000000000146726');
+    expect(id).toBe('DPS211130022200574753000100001000000000146726');
     expect(id.slice(0, 3)).toBe('DPS');
     expect(id.slice(3, 10)).toBe('2111300');
-    expect(id.slice(10, 11)).toBe('1');
+    expect(id.slice(10, 11)).toBe('2');
     expect(id.slice(11, 25)).toBe('22005747530001');
     expect(id.slice(25, 30)).toBe('00001');
     expect(id.slice(30, 45)).toBe('000000000146726');
@@ -30,8 +30,8 @@ describe('buildDpsId', () => {
       nDPS: '1',
     });
 
-    expect(id).toBe('DPS355030820001234567890100099000000000000001');
-    expect(id.slice(10, 11)).toBe('2');
+    expect(id).toBe('DPS355030810001234567890100099000000000000001');
+    expect(id.slice(10, 11)).toBe('1');
     expect(id.slice(11, 25)).toBe('00012345678901');
     expect(id.slice(25, 30)).toBe('00099');
     expect(id.slice(30, 45)).toBe('000000000000001');
@@ -190,6 +190,17 @@ describe('buildDpsId', () => {
       expect(typedErr.field).toBe('cLocEmi');
       expect(typedErr.value).toBe('XYZ');
     }
+  });
+
+  it('matches the real Produção Restrita sample (CNPJ=2)', () => {
+    const id = buildDpsId({
+      cLocEmi: '2111300',
+      tipoInsc: 'CNPJ',
+      inscricaoFederal: '00574753000100',
+      serie: '3',
+      nDPS: '5306',
+    });
+    expect(id).toBe('DPS211130020057475300010000003000000000005306');
   });
 
   it('matches the TSIdDPS regex pattern "DPS[0-9]{42}"', () => {

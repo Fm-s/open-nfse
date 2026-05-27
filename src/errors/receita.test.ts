@@ -164,6 +164,27 @@ describe('receitaRejectionFromPostError', () => {
     });
     expect(err?.dataHoraProcessamento).toBeUndefined();
   });
+
+  it('parses PascalCase Codigo/Descricao inside erros items', () => {
+    const body = {
+      tipoAmbiente: 1 as const,
+      versaoAplicativo: 'SefinNacional_1.6.0',
+      dataHoraProcessamento: '2026-05-27T20:21:04.0730612-03:00',
+      idDPS: 'DPS211130010057475300010000004000000000000003',
+      erros: [
+        {
+          Codigo: 'E0006',
+          Descricao:
+            'Ambiente informado diverge do ambiente de recebimento para o qual o emitente enviou a DPS.',
+        },
+      ],
+    };
+    const err = receitaRejectionFromPostError(body as any);
+    expect(err).toBeInstanceOf(ReceitaRejectionError);
+    expect(err?.codigo).toBe('E0006');
+    expect(err?.descricao).toContain('Ambiente informado diverge');
+    expect(err?.mensagens).toHaveLength(1);
+  });
 });
 
 describe('receitaRejectionFromResponseErro', () => {
@@ -188,5 +209,16 @@ describe('receitaRejectionFromResponseErro', () => {
 
   it('returns undefined when erro has neither codigo nor descricao', () => {
     expect(receitaRejectionFromResponseErro({ erro: {} })).toBeUndefined();
+  });
+
+  it('parses PascalCase Codigo/Descricao inside erro', () => {
+    const body = {
+      tipoAmbiente: 1 as const,
+      erro: { Codigo: 'E0006', Descricao: 'Ambiente diverge' },
+    };
+    const err = receitaRejectionFromResponseErro(body as any);
+    expect(err).toBeInstanceOf(ReceitaRejectionError);
+    expect(err?.codigo).toBe('E0006');
+    expect(err?.descricao).toBe('Ambiente diverge');
   });
 });

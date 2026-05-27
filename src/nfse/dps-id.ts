@@ -48,7 +48,7 @@ export function buildDpsId(params: BuildDpsIdParams): string {
         'CNPJ deve conter 14 dígitos.',
       );
     }
-    digitoTipo = '1';
+    digitoTipo = '2';
     inscFormatted = inscricaoFederal;
   } else {
     if (!REGEX_CPF.test(inscricaoFederal)) {
@@ -58,7 +58,7 @@ export function buildDpsId(params: BuildDpsIdParams): string {
         'CPF deve conter 11 dígitos.',
       );
     }
-    digitoTipo = '2';
+    digitoTipo = '1';
     inscFormatted = inscricaoFederal.padStart(14, '0');
   }
 

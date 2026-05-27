@@ -30,7 +30,7 @@ describe('buildDps', () => {
     const dps = buildDps(baseParams());
     expect(dps.versao).toBe('1.01');
     expect(dps.infDPS.Id).toMatch(/^DPS\d{42}$/);
-    expect(dps.infDPS.Id).toBe('DPS211130010057475300010000001000000000000001');
+    expect(dps.infDPS.Id).toBe('DPS211130020057475300010000001000000000000001');
   });
 
   it('fills defaults: tpAmb=2, tpEmit=1, dhEmi=now, dCompet=today, verAplic', () => {

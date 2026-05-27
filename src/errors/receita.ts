@@ -100,7 +100,11 @@ export function receitaRejectionFromPostError(
   body: RawNfsePostErrorBody,
   options?: { cause?: unknown },
 ): ReceitaRejectionError | undefined {
-  const mensagens = (body.erros ?? []).flatMap(toMensagem);
+  const b = body as Record<string, unknown>;
+  const erros = (body.erros ?? (b.Erros as typeof body.erros) ?? []) as ReadonlyArray<
+    Partial<MensagemProcessamento>
+  >;
+  const mensagens = erros.flatMap(toMensagem);
   if (mensagens.length === 0) return undefined;
   const tipoAmbiente = toTipoAmbiente(body.tipoAmbiente);
   const dataHora = toDate(body.dataHoraProcessamento);
@@ -122,7 +126,9 @@ export function receitaRejectionFromResponseErro(
   body: RawResponseErroBody,
   options?: { cause?: unknown },
 ): ReceitaRejectionError | undefined {
-  const mensagens = body.erro ? toMensagem(body.erro) : [];
+  const b = body as Record<string, unknown>;
+  const erro = body.erro ?? (b.Erro as typeof body.erro);
+  const mensagens = erro ? toMensagem(erro) : [];
   if (mensagens.length === 0) return undefined;
   const tipoAmbiente = toTipoAmbiente(body.tipoAmbiente);
   const dataHora = toDate(body.dataHoraProcessamento);
@@ -135,19 +141,26 @@ export function receitaRejectionFromResponseErro(
   });
 }
 
+function pickStr(obj: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === 'string' && v.length > 0) return v;
+  }
+  return undefined;
+}
+
 function toMensagem(raw: Partial<MensagemProcessamento> | undefined): MensagemProcessamento[] {
   if (!raw) return [];
-  const codigo = typeof raw.codigo === 'string' && raw.codigo.length > 0 ? raw.codigo : undefined;
-  const descricao =
-    typeof raw.descricao === 'string' && raw.descricao.length > 0 ? raw.descricao : undefined;
+  const r = raw as Record<string, unknown>;
+  const codigo = pickStr(r, 'codigo', 'Codigo');
+  const descricao = pickStr(r, 'descricao', 'Descricao');
   if (!codigo && !descricao) return [];
+  const complemento = pickStr(r, 'complemento', 'Complemento');
   return [
     {
       codigo: codigo ?? 'UNKNOWN',
       descricao: descricao ?? '(sem descrição)',
-      ...(typeof raw.complemento === 'string' && raw.complemento.length > 0
-        ? { complemento: raw.complemento }
-        : {}),
+      ...(complemento ? { complemento } : {}),
     },
   ];
 }
