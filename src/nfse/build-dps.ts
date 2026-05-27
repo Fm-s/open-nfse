@@ -234,9 +234,10 @@ function buildInfoValores(v: ValoresInput) {
     tpRetISSQN: v.tpRetISSQN ?? DEFAULT_TP_RET_ISSQN,
     ...(v.aliqIss !== undefined ? { pAliq: v.aliqIss } : {}),
   };
-  const totTrib: TribTotal = v.pTotTribSN !== undefined
-    ? { pTotTribSN: v.pTotTribSN }
-    : { indTotTrib: v.indTotTrib ?? DEFAULT_IND_TOT_TRIB };
+  const totTrib: TribTotal =
+    v.pTotTribSN !== undefined
+      ? { pTotTribSN: v.pTotTribSN }
+      : { indTotTrib: v.indTotTrib ?? DEFAULT_IND_TOT_TRIB };
   return {
     vServPrest,
     trib: { tribMun, totTrib },
