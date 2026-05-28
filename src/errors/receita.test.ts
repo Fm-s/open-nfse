@@ -223,4 +223,46 @@ describe('receitaRejectionFromResponseErro', () => {
     expect(err?.codigo).toBe('E0006');
     expect(err?.descricao).toBe('Ambiente diverge');
   });
+
+  // SEFIN produção devolve `erro` como array em eventos rejeitados, contradizendo
+  // o Swagger oficial. Sem esse caso, a mensagem virava o fallback "[UNKNOWN]".
+  it('parses `erro` as array (real shape from POST /eventos rejections)', () => {
+    const err = receitaRejectionFromResponseErro({
+      tipoAmbiente: 1,
+      versaoAplicativo: 'SefinNacional_1.6.0',
+      dataHoraProcessamento: '2026-05-28T13:53:01-03:00',
+      erro: [
+        {
+          codigo: 'E1235',
+          descricao: 'Falha no esquema XML do DF-e.',
+          complemento: "The 'Id' attribute is invalid - The Pattern constraint failed.",
+        },
+      ],
+    });
+    expect(err).toBeInstanceOf(ReceitaRejectionError);
+    expect(err?.codigo).toBe('E1235');
+    expect(err?.descricao).toBe('Falha no esquema XML do DF-e.');
+    expect(err?.complemento).toContain('Pattern constraint failed');
+    expect(err?.tipoAmbiente).toBe(TipoAmbiente.Producao);
+  });
+
+  it('collects every message when `erro` array carries multiple entries', () => {
+    const err = receitaRejectionFromResponseErro({
+      erro: [
+        { codigo: 'E1', descricao: 'a' },
+        { codigo: 'E2', descricao: 'b' },
+      ],
+    });
+    expect(err?.mensagens).toHaveLength(2);
+    expect(err?.mensagens.map((m) => m.codigo)).toEqual(['E1', 'E2']);
+  });
+
+  it('parses array form with PascalCase keys (Erro: [...])', () => {
+    const body = {
+      Erro: [{ Codigo: 'E1235', Descricao: 'Falha XSD' }],
+    };
+    const err = receitaRejectionFromResponseErro(body as unknown as RawResponseErroBody);
+    expect(err?.codigo).toBe('E1235');
+    expect(err?.descricao).toBe('Falha XSD');
+  });
 });

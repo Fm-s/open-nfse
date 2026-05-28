@@ -1,13 +1,17 @@
 import { ValidationError } from '../errors/validation.js';
 
 /**
- * Per XSD `TSIdPedRefEvt`: `PRE` + chave(50) + tipoEvento(6) + nPedReg(3).
- * Total 62 chars. Pattern `PRE[0-9]{59}`.
+ * Per Anexo II do SEFIN_ADN v1.00-20251226 (publicado 2025-12-27):
+ * `PRE` + chave(50) + tipoEvento(6) = 59 chars. Pattern `PRE[0-9]{56}`.
+ *
+ * **Mudança breaking vs RTC v1.01 original**: o `nPedRegEvento` (3 dígitos)
+ * foi removido tanto da composição do `Id` quanto do corpo de `infPedReg`.
+ * Manter o formato antigo causa rejeição E1235 ("Falha no esquema XML do
+ * DF-e — The Pattern constraint failed") em produção.
  */
 export interface BuildEventoPedidoIdParams {
   readonly chaveAcesso: string;
   readonly tipoEvento: string;
-  readonly nPedRegEvento: string;
 }
 
 export class InvalidEventoPedidoIdParamError extends ValidationError {
@@ -22,10 +26,9 @@ export class InvalidEventoPedidoIdParamError extends ValidationError {
 
 const REGEX_CHAVE = /^\d{50}$/;
 const REGEX_TIPO_EVENTO = /^\d{6}$/;
-const REGEX_N_PED_REG = /^\d{1,3}$/;
 
 export function buildEventoPedidoId(params: BuildEventoPedidoIdParams): string {
-  const { chaveAcesso, tipoEvento, nPedRegEvento } = params;
+  const { chaveAcesso, tipoEvento } = params;
   if (!REGEX_CHAVE.test(chaveAcesso)) {
     throw new InvalidEventoPedidoIdParamError(
       'chaveAcesso',
@@ -40,12 +43,5 @@ export function buildEventoPedidoId(params: BuildEventoPedidoIdParams): string {
       'deve conter exatamente 6 dígitos.',
     );
   }
-  if (!REGEX_N_PED_REG.test(nPedRegEvento)) {
-    throw new InvalidEventoPedidoIdParamError(
-      'nPedRegEvento',
-      nPedRegEvento,
-      'deve conter 1 a 3 dígitos.',
-    );
-  }
-  return `PRE${chaveAcesso}${tipoEvento}${nPedRegEvento.padStart(3, '0')}`;
+  return `PRE${chaveAcesso}${tipoEvento}`;
 }

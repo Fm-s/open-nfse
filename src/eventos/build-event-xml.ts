@@ -25,7 +25,6 @@ export interface BuildCancelamentoXmlParams {
   readonly autor: AutorEvento;
   readonly cMotivo: JustificativaCancelamento;
   readonly xMotivo: string;
-  readonly nPedRegEvento?: string;
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;
@@ -39,7 +38,6 @@ export interface BuildSubstituicaoXmlParams {
   readonly autor: AutorEvento;
   readonly cMotivo: JustificativaSubstituicao;
   readonly xMotivo?: string;
-  readonly nPedRegEvento?: string;
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;
@@ -67,11 +65,9 @@ export function buildCancelamentoXml(
   params: BuildCancelamentoXmlParams,
   options?: BuildEventoXmlOptions,
 ): string {
-  const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
   const Id = buildEventoPedidoId({
     chaveAcesso: params.chaveAcesso,
     tipoEvento: TIPO_CANCELAMENTO,
-    nPedRegEvento,
   });
   const detEvento = {
     e101101: {
@@ -80,7 +76,7 @@ export function buildCancelamentoXml(
       xMotivo: params.xMotivo,
     },
   };
-  return renderPedRegEvento(Id, params, nPedRegEvento, detEvento, options);
+  return renderPedRegEvento(Id, params, detEvento, options);
 }
 
 /**
@@ -91,11 +87,9 @@ export function buildSubstituicaoXml(
   params: BuildSubstituicaoXmlParams,
   options?: BuildEventoXmlOptions,
 ): string {
-  const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
   const Id = buildEventoPedidoId({
     chaveAcesso: params.chaveOriginal,
     tipoEvento: TIPO_CANCELAMENTO_SUBSTITUICAO,
-    nPedRegEvento,
   });
   const detEvento = {
     e105102: {
@@ -108,7 +102,6 @@ export function buildSubstituicaoXml(
   return renderPedRegEvento(
     Id,
     { ...params, chaveAcesso: params.chaveOriginal },
-    nPedRegEvento,
     detEvento,
     options,
   );
@@ -124,7 +117,6 @@ function renderPedRegEvento(
     readonly dhEvento?: Date;
     readonly ambGer?: AmbienteGeradorEvento;
   },
-  nPedRegEvento: string,
   detEvento: object,
   options: BuildEventoXmlOptions | undefined,
 ): string {
@@ -138,6 +130,9 @@ function renderPedRegEvento(
       'TSVerAplic',
     );
   }
+  // Sequência do infPedReg per Anexo II SEFIN_ADN v1.00-20251226: nPedRegEvento
+  // foi removido tanto do corpo quanto da composição do Id (era a antiga
+  // RTC v1.01). Manter o elemento ou os 3 dígitos extras no Id causa rejeição.
   const root = {
     pedRegEvento: {
       [`${ATTR_PREFIX}xmlns`]: NFSE_NS,
@@ -149,7 +144,6 @@ function renderPedRegEvento(
         dhEvento: formatDateTime(params.dhEvento ?? new Date()),
         ...autor,
         chNFSe: params.chaveAcesso,
-        nPedRegEvento,
         ...detEvento,
       },
     },

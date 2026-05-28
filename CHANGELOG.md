@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] — 2026-05-28
+
+Compatibilidade com **Anexo II SEFIN_ADN v1.00-20251226** (publicado 2025-12-27) — cancelamento e substituição emitiam o `Id` e o corpo de `infPedReg` no formato antigo, que a SEFIN passou a rejeitar em produção com `E1235: Falha no esquema XML do DF-e — The Pattern constraint failed`. O erro vinha disfarçado como `[UNKNOWN]: Corpo de erro sem mensagens reconhecíveis` porque o parser de erro também estava desalinhado com o shape real do envelope.
+
+### Fixed
+
+- **`PRE` Id do `infPedReg` agora tem 59 chars (sem `nPedRegEvento`)** — antes era `PRE` + chave(50) + tipoEvento(6) + nPedRegEvento(3) = 62 chars (`PRE[0-9]{59}`); agora é `PRE` + chave(50) + tipoEvento(6) = 59 chars (`PRE[0-9]{56}`). Cancelamentos em produção pararam de funcionar quando a SEFIN ativou o novo schema.
+- **Elemento `<nPedRegEvento>` removido do corpo do `infPedReg`** — o `TCInfPedReg` atualizado não aceita mais o elemento na sequência. Mantê-lo causava a mesma rejeição.
+- **`receitaRejectionFromResponseErro` aceita `erro` como array** — o Swagger oficial declara `erro` como objeto único (`MensagemProcessamento`), mas o SEFIN devolve eventos rejeitados com `erro` como array. Sem isso, qualquer rejeição de evento caía no fallback `[UNKNOWN]`. A forma de objeto continua sendo aceita (GETs de NFS-e usam o shape antigo).
+
+### Removed
+
+- **`nPedRegEvento`** removido de `CancelarParams`, `SubstituirParams`, `BuildCancelamentoXmlParams`, `BuildSubstituicaoXmlParams`, `BuildEventoPedidoIdParams`, `PendingEventoCancelamento`, `InfPedRegEvento`. Quem passava esse campo recebe um erro de TypeScript apontando o call site. Pre-1.0 breaking change.
+- **`pendingEventId(chaveNfse, tipoEvento, nPedRegEvento)` virou `pendingEventId(chaveNfse, tipoEvento)`** — SEFIN agora deduplica por `(chave + tipoEvento)`.
+
+### Changed
+
+- **`LIB_VERSION` lido em runtime do `package.json`** via `import.meta.url` + `node:fs` — antes era hardcoded e dessincronizava a cada release (bug histórico já chamado em 0.8.3, regredido em 0.8.4/0.8.5). Sem mais drift; `verAplic` no XML reflete a versão real instalada.
+- **`schemas/rtc-v1.01/`** atualizado: `TSIdPedRefEvt` agora tem `maxLength=59` e pattern `PRE[0-9]{56}`; `TCInfPedReg` não tem mais `nPedRegEvento` na sequência. `_rtc-schemas.generated.ts` regenerado a partir dos XSDs atualizados.
+
+### Migration
+
+- Chamadas a `cliente.cancelar({ ... nPedRegEvento, ... })` ou `cliente.substituir({ ... nPedRegEvento, ... })`: remova o parâmetro. TS aponta o call site.
+- Chamadas a `buildEventoPedidoId({ chaveAcesso, tipoEvento, nPedRegEvento })`: remova o terceiro campo.
+- **Pendentes no `RetryStore` salvos antes da 0.8.6**: o XML persistido usa o `Id` de 62 chars e será rejeitado em produção como `E1235`. Limpe esses pendentes antes do upgrade ou aceite a perda — `replayPendingEvents` os marcará como falha permanente.
+
 ## [0.8.5] — 2026-05-28
 
 Endurecimento de footguns no builder de DPS. Três regras fiscais que antes só apareciam como rejeição da SEFIN viram erros locais de tempo de build.

@@ -492,13 +492,12 @@ export class NfseClientFake {
           pedRegEvento: {
             versao: '1.01',
             infPedReg: {
-              Id: `PRE${chaveAcesso}${tipoEvento}001`,
+              Id: `PRE${chaveAcesso}${tipoEvento}`,
               tpAmb: '2' as never,
               verAplic: 'NfseClientFake/0.6',
               dhEvento: new Date(),
               autor: { CNPJAutor: '00000000000000' },
               chNFSe: chaveAcesso,
-              nPedRegEvento: '001',
               tipoEvento: tipoEvento as never,
               detalhe: {
                 e101101: {

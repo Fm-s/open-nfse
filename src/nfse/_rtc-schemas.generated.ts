@@ -3123,15 +3123,12 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           <xs:documentation>Chave de Acesso da NFS-e vinculada ao Evento</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="nPedRegEvento" type="TSNum3Dig">
-        <xs:annotation>
-          <xs:documentation>
-            Número do pedido do registro de evento para o mesmo tipo de evento.
-            Para os eventos que ocorrem somente uma vez, como é o caso do cancelamento, o nPedRegEvento deve ser igual a 1.
-            Os eventos que podem ocorrer mais de uma vez devem ter o nPedRegEvento único.
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
+      <!--
+        nPedRegEvento removido per Anexo II SEFIN_ADN v1.00-20251226 (publicado
+        2025-12-27). O campo era TSNum3Dig (1-999) e fazia parte da composição
+        do Id (TSIdPedRefEvt → 62 chars). Agora o Id é apenas
+        PRE + chave(50) + tipoEvento(6) = 59 chars (PRE[0-9]{56}).
+      -->
       <xs:choice>
         <xs:element name="e101101" type="TE101101">
           <xs:annotation>
@@ -5182,13 +5179,15 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     <xs:annotation>
       <xs:documentation>
         O identificador do pedido de registro do evento é formado conforme a concatenação dos seguintes campos:
-        "PRE" + Chave de Acesso NFS-e + Tipo do evento + Número do Pedido de Registro do Evento (nPedRegEvento)
+        "PRE" + Chave de Acesso NFS-e (50) + Tipo do evento (6) = 59 chars.
+        Atualização Anexo II SEFIN_ADN v1.00-20251226 — nPedRegEvento removido
+        da composição (antes era 62 chars com PRE[0-9]{59}).
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:whiteSpace value="preserve"/>
-      <xs:maxLength value="62"/>
-      <xs:pattern value="PRE[0-9]{59}"/>
+      <xs:maxLength value="59"/>
+      <xs:pattern value="PRE[0-9]{56}"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSIdEvento">

@@ -430,7 +430,7 @@ export class NfseClient {
 
   /**
    * Re-POSTs each `PendingEvent` in the store. SEFIN deduplication on
-   * `infDPS.Id` (emissão) ou `chave + tipoEvento + nPedRegEvento` (eventos)
+   * `infDPS.Id` (emissão) ou `chave + tipoEvento` (eventos)
    * garante idempotência: itens já processados retornam o mesmo resultado
    * ou uma rejeição determinística. Em sucesso, o item é removido do store.
    * Em falha transiente, permanece com `lastAttemptAt`/`notBefore`/`attempts`
@@ -477,7 +477,7 @@ export class NfseClient {
           // Defensivo: entradas persistidas em 0.7.2/0.7.3 podem ter sido
           // gravadas com XML não-assinado (bug corrigido em 0.8.0). Detectamos
           // e re-assinamos para não perder a operação — re-assinar é seguro
-          // porque SEFIN deduplica por (chave + tipoEvento + nPedRegEvento)
+          // porque SEFIN deduplica por (chave + tipoEvento)
           // independente da assinatura.
           let xmlToPost = entry.xmlAssinado;
           if (!isEventoXmlSigned(xmlToPost)) {

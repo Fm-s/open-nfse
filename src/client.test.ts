@@ -767,7 +767,7 @@ describe('NfseClient', () => {
             versaoAplicativo: 'v',
             dataHoraProcessamento: '2026-05-12T10:00:00-03:00',
             eventoXmlGZipB64: gzipBase64Encode(
-              `<?xml version="1.0"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-05-12T10:00:00Z</dhProc><nDFe>1</nDFe><pedRegEvento versao="1.01"><infPedReg Id="PRE"><tpAmb>2</tpAmb><verAplic>v</verAplic><dhEvento>2026-05-12T10:00:00Z</dhEvento><CNPJAutor>00000000000000</CNPJAutor><chNFSe>${CHAVE}</chNFSe><nPedRegEvento>001</nPedRegEvento><e101101><xDesc>x</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101></infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>x</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature></evento>`,
+              `<?xml version="1.0"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-05-12T10:00:00Z</dhProc><nDFe>1</nDFe><pedRegEvento versao="1.01"><infPedReg Id="PRE"><tpAmb>2</tpAmb><verAplic>v</verAplic><dhEvento>2026-05-12T10:00:00Z</dhEvento><CNPJAutor>00000000000000</CNPJAutor><chNFSe>${CHAVE}</chNFSe><e101101><xDesc>x</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101></infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>x</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature></evento>`,
             ),
           },
         };
@@ -783,11 +783,10 @@ describe('NfseClient', () => {
 
     const store = createInMemoryRetryStore();
     await store.save({
-      id: `${CHAVE}:101101:001`,
+      id: `${CHAVE}:101101`,
       kind: 'cancelamento_simples',
       chaveNfse: CHAVE,
       tipoEvento: '101101',
-      nPedRegEvento: '001',
       cMotivo: '1',
       xmlAssinado: UNSIGNED_PEDIDO, // legacy — no signature
       firstAttemptAt: new Date('2026-05-12T09:00:00Z'),

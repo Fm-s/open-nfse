@@ -14,7 +14,7 @@ interface PendingBase {
    * XML **assinado** (XMLDSig) pronto para re-POST sem re-assinatura.
    * `replayPendingEvents` envia este XML diretamente ao SEFIN; persistir
    * XML sem assinatura causa rejeição imediata na retentativa. SEFIN
-   * deduplica via `infDPS.Id` (emissão) ou `chave + tipoEvento + nPedReg`
+   * deduplica via `infDPS.Id` (emissão) ou `chave + tipoEvento`
    * (eventos), então retentar é idempotente quando o XML é íntegro.
    */
   readonly xmlAssinado: string;
@@ -64,7 +64,6 @@ export interface PendingEventoCancelamento extends PendingBase {
   /** Chave da NFS-e substituta — apenas para 105102. */
   readonly chaveSubstituta?: string;
   readonly tipoEvento: string;
-  readonly nPedRegEvento: string;
   readonly cMotivo: string;
   readonly xMotivo?: string;
 }
@@ -116,13 +115,13 @@ export function createInMemoryRetryStore(): RetryStore {
   };
 }
 
-/** Id estável para evento (cancelamento/substituição). */
-export function pendingEventId(
-  chaveNfse: string,
-  tipoEvento: string,
-  nPedRegEvento: string,
-): string {
-  return `${chaveNfse}:${tipoEvento}:${nPedRegEvento}`;
+/**
+ * Id estável para evento (cancelamento/substituição). Após Anexo II
+ * SEFIN_ADN v1.00-20251226 a SEFIN deduplica por `(chave + tipoEvento)`
+ * — o antigo `nPedRegEvento` foi removido do payload.
+ */
+export function pendingEventId(chaveNfse: string, tipoEvento: string): string {
+  return `${chaveNfse}:${tipoEvento}`;
 }
 
 /** Id estável para emissão. O `idDps` já é único por natureza. */

@@ -166,7 +166,6 @@ export interface InfPedRegEvento {
   readonly dhEvento: Date;
   readonly autor: AutorEventoParsed;
   readonly chNFSe: string;
-  readonly nPedRegEvento: string;
   readonly tipoEvento: TipoEventoNfse;
   readonly detalhe: DetalheEvento;
 }
@@ -224,7 +223,6 @@ function parseInfPedReg(node: XmlObject): InfPedRegEvento {
     dhEvento: coerceDate(requireText(node, 'dhEvento')),
     autor,
     chNFSe: requireText(node, 'chNFSe'),
-    nPedRegEvento: requireText(node, 'nPedRegEvento'),
     tipoEvento,
     detalhe,
   };

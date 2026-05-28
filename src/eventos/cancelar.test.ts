@@ -180,7 +180,6 @@ describe('cancelar', () => {
       if (r.pending.kind === 'cancelamento_simples') {
         expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
         expect(r.pending.tipoEvento).toBe('101101');
-        expect(r.pending.nPedRegEvento).toBe('001');
       }
       expect(r.pending.lastError.transient).toBe(true);
       expect(r.pending.attempts).toBe(1); // first persist
@@ -494,7 +493,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
     });
     const signed = signPedRegEventoXml(xml, cert);
     expect(signed).toContain('<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">');
-    expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}101101001">`);
+    expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}101101">`);
   });
 
   it('also works for substituição (105102 pedRegEvento)', () => {
@@ -507,7 +506,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       xMotivo: 'Correção de cadastro',
     });
     const signed = signPedRegEventoXml(xml, cert);
-    expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}105102001">`);
+    expect(signed).toContain(`<Reference URI="#PRE${CHAVE_ORIGINAL}105102">`);
   });
 
   it('signed cancelamento (101101) validates against pedRegEvento XSD', async () => {

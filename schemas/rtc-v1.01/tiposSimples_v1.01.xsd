@@ -1444,13 +1444,15 @@
     <xs:annotation>
       <xs:documentation>
         O identificador do pedido de registro do evento é formado conforme a concatenação dos seguintes campos:
-        "PRE" + Chave de Acesso NFS-e + Tipo do evento + Número do Pedido de Registro do Evento (nPedRegEvento)
+        "PRE" + Chave de Acesso NFS-e (50) + Tipo do evento (6) = 59 chars.
+        Atualização Anexo II SEFIN_ADN v1.00-20251226 — nPedRegEvento removido
+        da composição (antes era 62 chars com PRE[0-9]{59}).
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:whiteSpace value="preserve"/>
-      <xs:maxLength value="62"/>
-      <xs:pattern value="PRE[0-9]{59}"/>
+      <xs:maxLength value="59"/>
+      <xs:pattern value="PRE[0-9]{56}"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSIdEvento">

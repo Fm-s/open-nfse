@@ -9,7 +9,6 @@ function sampleEntry(id: string) {
     kind: 'cancelamento_por_substituicao' as const,
     chaveNfse: CHAVE,
     tipoEvento: '105102',
-    nPedRegEvento: '001',
     cMotivo: '99',
     xmlAssinado: '<xml/>',
     firstAttemptAt: new Date('2026-04-17T12:00:00Z'),
@@ -56,15 +55,17 @@ describe('createInMemoryRetryStore', () => {
 
 describe('pendingEventId', () => {
   it('is deterministic for the same inputs', () => {
-    const a = pendingEventId(CHAVE, '105102', '001');
-    const b = pendingEventId(CHAVE, '105102', '001');
+    const a = pendingEventId(CHAVE, '105102');
+    const b = pendingEventId(CHAVE, '105102');
     expect(a).toBe(b);
   });
 
   it('differs when any part changes', () => {
-    const base = pendingEventId(CHAVE, '105102', '001');
-    expect(pendingEventId(CHAVE, '101101', '001')).not.toBe(base);
-    expect(pendingEventId(CHAVE, '105102', '002')).not.toBe(base);
+    const base = pendingEventId(CHAVE, '105102');
+    expect(pendingEventId(CHAVE, '101101')).not.toBe(base);
+    expect(pendingEventId('99999999999999999999999999999999999999999999999999', '105102')).not.toBe(
+      base,
+    );
   });
 });
 

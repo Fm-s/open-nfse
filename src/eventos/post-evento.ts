@@ -29,7 +29,12 @@ interface SefinEventoErrorBody {
   readonly tipoAmbiente?: 1 | 2;
   readonly versaoAplicativo?: string;
   readonly dataHoraProcessamento?: string;
-  readonly erro?: { codigo?: string; descricao?: string; complemento?: string };
+  // SEFIN devolve `erro` como array em eventos rejeitados, mesmo o Swagger
+  // declarando objeto único. `receitaRejectionFromResponseErro` aceita os
+  // dois formatos — espelhamos a união aqui.
+  readonly erro?:
+    | { codigo?: string; descricao?: string; complemento?: string }
+    | ReadonlyArray<{ codigo?: string; descricao?: string; complemento?: string }>;
 }
 
 type SefinEventoBody = SefinEventoSuccessBody | SefinEventoErrorBody;

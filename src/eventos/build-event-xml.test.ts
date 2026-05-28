@@ -18,7 +18,7 @@ describe('buildCancelamentoXml', () => {
     expect(xml).toContain(
       '<pedRegEvento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">',
     );
-    expect(xml).toContain(`<infPedReg Id="PRE${CHAVE}101101001">`);
+    expect(xml).toContain(`<infPedReg Id="PRE${CHAVE}101101">`);
   });
 
   it('includes all required TCInfPedReg children in XSD order', () => {
@@ -37,7 +37,7 @@ describe('buildCancelamentoXml', () => {
     expect(typeof inf.dhEvento).toBe('string');
     expect(inf.CNPJAutor).toBe('00574753000100');
     expect(inf.chNFSe).toBe(CHAVE);
-    expect(inf.nPedRegEvento).toBe('001');
+    expect(inf.nPedRegEvento).toBeUndefined();
     const det = inf.e101101 as Record<string, unknown>;
     expect(det.xDesc).toBe('Cancelamento de NFS-e');
     expect(det.cMotivo).toBe('2');
@@ -66,16 +66,17 @@ describe('buildCancelamentoXml', () => {
     expect(xml).not.toContain('<CNPJAutor>');
   });
 
-  it('pads nPedRegEvento to 3 digits in the Id', () => {
+  // Per Anexo II SEFIN_ADN v1.00-20251226: Id é PRE+chave+tipoEvento (59 chars,
+  // sem nPedRegEvento) e o elemento <nPedRegEvento> não vai mais no infPedReg.
+  it('builds Id without nPedRegEvento suffix and omits the element', () => {
     const xml = buildCancelamentoXml({
       chaveAcesso: CHAVE,
       autor: { CNPJ: '00574753000100' },
       cMotivo: JustificativaCancelamento.ErroEmissao,
-      xMotivo: 'x',
-      nPedRegEvento: '7',
+      xMotivo: 'Erro na emissão da nota fiscal',
     });
-    expect(xml).toContain(`Id="PRE${CHAVE}101101007"`);
-    expect(xml).toContain('<nPedRegEvento>007</nPedRegEvento>');
+    expect(xml).toContain(`Id="PRE${CHAVE}101101"`);
+    expect(xml).not.toContain('<nPedRegEvento>');
   });
 });
 
@@ -88,7 +89,7 @@ describe('buildSubstituicaoXml', () => {
       cMotivo: JustificativaSubstituicao.Outros,
       xMotivo: 'Substituição por correção de valor',
     });
-    expect(xml).toContain(`<infPedReg Id="PRE${CHAVE}105102001">`);
+    expect(xml).toContain(`<infPedReg Id="PRE${CHAVE}105102">`);
     expect(xml).toContain('<e105102>');
     expect(xml).toContain('<xDesc>Cancelamento de NFS-e por Substituicao</xDesc>');
     expect(xml).toContain(`<chSubstituta>${CHAVE_NOVA}</chSubstituta>`);

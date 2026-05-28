@@ -84,12 +84,18 @@ export interface RawNfsePostErrorBody {
   readonly erros?: ReadonlyArray<Partial<MensagemProcessamento>>;
 }
 
-/** Corpo bruto genérico (`ResponseErro`) retornado pelos GETs do SEFIN. */
+/**
+ * Corpo bruto genérico (`ResponseErro`) retornado pelos GETs do SEFIN e pelo
+ * `POST /nfse/{chave}/eventos`. O Swagger oficial declara `erro` como objeto
+ * único (`MensagemProcessamento`), mas o SEFIN Nacional em produção devolve
+ * eventos rejeitados com `erro` como **array** — então aceitamos as duas
+ * formas para não perder a mensagem real.
+ */
 export interface RawResponseErroBody {
   readonly tipoAmbiente?: 1 | 2;
   readonly versaoAplicativo?: string;
   readonly dataHoraProcessamento?: string;
-  readonly erro?: Partial<MensagemProcessamento>;
+  readonly erro?: Partial<MensagemProcessamento> | ReadonlyArray<Partial<MensagemProcessamento>>;
 }
 
 /**
@@ -128,7 +134,14 @@ export function receitaRejectionFromResponseErro(
 ): ReceitaRejectionError | undefined {
   const b = body as Record<string, unknown>;
   const erro = body.erro ?? (b.Erro as typeof body.erro);
-  const mensagens = erro ? toMensagem(erro) : [];
+  // SEFIN devolve `erro` ora como objeto (swagger), ora como array (eventos em
+  // produção) — normalizamos pra lista única antes de mapear.
+  const erros: ReadonlyArray<Partial<MensagemProcessamento>> = !erro
+    ? []
+    : Array.isArray(erro)
+      ? (erro as ReadonlyArray<Partial<MensagemProcessamento>>)
+      : [erro as Partial<MensagemProcessamento>];
+  const mensagens = erros.flatMap(toMensagem);
   if (mensagens.length === 0) return undefined;
   const tipoAmbiente = toTipoAmbiente(body.tipoAmbiente);
   const dataHora = toDate(body.dataHoraProcessamento);

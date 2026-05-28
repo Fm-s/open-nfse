@@ -30,7 +30,6 @@ export interface CancelarParams {
   readonly autor: AutorEvento;
   readonly cMotivo: JustificativaCancelamento;
   readonly xMotivo: string;
-  readonly nPedRegEvento?: string;
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;
@@ -68,9 +67,8 @@ export async function cancelar(
   validarTSMotivo(params.xMotivo);
 
   const isTransient = params.isTransient ?? defaultIsTransient;
-  const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
 
-  const xmlPedido = buildCancelamentoXml({ ...params, nPedRegEvento });
+  const xmlPedido = buildCancelamentoXml(params);
   // Sign up-front so that, if the POST fails transiently, the persisted
   // entry carries genuinely signed XML — `replayPendingEvents` re-POSTs
   // with `xmlJaAssinado: true`, so unsigned XML in the store would be
@@ -96,7 +94,6 @@ export async function cancelar(
       kind: 'cancelamento_simples',
       chaveNfse: params.chaveAcesso,
       tipoEvento: '101101',
-      nPedRegEvento,
       cMotivo: params.cMotivo,
       xMotivo: params.xMotivo,
       xmlAssinado,
@@ -122,7 +119,6 @@ export interface SubstituirParams {
   readonly autor: AutorEvento;
   readonly cMotivo: JustificativaSubstituicao;
   readonly xMotivo?: string;
-  readonly nPedRegEvento?: string;
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;
@@ -193,13 +189,11 @@ export async function substituir(
   const novaNfse = await emitDpsPronta(httpClient, certificate, dpsComSubst);
 
   // Step 2 — cancelar por substituição (105102) sobre a chave original.
-  const nPedRegEvento = (params.nPedRegEvento ?? '1').padStart(3, '0');
   const xmlCancel = buildSubstituicaoXml({
     chaveOriginal: params.chaveOriginal,
     chaveSubstituta: novaNfse.chaveAcesso,
     autor: params.autor,
     cMotivo: params.cMotivo,
-    nPedRegEvento,
     ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
     ...(params.tpAmb ? { tpAmb: params.tpAmb } : {}),
     ...(params.verAplic ? { verAplic: params.verAplic } : {}),
@@ -231,7 +225,6 @@ export async function substituir(
       chaveNfse: params.chaveOriginal,
       chaveSubstituta: novaNfse.chaveAcesso,
       tipoEvento: '105102',
-      nPedRegEvento,
       cMotivo: params.cMotivo,
       ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
       xmlAssinado: xmlCancelAssinado,
@@ -254,7 +247,6 @@ export async function substituir(
         0,
         255,
       ),
-    nPedRegEvento: '1',
     ...(params.tpAmb ? { tpAmb: params.tpAmb } : {}),
     ...(params.verAplic ? { verAplic: params.verAplic } : {}),
   });
@@ -286,7 +278,6 @@ export async function substituir(
     kind: 'rollback_cancelamento',
     chaveNfse: novaNfse.chaveAcesso,
     tipoEvento: '101101',
-    nPedRegEvento: '001',
     cMotivo: JustificativaCancelamento.ErroEmissao,
     xMotivo: `Rollback de substituição — chave original ${params.chaveOriginal}`,
     xmlAssinado: xmlRollbackAssinado,
@@ -344,7 +335,6 @@ interface PendingEventFactoryInput {
   readonly chaveNfse: string;
   readonly chaveSubstituta?: string;
   readonly tipoEvento: string;
-  readonly nPedRegEvento: string;
   readonly cMotivo: string;
   readonly xMotivo?: string;
   readonly xmlAssinado: string;
@@ -363,12 +353,11 @@ interface PendingEventFactoryInput {
 
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
   return {
-    id: pendingEventId(input.chaveNfse, input.tipoEvento, input.nPedRegEvento),
+    id: pendingEventId(input.chaveNfse, input.tipoEvento),
     kind: input.kind,
     chaveNfse: input.chaveNfse,
     ...(input.chaveSubstituta ? { chaveSubstituta: input.chaveSubstituta } : {}),
     tipoEvento: input.tipoEvento,
-    nPedRegEvento: input.nPedRegEvento,
     cMotivo: input.cMotivo,
     ...(input.xMotivo ? { xMotivo: input.xMotivo } : {}),
     xmlAssinado: input.xmlAssinado,
