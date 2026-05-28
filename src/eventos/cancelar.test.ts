@@ -82,7 +82,7 @@ function minimalNovaDps(): DPS {
       cnpj: '00574753000100',
       codMunicipio: '2111300',
       regime: {
-        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        opSimpNac: OpcaoSimplesNacional.NaoOptante,
         regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },

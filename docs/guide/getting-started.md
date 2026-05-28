@@ -78,7 +78,7 @@ Consulta não exige `dpsCounter` nem `retryStore` — a configuração mínima j
 
 ```typescript
 import {
-  OpcaoSimplesNacional, RegimeEspecialTributacao,
+  OpcaoSimplesNacional, RegimeApuracaoSimplesNacional, RegimeEspecialTributacao,
   ReceitaRejectionError,
 } from 'open-nfse';
 
@@ -89,6 +89,7 @@ try {
       codMunicipio: '2111300',
       regime: {
         opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
         regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },

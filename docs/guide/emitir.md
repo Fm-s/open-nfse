@@ -39,7 +39,9 @@ Impls Postgres completas dos dois: [Integração em serviços](./integracao).
 ## 1. Emissão mínima
 
 ```typescript
-import { OpcaoSimplesNacional, RegimeEspecialTributacao } from 'open-nfse';
+import {
+  OpcaoSimplesNacional, RegimeApuracaoSimplesNacional, RegimeEspecialTributacao,
+} from 'open-nfse';
 
 const resultado = await cliente.emitir({
   emitente: {
@@ -47,6 +49,7 @@ const resultado = await cliente.emitir({
     codMunicipio: '2111300',
     regime: {
       opSimpNac: OpcaoSimplesNacional.MeEpp,
+      regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
       regEspTrib: RegimeEspecialTributacao.Nenhum,
     },
   },

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] — 2026-05-28
+
+Endurecimento de footguns no builder de DPS. Três regras fiscais que antes só apareciam como rejeição da SEFIN viram erros locais de tempo de build.
+
+### Fixed
+
+- **`buildDps` enviava `xNome` do prestador** quando `EmitenteInput.nome` era preenchido — SEFIN rejeita com "O nome ou razão social do prestador não deve ser informado quando o emitente da DPS for o próprio prestador" (a lib sempre usa `tpEmit='1'`, e nesse cenário a SEFIN preenche `xNome`/endereço a partir do cadastro do CNPJ). O comentário em `buildInfoPrestador` já cobria `end`, mas `xNome` continuava sendo inserido. Agora o builder nunca emite `prest.xNome` nem `prest.end`.
+
+### Added
+
+- **`RuleViolationError('TCRegTrib')` quando `opSimpNac=MeEpp` sem `regApTribSN`** — XSD trata `regApTribSN` como opcional, mas a SEFIN rejeita após round-trip. Fail-fast em `buildDps` evita queimar `nDPS` do counter por uma regra fiscal que dá pra checar offline.
+- **`RuleViolationError('aliqIss')` quando `aliqIss` está em `(0, 0.5)`** — quase sempre erro de fração-vs-percentual (`0.025` em vez de `2.5`). Sem a guarda, `(0.025).toFixed(2) === '0.03'` seria aceito pelo XSD (matches `TSDec1V2`) e pela SEFIN — a nota sairia válida com **0,03%** de ISS em vez dos 2,5% pretendidos. `aliqIss === 0` (alíquota zero legítima) continua aceito.
+
+### Removed
+
+- **`EmitenteInput.nome` e `EmitenteInput.endereco`** — campos só servem quando `tpEmit ≠ '1'`, mas a lib sempre usa `tpEmit='1'`. Eram footguns: o type signature sugeria que tinham efeito, e `nome` causava a rejeição descrita acima. Quem preenchia esses campos deve removê-los do call site (o TypeScript apontará). Os dados aparecem no `NFSe` retornado, populados pela SEFIN a partir do cadastro.
+
+### Changed
+
+- **JSDoc de `BuildDpsParams.nDPS` e `EmitirParams.nDPS`**: alerta explícito contra zeros à esquerda (`'1'` e `'00001'` geram `Id`s distintos para o mesmo sequencial).
+- **JSDoc de `BuildDpsParams.dCompet`**: removido "truncada em UTC" (default é `new Date()` — hoje — e callers que backdatam `dhEmi` precisam informar `dCompet` explicitamente).
+- **JSDoc de `ValoresInput.aliqIss`**: ênfase em "percentual" com exemplo negativo (`NÃO 0.025`) e referência à nova guarda.
+
+### Migration
+
+- Se você passava `nome` ou `endereco` em `emitente`: remova. A SEFIN já preenchia esses dados a partir do cadastro; a única diferença é que agora a tentativa de informá-los falha em compile-time em vez de virar rejeição em runtime.
+- Se você usava `opSimpNac=MeEpp`: confirme que `regApTribSN` está preenchido com um valor de `RegimeApuracaoSimplesNacional` (`'1'` Federal+Municipal pelo SN, `'2'` Federal pelo SN + Municipal fora, `'3'` Federal e Municipal fora). Sem ele, `buildDps` agora lança antes da emissão.
+- Se você passava `aliqIss` em fração (ex: `0.05` querendo 5%): troque para percentual (`5`). Use `aliqIss=0` para alíquota zero explícita.
+
 ## [0.8.4] — 2026-05-27
 
 Correções de conformidade XSD. Auditoria completa dos tipos, enums e serialização contra os schemas RTC v1.01.

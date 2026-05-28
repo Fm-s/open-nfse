@@ -333,6 +333,10 @@ export interface EmitirParams extends Omit<BuildDpsParams, 'nDPS'>, EmitOptions 
    * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
    * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
    * um número do counter à toa).
+   *
+   * **Não preencher com zeros à esquerda** — o `Id` da DPS é composto a partir
+   * desta string, então `'1'` e `'00001'` produzem `Id`s distintos para o mesmo
+   * número sequencial.
    */
   readonly nDPS?: string;
 }

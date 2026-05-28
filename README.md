@@ -47,7 +47,7 @@ Emissão com resultado discriminado (`ok` autorizada, `retry_pending` salvo no s
 
 ```typescript
 import {
-  OpcaoSimplesNacional, RegimeEspecialTributacao,
+  OpcaoSimplesNacional, RegimeApuracaoSimplesNacional, RegimeEspecialTributacao,
   ReceitaRejectionError,
 } from 'open-nfse';
 
@@ -58,6 +58,7 @@ try {
       codMunicipio: '2111300',
       regime: {
         opSimpNac: OpcaoSimplesNacional.MeEpp,
+        regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
         regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },

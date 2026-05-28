@@ -7,6 +7,7 @@ import {
   OpcaoSimplesNacional,
   providerFromFile,
   ReceitaRejectionError,
+  RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
 } from 'open-nfse';
 
@@ -58,6 +59,7 @@ function montarDps(): DPS {
       codMunicipio: codMun!,
       regime: {
         opSimpNac: OpcaoSimplesNacional.MeEpp, // ajuste para seu regime real
+        regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
         regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },

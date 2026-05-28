@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { RuleViolationError } from '../errors/validation.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { OpcaoSimplesNacional, RegimeEspecialTributacao, TipoAmbienteDps } from './enums.js';
@@ -10,7 +11,7 @@ function baseParams(): BuildDpsParams {
       cnpj: '00574753000100',
       codMunicipio: '2111300',
       regime: {
-        opSimpNac: OpcaoSimplesNacional.MeEpp,
+        opSimpNac: OpcaoSimplesNacional.NaoOptante,
         regEspTrib: RegimeEspecialTributacao.Nenhum,
       },
     },
@@ -144,6 +145,7 @@ describe('buildDps', () => {
   });
 
   it('includes regApTribSN on RegTrib only when provided', () => {
+    // baseParams = NaoOptante → regApTribSN não se aplica e fica undefined.
     const noOverride = buildDps(baseParams());
     expect(noOverride.infDPS.prest.regTrib.regApTribSN).toBeUndefined();
 
@@ -161,9 +163,62 @@ describe('buildDps', () => {
     expect(withOverride.infDPS.prest.regTrib.regApTribSN).toBe('1');
   });
 
+  // Per TCRegTrib (RTC v1.01) — regApTribSN é obrigatório quando MeEpp.
+  it('throws RuleViolationError when opSimpNac=MeEpp without regApTribSN', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: {
+          ...baseParams().emitente,
+          regime: {
+            opSimpNac: OpcaoSimplesNacional.MeEpp,
+            regEspTrib: RegimeEspecialTributacao.Nenhum,
+          },
+        },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  // aliqIss = 0.025 é quase sempre erro de fração-vs-percentual (passariam 2,5%
+  // como `0.025` em vez de `2.5`). O formatter rebaixaria a "0.03" e a nota
+  // sairia com 0,03% — fail-fast local em vez de emitir tributo errado.
+  it('throws RuleViolationError on aliqIss in the fraction-mistake range', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 0.025 } })).toThrow(
+      RuleViolationError,
+    );
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 0.05 } })).toThrow(
+      RuleViolationError,
+    );
+  });
+
+  it('accepts aliqIss=0 (alíquota zero legítima) and típicas (2.5, 5)', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 0 } })).not.toThrow();
+    expect(() =>
+      buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 2.5 } }),
+    ).not.toThrow();
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 5 } })).not.toThrow();
+  });
+
   it('passes XSD validation for a minimal-valid DPS', async () => {
     const xml = buildDpsXml(buildDps(baseParams()));
     await expect(validateDpsXml(xml)).resolves.toBeUndefined();
+  });
+
+  // tpEmit='1' — SEFIN rejeita xNome/end no prest porque preenche do cadastro.
+  it('never includes xNome or end on the prestador block', () => {
+    const dps = buildDps({
+      ...baseParams(),
+      emitente: {
+        ...baseParams().emitente,
+        inscricaoMunicipal: '6123007',
+        email: 'fiscal@voga.test',
+        fone: '11999990000',
+      },
+    });
+    expect(dps.infDPS.prest.xNome).toBeUndefined();
+    expect(dps.infDPS.prest.end).toBeUndefined();
+    expect(dps.infDPS.prest.IM).toBe('6123007');
+    expect(dps.infDPS.prest.email).toBe('fiscal@voga.test');
   });
 
   it('passes XSD validation with tomador + addresses', async () => {
@@ -173,14 +228,6 @@ describe('buildDps', () => {
         emitente: {
           ...baseParams().emitente,
           inscricaoMunicipal: '6123007',
-          nome: 'Voga LTDA',
-          endereco: {
-            codMunicipio: '2111300',
-            cep: '65045215',
-            logradouro: 'Rua Antônio Raposo',
-            numero: '210',
-            bairro: 'Cutim',
-          },
         },
         tomador: {
           documento: { CPF: '01075595363' },

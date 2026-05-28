@@ -14,9 +14,9 @@ import type {
   VServPrest,
 } from './domain.js';
 import { buildDpsId } from './dps-id.js';
+import { OpcaoSimplesNacional } from './enums.js';
 import type {
   IndicadorTotalTributos,
-  OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
@@ -44,15 +44,20 @@ export interface EnderecoBr {
   readonly complemento?: string;
 }
 
-/** Identificação do emitente prestador. */
+/**
+ * Identificação do emitente prestador.
+ *
+ * `xNome` (nome/razão social) e endereço **não** são aceitos aqui de propósito:
+ * `buildDps` sempre usa `tpEmit='1'` (prestador é o próprio emitente), e a SEFIN
+ * rejeita esses campos no bloco `prest` nesse cenário — eles são preenchidos a
+ * partir do cadastro do CNPJ. Os mesmos dados aparecem no `NFSe` retornado.
+ */
 export interface EmitenteInput {
   readonly cnpj: string;
   /** Código IBGE do município emissor (7 dígitos). */
   readonly codMunicipio: string;
   readonly inscricaoMunicipal?: string;
-  readonly nome?: string;
   readonly regime: RegimeTributario;
-  readonly endereco?: EnderecoBr;
   readonly email?: string;
   readonly fone?: string;
 }
@@ -86,8 +91,10 @@ export interface ValoresInput {
   readonly vServ: number;
   readonly vReceb?: number;
   /**
-   * Alíquota ISS em % (ex: `2.5` = 2,5%). Preenche `tribMun.pAliq`.
-   * Omita quando a nota é imune/isenta ou quando o ISSQN é retido pelo tomador.
+   * Alíquota ISS em **percentual** (ex: `2.5` = 2,5%, NÃO `0.025`). Preenche
+   * `tribMun.pAliq`. Omita para imune/isenta, retido pelo tomador, ou Simples
+   * Nacional sem `pAliq` específica do município. Valores `0 < x < 0.5` são
+   * rejeitados em tempo de build (quase sempre erro de fração-vs-percentual).
    */
   readonly aliqIss?: number;
   /** Default `'1'` (operação tributável). */
@@ -103,12 +110,23 @@ export interface ValoresInput {
 export interface BuildDpsParams {
   readonly emitente: EmitenteInput;
   readonly serie: string;
+  /**
+   * Identificador sequencial da DPS na série, como string. **Não preencher com
+   * zeros à esquerda** — o `Id` da DPS é composto a partir da string passada
+   * aqui, então `'1'` e `'00001'` produzem `Id`s diferentes mesmo representando
+   * o mesmo número. O `DpsCounter` (acionado por `NfseClient.emitir`) já segue
+   * a convenção sem padding.
+   */
   readonly nDPS: string;
   /** Default `'2'` (Homologação). */
   readonly tpAmb?: TipoAmbienteDps;
   /** Default `new Date()`. */
   readonly dhEmi?: Date;
-  /** Default `new Date()` truncada em UTC. */
+  /**
+   * Competência (mês/ano) da prestação do serviço. Default `new Date()` (hoje).
+   * Para notas com competência retroativa (ex.: serviço prestado no mês anterior)
+   * informe explicitamente — o default não deduz nada de `dhEmi`.
+   */
   readonly dCompet?: Date;
   /** Versão do aplicativo emissor. Default `open-nfse/<VERSÃO_ATUAL>`. */
   readonly verAplic?: string;
@@ -131,6 +149,9 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  * construa `InfDPS` manualmente (todos os tipos da RTC estão exportados).
  */
 export function buildDps(params: BuildDpsParams): DPS {
+  assertSimplesNacionalConsistency(params.emitente.regime);
+  assertAliqIssRange(params.valores.aliqIss);
+
   const dhEmi = params.dhEmi ?? new Date();
   const dCompet = params.dCompet ?? new Date();
   const tpAmb = params.tpAmb ?? DEFAULT_TP_AMB;
@@ -177,12 +198,13 @@ function buildInfoPrestador(emit: EmitenteInput): InfoPrestador {
     ...(emit.regime.regApTribSN !== undefined ? { regApTribSN: emit.regime.regApTribSN } : {}),
     regEspTrib: emit.regime.regEspTrib,
   };
-  // tpEmit='1' (prestador é o emitente): SEFIN rejeita endereço nacional no
-  // prestador nesse caso. buildDps sempre usa tpEmit='1', então omitimos `end`.
+  // tpEmit='1' (prestador é o emitente): SEFIN preenche xNome e endereço a
+  // partir do cadastro do CNPJ e rejeita o envio desses campos. buildDps sempre
+  // usa tpEmit='1', então `xNome` e `end` ficam de fora — e `EmitenteInput` não
+  // os expõe pra falhar em tempo de compilação.
   return {
     identificador: { CNPJ: emit.cnpj },
     ...(emit.inscricaoMunicipal ? { IM: emit.inscricaoMunicipal } : {}),
-    ...(emit.nome ? { xNome: emit.nome } : {}),
     ...(emit.fone ? { fone: emit.fone } : {}),
     ...(emit.email ? { email: emit.email } : {}),
     regTrib,
@@ -243,6 +265,38 @@ function buildInfoValores(v: ValoresInput) {
     vServPrest,
     trib: { tribMun, totTrib },
   };
+}
+
+/**
+ * `regApTribSN` é obrigatório quando `opSimpNac=MeEpp` ('3') per TCRegTrib do
+ * RTC v1.01 — XSD não enforça, então a SEFIN rejeita após round-trip. Fail-fast
+ * local para virar erro de tempo de build em vez de rejeição.
+ */
+function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
+  if (regime.opSimpNac === OpcaoSimplesNacional.MeEpp && regime.regApTribSN === undefined) {
+    throw new RuleViolationError(
+      `regApTribSN é obrigatório quando opSimpNac=MeEpp ('3') — per TCRegTrib do RTC v1.01`,
+      'TCRegTrib',
+    );
+  }
+}
+
+/**
+ * `aliqIss` é em percentual (ex: `2.5` = 2,5%). Valores `0 < x < 0.5` são quase
+ * sempre erro de fração-vs-percentual (ex: `0.025` em vez de `2.5`): o formatter
+ * faria `(0.025).toFixed(2) === '0.03'` e a SEFIN aceitaria a nota com **0,03%**
+ * em vez dos 2,5% pretendidos. ISS por LC 116 nunca é abaixo de 2%; o limite de
+ * 0.5 é generoso pra regimes especiais e ainda pega a confusão de unidade.
+ */
+function assertAliqIssRange(aliqIss: number | undefined): void {
+  if (aliqIss === undefined || aliqIss === 0) return;
+  if (aliqIss > 0 && aliqIss < 0.5) {
+    const asPercent = aliqIss * 100;
+    throw new RuleViolationError(
+      `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPS manualmente.`,
+      'aliqIss',
+    );
+  }
 }
 
 /** `TSVerAplic` limita verAplic a maxLength=20. Fail-fast local. */
