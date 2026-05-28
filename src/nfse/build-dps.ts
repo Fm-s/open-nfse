@@ -177,11 +177,12 @@ function buildInfoPrestador(emit: EmitenteInput): InfoPrestador {
     ...(emit.regime.regApTribSN !== undefined ? { regApTribSN: emit.regime.regApTribSN } : {}),
     regEspTrib: emit.regime.regEspTrib,
   };
+  // tpEmit='1' (prestador é o emitente): SEFIN rejeita endereço nacional no
+  // prestador nesse caso. buildDps sempre usa tpEmit='1', então omitimos `end`.
   return {
     identificador: { CNPJ: emit.cnpj },
     ...(emit.inscricaoMunicipal ? { IM: emit.inscricaoMunicipal } : {}),
     ...(emit.nome ? { xNome: emit.nome } : {}),
-    ...(emit.endereco ? { end: toEndereco(emit.endereco) } : {}),
     ...(emit.fone ? { fone: emit.fone } : {}),
     ...(emit.email ? { email: emit.email } : {}),
     regTrib,

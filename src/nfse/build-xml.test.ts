@@ -95,7 +95,7 @@ describe('buildDpsXml', () => {
     const xml = buildDpsXml(
       minimalDps({
         dhEmi: new Date('2026-04-17T14:30:00Z'),
-        dCompet: new Date('2026-04-17T00:00:00Z'),
+        dCompet: new Date('2026-04-17T12:00:00Z'),
       }),
     );
     expect(xml).toContain('<dhEmi>2026-04-17T11:30:00-03:00</dhEmi>');
@@ -115,6 +115,7 @@ describe('buildDpsXml', () => {
           locPrest: { cLocPrestacao: '2111300' },
           cServ: {
             cTribNac: '250101',
+            cNBS: '123456789',
             xDescServ: 'A & B <tag> "quoted"',
           },
         },

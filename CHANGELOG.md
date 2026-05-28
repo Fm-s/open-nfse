@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] — 2026-05-27
+
+Correções de conformidade XSD. Auditoria completa dos tipos, enums e serialização contra os schemas RTC v1.01.
+
+### Fixed
+
+- **`buildDps` incluía endereço nacional do prestador** quando `tpEmit='1'` (prestador é o emitente) — SEFIN rejeita esse campo nesse cenário. O builder agora omite `prest.end` (somente via `buildDps`; construção manual de `InfDPS` não é afetada).
+- **`ModoPrestacao` labels `'3'` e `'4'` estavam trocados** — `'3'` era `MovimentoTemporarioPF` mas o XSD diz "Presença Comercial no Exterior"; `'4'` era `ConsumoNoExterior` mas é "Movimento Temporário de PF". Corrigido para `PresencaComercialExterior = '3'` e `MovimentoTemporarioPF = '4'`.
+- **`TipoEmissao` tinha valor inválido `'3'`** e label errado em `'2'` (`ContingenciaOffline`). O XSD `TSTipoEmissao` só define `'1'` (Normal) e `'2'` (Transcrição de leiaute municipal). Removido `'3'`, renomeado `'2'` para `TranscricaoLeiauteMunicipal`.
+- **`AmbienteGerador.Outros = '3'` inválido** para contexto de NFS-e — `TSAmbGeradorNFSe` só aceita `'1'` e `'2'`. Removido. (`'3'` é válido apenas para `TSAmbGeradorEvt`, que já tem enum próprio `AmbienteGeradorEvento`.)
+- **`EnderecoSimples` / `EnderObraEvento` modelavam `xs:choice` como dois opcionais** — permitia `CEP` e `endExt` simultaneamente, ou nenhum dos dois. Agora são discriminated unions (`EnderecoSimplesLocalidade`, `EnderObraEventoLocalidade`).
+- **`EnderecoSimples` emitia `cPais` dentro de `endExt`** — `TCEnderExtSimples` não tem esse campo (só `TCEnderExt` tem). Novo tipo `EnderecoExteriorSimples` sem `cPais`.
+- **`BeneficioMunicipal` modelava `vRedBCBM` / `pRedBCBM` como opcionais independentes** — XSD é `xs:choice` (no máximo um). Agora é union type.
+- **`formatDate` usava UTC enquanto `formatDateTime` usava BRT** — `dCompet` podia sair como o dia seguinte quando emitido após 21h BRT (00h+ UTC). Ambos agora usam BRT via helper compartilhado `toBrt`.
+
+### Changed
+
+- **Novos tipos exportados**: `EnderecoSimplesLocalidade`, `EnderObraEventoLocalidade`, `EnderecoExteriorSimples`.
+
 ## [0.8.3] — 2026-05-27
 
 ### Fixed

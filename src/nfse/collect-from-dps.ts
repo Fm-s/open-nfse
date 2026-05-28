@@ -100,7 +100,7 @@ function pushEnderecoSimples(
   endereco: EnderecoSimples | undefined,
 ): void {
   if (!endereco) return;
-  if (endereco.CEP) out.push({ path: `${path}.CEP`, cep: endereco.CEP });
+  if ('CEP' in endereco) out.push({ path: `${path}.CEP`, cep: endereco.CEP });
 }
 
 function pushServ(out: CollectedCep[], path: string, serv: Serv): void {

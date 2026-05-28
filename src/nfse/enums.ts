@@ -1,13 +1,11 @@
 export enum AmbienteGerador {
   Prefeitura = '1',
   SefinNacional = '2',
-  Outros = '3',
 }
 
 export enum TipoEmissao {
   Normal = '1',
-  ContingenciaOffline = '2',
-  ContingenciaOnline = '3',
+  TranscricaoLeiauteMunicipal = '2',
 }
 
 export enum ProcessoEmissao {
@@ -226,8 +224,8 @@ export enum ModoPrestacao {
   Desconhecido = '0',
   Transfronteirico = '1',
   ConsumoNoBrasil = '2',
-  MovimentoTemporarioPF = '3',
-  ConsumoNoExterior = '4',
+  PresencaComercialExterior = '3',
+  MovimentoTemporarioPF = '4',
 }
 
 export enum VinculoPrestacao {

@@ -117,23 +117,33 @@ export interface CServ {
   readonly cIntContrib?: string;
 }
 
-export interface EnderecoSimples {
-  readonly CEP?: string;
-  readonly endExt?: EnderecoExterior;
-  readonly xLgr: string;
-  readonly nro: string;
-  readonly xCpl?: string;
-  readonly xBairro: string;
+export interface EnderecoExteriorSimples {
+  readonly cEndPost: string;
+  readonly xCidade: string;
+  readonly xEstProvReg: string;
 }
 
-export interface EnderObraEvento {
-  readonly CEP?: string;
-  readonly endExt?: EnderecoExterior;
+export type EnderecoSimplesLocalidade =
+  | { readonly CEP: string }
+  | { readonly endExt: EnderecoExteriorSimples };
+
+export type EnderecoSimples = EnderecoSimplesLocalidade & {
   readonly xLgr: string;
   readonly nro: string;
   readonly xCpl?: string;
   readonly xBairro: string;
-}
+};
+
+export type EnderObraEventoLocalidade =
+  | { readonly CEP: string }
+  | { readonly endExt: EnderecoExteriorSimples };
+
+export type EnderObraEvento = EnderObraEventoLocalidade & {
+  readonly xLgr: string;
+  readonly nro: string;
+  readonly xCpl?: string;
+  readonly xBairro: string;
+};
 
 export interface ComExterior {
   readonly mdPrestacao: ModoPrestacao;
@@ -224,11 +234,10 @@ export interface ExigSuspensa {
   readonly nProcesso: string;
 }
 
-export interface BeneficioMunicipal {
-  readonly nBM: string;
-  readonly vRedBCBM?: number;
-  readonly pRedBCBM?: number;
-}
+export type BeneficioMunicipal =
+  | { readonly nBM: string; readonly vRedBCBM: number }
+  | { readonly nBM: string; readonly pRedBCBM: number }
+  | { readonly nBM: string };
 
 export interface TribMunicipal {
   readonly tribISSQN: TipoTribISSQN;
