@@ -14,7 +14,10 @@ import type {
   EnderObraEvento,
   Endereco,
   EnderecoEmitente,
+  EnderecoExterior,
+  EnderecoExteriorSimples,
   EnderecoSimples,
+  EnderecoSimplesLocalidade,
   ExigSuspensa,
   ExploracaoRodoviaria,
   IdentificadorPessoa,
@@ -446,14 +449,7 @@ function parseEndereco(node: XmlObject): Endereco {
       },
     };
   } else if (endExt) {
-    localidade = {
-      endExt: {
-        cPais: requireText(endExt, 'cPais'),
-        cEndPost: requireText(endExt, 'cEndPost'),
-        xCidade: requireText(endExt, 'xCidade'),
-        xEstProvReg: requireText(endExt, 'xEstProvReg'),
-      },
-    };
+    localidade = { endExt: parseEnderecoExterior(endExt) };
   } else {
     throw new InvalidXmlError('endereço sem endNac nem endExt');
   }
@@ -539,18 +535,30 @@ function parseAtvEventoIdentificacao(node: XmlObject): AtvEventoIdentificacao {
   throw new InvalidXmlError('atvEvento sem idAtvEvt nem end');
 }
 
-function parseEnderecoSimples(node: XmlObject): EnderecoSimples {
+function parseEnderecoExterior(node: XmlObject): EnderecoExterior {
   return {
-    ...optionalAssign('CEP', optionalText(node, 'CEP')),
-    ...optionalAssign(
-      'endExt',
-      mapIfPresent(optionalChild(node, 'endExt'), (n) => ({
-        cPais: requireText(n, 'cPais'),
-        cEndPost: requireText(n, 'cEndPost'),
-        xCidade: requireText(n, 'xCidade'),
-        xEstProvReg: requireText(n, 'xEstProvReg'),
-      })),
-    ),
+    cPais: requireText(node, 'cPais'),
+    cEndPost: requireText(node, 'cEndPost'),
+    xCidade: requireText(node, 'xCidade'),
+    xEstProvReg: requireText(node, 'xEstProvReg'),
+  };
+}
+
+function parseEnderecoExteriorSimples(node: XmlObject): EnderecoExteriorSimples {
+  return {
+    cEndPost: requireText(node, 'cEndPost'),
+    xCidade: requireText(node, 'xCidade'),
+    xEstProvReg: requireText(node, 'xEstProvReg'),
+  };
+}
+
+function parseEnderecoSimples(node: XmlObject): EnderecoSimples {
+  const cep = optionalText(node, 'CEP');
+  const localidade: EnderecoSimplesLocalidade = cep
+    ? { CEP: cep }
+    : { endExt: parseEnderecoExteriorSimples(requireChild(node, 'endExt')) };
+  return {
+    ...localidade,
     xLgr: requireText(node, 'xLgr'),
     nro: requireText(node, 'nro'),
     ...optionalAssign('xCpl', optionalText(node, 'xCpl')),
@@ -740,11 +748,12 @@ function parseExigSuspensa(node: XmlObject): ExigSuspensa {
 }
 
 function parseBeneficioMunicipal(node: XmlObject): BeneficioMunicipal {
-  return {
-    nBM: requireText(node, 'nBM'),
-    ...optionalAssign('vRedBCBM', optionalNumber(node, 'vRedBCBM')),
-    ...optionalAssign('pRedBCBM', optionalNumber(node, 'pRedBCBM')),
-  };
+  const nBM = requireText(node, 'nBM');
+  const vRedBCBM = optionalNumber(node, 'vRedBCBM');
+  if (vRedBCBM !== undefined) return { nBM, vRedBCBM };
+  const pRedBCBM = optionalNumber(node, 'pRedBCBM');
+  if (pRedBCBM !== undefined) return { nBM, pRedBCBM };
+  return { nBM };
 }
 
 function parseTribFederal(node: XmlObject): TribFederal {

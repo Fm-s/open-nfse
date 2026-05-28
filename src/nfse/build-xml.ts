@@ -190,17 +190,18 @@ function buildEndereco(e: Endereco): object {
 }
 
 function buildEnderecoSimples(e: EnderecoSimples): object {
+  const localidade =
+    'CEP' in e
+      ? { CEP: e.CEP }
+      : {
+          endExt: {
+            cEndPost: e.endExt.cEndPost,
+            xCidade: e.endExt.xCidade,
+            xEstProvReg: e.endExt.xEstProvReg,
+          },
+        };
   return {
-    ...onlyDefined('CEP', e.CEP),
-    ...onlyDefined(
-      'endExt',
-      e.endExt && {
-        cPais: e.endExt.cPais,
-        cEndPost: e.endExt.cEndPost,
-        xCidade: e.endExt.xCidade,
-        xEstProvReg: e.endExt.xEstProvReg,
-      },
-    ),
+    ...localidade,
     xLgr: e.xLgr,
     nro: e.nro,
     ...onlyDefined('xCpl', e.xCpl),
@@ -410,8 +411,8 @@ function buildExigSuspensa(e: ExigSuspensa): object {
 function buildBeneficioMunicipal(b: BeneficioMunicipal): object {
   return {
     nBM: b.nBM,
-    ...onlyDefined('vRedBCBM', formatOptionalDecimal(b.vRedBCBM)),
-    ...onlyDefined('pRedBCBM', formatOptionalDecimal(b.pRedBCBM)),
+    ...('vRedBCBM' in b ? { vRedBCBM: formatDecimal(b.vRedBCBM) } : {}),
+    ...('pRedBCBM' in b ? { pRedBCBM: formatDecimal(b.pRedBCBM) } : {}),
   };
 }
 
@@ -599,22 +600,19 @@ function buildSignature(s: Signature): object {
   };
 }
 
+const BR_OFFSET_MS = -180 * 60_000;
+
+function toBrt(d: Date): Date {
+  return new Date(d.getTime() + BR_OFFSET_MS);
+}
+
 function formatDateTime(d: Date): string {
-  // RTC v1.01 TSDateTimeUTC pattern requires `YYYY-MM-DDTHH:MM:SS±HH:00` with
-  // whole-hour offsets and no milliseconds. We emit the instant in Brazil
-  // local time (UTC-03:00, sem horário de verão desde 2019) since this lib
-  // targets a Brazilian audience — matches what the Receita itself emits in
-  // its own samples and is what contadores expect to read.
-  const BR_OFFSET_MIN = -180;
-  const shifted = new Date(d.getTime() + BR_OFFSET_MIN * 60_000);
-  return `${shifted.toISOString().slice(0, 19)}-03:00`;
+  return `${toBrt(d).toISOString().slice(0, 19)}-03:00`;
 }
 
 function formatDate(d: Date): string {
-  const y = d.getUTCFullYear().toString().padStart(4, '0');
-  const m = (d.getUTCMonth() + 1).toString().padStart(2, '0');
-  const day = d.getUTCDate().toString().padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  const iso = toBrt(d).toISOString();
+  return iso.slice(0, 10);
 }
 
 /**
