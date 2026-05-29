@@ -1,0 +1,1214 @@
+{
+  "source": "anexo_ii-sefin_adn-pedregevt_evt-snnfse-v1-01-20260122.xlsx",
+  "sheet": "LEIAUTE EVENTO_PED.REG.EVENTO",
+  "dims": {
+    "rows": 86,
+    "cols": 9
+  },
+  "rows": [
+    {
+      "r": 1,
+      "cells": [
+        "#",
+        "CAMINHO NO XML",
+        "CAMPO",
+        "ELE",
+        "TIPO",
+        "OCOR.",
+        "TAM.",
+        "DESCRIÇÃO",
+        "OBSERVAÇÕES DE NEGÓCIO"
+      ]
+    },
+    {
+      "r": 2,
+      "cells": [
+        "1",
+        null,
+        "evento",
+        "Raiz",
+        "-",
+        "-",
+        "-",
+        "TAG raiz",
+        "-"
+      ]
+    },
+    {
+      "r": 3,
+      "cells": [
+        "2",
+        "evento/",
+        "versao",
+        "A",
+        "C",
+        "1-1",
+        "1-4V2",
+        "Versão do leiaute do evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 4,
+      "cells": [
+        "3",
+        "evento/",
+        "infEvento",
+        "G",
+        "-",
+        "1-1",
+        "-",
+        "Grupo de informações do pedido de registro do evento",
+        "-"
+      ]
+    },
+    {
+      "r": 5,
+      "cells": [
+        "4",
+        "evento/infEvento/",
+        "id",
+        "ID",
+        "C",
+        "1-1",
+        "62",
+        "O identificador do evento é composto pela concatenação de campos que constam no leiaute.\n\nA formação deste identificador considera o literal \"EVT\" associado a outras 59 posições numéricas, conforme descrito abaixo:\n\n\"EVT\" +\nid do Pedido de Registo de Evento (56) +\nNúmero sequencial do evento (nSeqEvento) (3)",
+        "Para a formação do id do Evento, considerar o id do Pedido de Registro de Evento sem o literal \"PRE\"."
+      ]
+    },
+    {
+      "r": 6,
+      "cells": [
+        "5",
+        "evento/infEvento/",
+        "verAplic",
+        "E",
+        "C",
+        "1-1",
+        "1-20",
+        "Versão do aplicativo que gerou o evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 7,
+      "cells": [
+        "6",
+        "evento/infEvento/",
+        "ambGer",
+        "E",
+        "D",
+        "1-1",
+        "-",
+        "Ambiente gerador do evento:\n\n1 - Sistema próprio do município;\n2 - Sefin Nacional NFS-e;\n3 - ADN NFS-e;",
+        "-"
+      ]
+    },
+    {
+      "r": 8,
+      "cells": [
+        "7",
+        "evento/infEvento/",
+        "nSeqEvento",
+        "E",
+        "N",
+        "1-1",
+        "3",
+        "Número sequencial do evento para o mesmo tipo de evento.\n\nPara os eventos que ocorrem somente uma vez, como é o caso do cancelamento, o nSeqEvento = 001.\n\nPara os eventos que possam existir mais de um evento do mesmo tipo o ambiente gerador deverá numerar de forma sequencial.",
+        "-"
+      ]
+    },
+    {
+      "r": 9,
+      "cells": [
+        "8",
+        "evento/infEvento/",
+        "dhProc",
+        "E",
+        "D",
+        "1-1",
+        "-",
+        "Data/Hora do registro do evento.\nData e hora no formato UTC (Universal Coordinated Time):\nAAAA-MM-DDThh:mm:ssTZD",
+        "-"
+      ]
+    },
+    {
+      "r": 10,
+      "cells": [
+        "9",
+        "evento/infEvento/",
+        "nDFSe",
+        "E",
+        "N",
+        "1-1",
+        "1-13",
+        "Número sequencial do documento gerado por ambiente gerador de DFSe do município.",
+        "-"
+      ]
+    },
+    {
+      "r": 11,
+      "cells": [
+        "10",
+        "evento/infEvento/",
+        "pedRegEvento",
+        "G",
+        "G",
+        "1-1",
+        "-",
+        "Leiaute do pedido de registro do evento gerado pelo autor do evento",
+        "-"
+      ]
+    },
+    {
+      "r": 12,
+      "cells": [
+        "11",
+        "evento/pedRegEvento/",
+        "versao",
+        "A",
+        "C",
+        "1-1",
+        "1-4V2",
+        "Versão do leiaute do pedido de registro do evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 13,
+      "cells": [
+        "12",
+        "evento/pedRegEvento/",
+        "infPedReg",
+        "G",
+        "-",
+        "1-1",
+        "-",
+        "Parte Geral do Pedido de Registro de Evento\nGrupo de informações do pedido de registro do evento",
+        "-"
+      ]
+    },
+    {
+      "r": 14,
+      "cells": [
+        "13",
+        "evento/pedRegEvento/infPedReg/",
+        "id",
+        "ID",
+        "C",
+        "1-1",
+        "59",
+        "O identificador do pedido de registro de evento é composto pela concatenação de campos que constam no leiaute.\n\nA formação deste identificador considera o literal \"PRE\" associado a outras 56 posições numéricas, conforme descrito abaixo:\n\n\"PRE\" +\nChave de acesso da NFS-e (50) +\nCódigo do evento (6)",
+        "-"
+      ]
+    },
+    {
+      "r": 15,
+      "cells": [
+        "14",
+        "evento/pedRegEvento/infPedReg/",
+        "tpAmb",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Tipo de ambiente:\n\n1 - Produção;\n2 - Homologação;",
+        "-"
+      ]
+    },
+    {
+      "r": 16,
+      "cells": [
+        "15",
+        "evento/pedRegEvento/infPedReg/",
+        "verAplic",
+        "E",
+        "C",
+        "1-1",
+        "1-20",
+        "Versão do aplicativo que gerou o pedido de registro de evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 17,
+      "cells": [
+        "16",
+        "evento/pedRegEvento/infPedReg/",
+        "dhEvento",
+        "E",
+        "D",
+        "1-1",
+        "-",
+        "Data e hora do evento no formato AAAA-MM-DDThh:mm:ssTZD (UTC - Universal Coordinated Time, onde TZD pode ser -02:00 (Fernando de Noronha), -03:00 (Brasília) ou -04:00 (Manaus), no horário de verão serão -01:00, -02:00 e -03:00. Ex.: 2010-08-19T13:00:15-03:00.",
+        "-"
+      ]
+    },
+    {
+      "r": 18,
+      "cells": [
+        "17",
+        "evento/pedRegEvento/infPedReg/",
+        "CNPJAutor",
+        "CE",
+        "N",
+        "1-1",
+        "14",
+        "Número de inscrição federal (CNPJ) do autor do evento.\n\nCNPJ do autor do evento (parte interessada ou pessoa que figure na NFS-e.\nO autor do evento não é o procurador).",
+        "Em eventos onde o autor é o fisco, o campo deverá ser preenchido com o CNPJ da prefeitura."
+      ]
+    },
+    {
+      "r": 19,
+      "cells": [
+        "18",
+        "evento/pedRegEvento/infPedReg/",
+        "CPFAutor",
+        "CE",
+        "N",
+        "1-1",
+        "11",
+        "Número de inscrição federal (CPF) do autor do evento.\n\nCPF do autor do evento (parte interessada ou pessoa que figure na NFS-e como prestador, tomador, intermediário. O autor do evento poderá ser o procurador).",
+        "Em eventos onde o autor é o fisco, este campo não poderá ser preenchido."
+      ]
+    },
+    {
+      "r": 20,
+      "cells": [
+        "19",
+        "evento/pedRegEvento/infPedReg/",
+        "chNFSe",
+        "CE",
+        "N",
+        "1-1",
+        "50",
+        "Identificador da NFS-e à qual o evento será vinculado.",
+        "-"
+      ]
+    },
+    {
+      "r": 21,
+      "cells": [
+        "20",
+        "evento/pedRegEvento/infPedReg/",
+        "e101101",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Pedido de Registro de Evento\nEvento Cancelamento de NFS-e",
+        "-"
+      ]
+    },
+    {
+      "r": 22,
+      "cells": [
+        "21",
+        "evento/pedRegEvento/infPedReg/e101101/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nCancelamento de NFS-e",
+        "-"
+      ]
+    },
+    {
+      "r": 23,
+      "cells": [
+        "22",
+        "evento/pedRegEvento/infPedReg/e101101/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Código de justificativa de cancelamento:\n\n1 - Erro na Emissão;\n2 - Serviço não Prestado;\n9 - Outros;",
+        "-"
+      ]
+    },
+    {
+      "r": 24,
+      "cells": [
+        "23",
+        "evento/pedRegEvento/infPedReg/e101101/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 25,
+      "cells": [
+        "24",
+        "evento/pedRegEvento/infPedReg/",
+        "e105102",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Pedido de Registro de Evento\nCancelamento de NFS-e por Substituição",
+        "-"
+      ]
+    },
+    {
+      "r": 26,
+      "cells": [
+        "25",
+        "evento/pedRegEvento/infPedReg/e105102/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nCancelamento de NFS-e por Substituição",
+        "-"
+      ]
+    },
+    {
+      "r": 27,
+      "cells": [
+        "26",
+        "evento/pedRegEvento/infPedReg/e105102/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "2",
+        "Código de justificativa de cancelamento substituição:\n\n01 - Desenquadramento de NFS-e do Simples Nacional;\n02 - Enquadramento de NFS-e no Simples Nacional;\n03 - Inclusão Retroativa de Imunidade/Isenção para NFS-e;\n04 - Exclusão Retroativa de Imunidade/Isenção para NFS-e;\n05 - Rejeição de NFS-e pelo tomador ou pelo intermediário se responsável pelo recolhimento do tributo;\n99 - Outros;\n\nObtido do campo da DPS \"DPS/infDPS/subst/cMotivo\".",
+        "-"
+      ]
+    },
+    {
+      "r": 28,
+      "cells": [
+        "27",
+        "evento/pedRegEvento/infPedReg/e105102/",
+        "xMotivo",
+        "E",
+        "C",
+        "0-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.\n\nObtido do campo da DPS \"DPS/infDPS/subst/xMotivo\".",
+        "-"
+      ]
+    },
+    {
+      "r": 29,
+      "cells": [
+        "28",
+        "evento/pedRegEvento/infPedReg/e105102/",
+        "chSubstituta",
+        "E",
+        "N",
+        "1-1",
+        "50",
+        "Chave de Acesso da NFS-e substituta.",
+        "-"
+      ]
+    },
+    {
+      "r": 30,
+      "cells": [
+        "29",
+        "evento/pedRegEvento/infPedReg/",
+        "e101103",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Pedido de Registro de Evento\nSolicitação de Análise Fiscal para Cancelamento de NFS-e",
+        "-"
+      ]
+    },
+    {
+      "r": 31,
+      "cells": [
+        "30",
+        "evento/pedRegEvento/infPedReg/e101103/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nSolicitação de Análise Fiscal para Cancelamento de NFS-e",
+        "-"
+      ]
+    },
+    {
+      "r": 32,
+      "cells": [
+        "31",
+        "evento/pedRegEvento/infPedReg/e101103/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Código do motivo da solicitação de análise fiscal para cancelamento de NFS-e:\n\n1 - Erro na Emissão;\n2 - Serviço não Prestado;\n9 - Outros;",
+        "-"
+      ]
+    },
+    {
+      "r": 33,
+      "cells": [
+        "32",
+        "evento/pedRegEvento/infPedReg/e101103/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 34,
+      "cells": [
+        "33",
+        "evento/pedRegEvento/infPedReg/",
+        "e105104",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Pedido de Registro de Evento\nCancelamento de NFS-e Deferido por Análise Fiscal",
+        "-"
+      ]
+    },
+    {
+      "r": 35,
+      "cells": [
+        "34",
+        "evento/pedRegEvento/infPedReg/e105104/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nCancelamento de NFS-e Deferido por Análise Fiscal",
+        "-"
+      ]
+    },
+    {
+      "r": 36,
+      "cells": [
+        "35",
+        "evento/pedRegEvento/infPedReg/e105104/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o deferimento da solicitação de análise fiscal para cancelamento de NFS-e.",
+        "-"
+      ]
+    },
+    {
+      "r": 37,
+      "cells": [
+        "36",
+        "evento/pedRegEvento/infPedReg/e105104/",
+        "nProcAdm",
+        "E",
+        "N",
+        "0-1",
+        "1-30",
+        "Número do processo administrativo municipal vinculado à solicitação de análise fiscal para cancelamento de NFS-e.",
+        "-"
+      ]
+    },
+    {
+      "r": 38,
+      "cells": [
+        "37",
+        "evento/pedRegEvento/infPedReg/e105104/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Resposta da solicitação de análise fiscal para cancelamento de NFS-e:\n\n1 - Cancelamento de NFS-e Deferido;",
+        "-"
+      ]
+    },
+    {
+      "r": 39,
+      "cells": [
+        "38",
+        "evento/pedRegEvento/infPedReg/e105104/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 40,
+      "cells": [
+        "39",
+        "evento/pedRegEvento/infPedReg/",
+        "e105105",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Pedido de Registro de Evento\nCancelamento de NFS-e Indeferido por Análise Fiscal",
+        "-"
+      ]
+    },
+    {
+      "r": 41,
+      "cells": [
+        "40",
+        "evento/pedRegEvento/infPedReg/e105105/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nCancelamento de NFS-e Indeferido por Análise Fiscal",
+        "-"
+      ]
+    },
+    {
+      "r": 42,
+      "cells": [
+        "41",
+        "evento/pedRegEvento/infPedReg/e105105/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o indeferimento da solicitação de análise fiscal para cancelamento de NFS-e.",
+        "-"
+      ]
+    },
+    {
+      "r": 43,
+      "cells": [
+        "42",
+        "evento/pedRegEvento/infPedReg/e105105/",
+        "nProcAdm",
+        "E",
+        "N",
+        "0-1",
+        "1-30",
+        "Número do processo administrativo municipal vinculado à solicitação de análise fiscal para cancelamento de NFS-e.",
+        "-"
+      ]
+    },
+    {
+      "r": 44,
+      "cells": [
+        "43",
+        "evento/pedRegEvento/infPedReg/e105105/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Resposta da solicitação de análise fiscal para cancelamento de NFS-e:\n\n1 - Cancelamento de NFS-e Indeferido;\n2 - Cancelamento de NFS-e Indeferido Sem Análise de Mérito;",
+        "-"
+      ]
+    },
+    {
+      "r": 45,
+      "cells": [
+        "44",
+        "evento/pedRegEvento/infPedReg/e105105/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 46,
+      "cells": [
+        "45",
+        "evento/pedRegEvento/infPedReg/",
+        "e202201",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Confirmação do Prestador",
+        "-"
+      ]
+    },
+    {
+      "r": 47,
+      "cells": [
+        "46",
+        "evento/pedRegEvento/infPedReg/e202201/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Confirmação do Prestador",
+        "-"
+      ]
+    },
+    {
+      "r": 48,
+      "cells": [
+        "47",
+        "evento/pedRegEvento/infPedReg/",
+        "e203202",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Confirmação do Tomador",
+        "-"
+      ]
+    },
+    {
+      "r": 49,
+      "cells": [
+        "48",
+        "evento/pedRegEvento/infPedReg/e203202/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Confirmação do Tomador",
+        "-"
+      ]
+    },
+    {
+      "r": 50,
+      "cells": [
+        "49",
+        "evento/pedRegEvento/infPedReg/",
+        "e204203",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Confirmação do Intermediário",
+        "-"
+      ]
+    },
+    {
+      "r": 51,
+      "cells": [
+        "50",
+        "evento/pedRegEvento/infPedReg/e204203/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Confirmação do Intermediário",
+        "-"
+      ]
+    },
+    {
+      "r": 52,
+      "cells": [
+        "51",
+        "evento/pedRegEvento/infPedReg/",
+        "e205204",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Confirmação Tácita",
+        "-"
+      ]
+    },
+    {
+      "r": 53,
+      "cells": [
+        "52",
+        "evento/pedRegEvento/infPedReg/e205204/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Confirmação Tácita",
+        "-"
+      ]
+    },
+    {
+      "r": 54,
+      "cells": [
+        "53",
+        "evento/pedRegEvento/infPedReg/",
+        "e202205",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Rejeição do Prestador",
+        "-"
+      ]
+    },
+    {
+      "r": 55,
+      "cells": [
+        "54",
+        "evento/pedRegEvento/infPedReg/e202205/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Rejeição do Prestador",
+        "-"
+      ]
+    },
+    {
+      "r": 56,
+      "cells": [
+        "55",
+        "evento/pedRegEvento/infPedReg/e202205/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Motivo da Rejeição da NFS-e:\n\n1 - NFS-e em duplicidade;\n2 - NFS-e já emitida pelo tomador;\n3 - Não ocorrência do fato gerador;\n4 - Erro quanto a responsabilidade tributária;\n5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;\n9 - Outros;",
+        "-"
+      ]
+    },
+    {
+      "r": 57,
+      "cells": [
+        "56",
+        "evento/pedRegEvento/infPedReg/e202205/",
+        "xMotivo",
+        "E",
+        "C",
+        "0-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 58,
+      "cells": [
+        "57",
+        "evento/pedRegEvento/infPedReg/",
+        "e203206",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Rejeição do Tomador",
+        "-"
+      ]
+    },
+    {
+      "r": 59,
+      "cells": [
+        "58",
+        "evento/pedRegEvento/infPedReg/e203206/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Rejeição do Tomador",
+        "-"
+      ]
+    },
+    {
+      "r": 60,
+      "cells": [
+        "59",
+        "evento/pedRegEvento/infPedReg/e203206/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Motivo da Rejeição da NFS-e:\n\n1 - NFS-e em duplicidade;\n2 - NFS-e já emitida pelo tomador;\n3 - Não ocorrência do fato gerador;\n4 - Erro quanto a responsabilidade tributária;\n5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;\n9 - Outros;",
+        "-"
+      ]
+    },
+    {
+      "r": 61,
+      "cells": [
+        "60",
+        "evento/pedRegEvento/infPedReg/e203206/",
+        "xMotivo",
+        "E",
+        "C",
+        "0-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 62,
+      "cells": [
+        "61",
+        "evento/pedRegEvento/infPedReg/",
+        "e204207",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Rejeição do Intermediário",
+        "-"
+      ]
+    },
+    {
+      "r": 63,
+      "cells": [
+        "62",
+        "evento/pedRegEvento/infPedReg/e204207/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Rejeição do Intermediário",
+        "-"
+      ]
+    },
+    {
+      "r": 64,
+      "cells": [
+        "63",
+        "evento/pedRegEvento/infPedReg/e204207/",
+        "cMotivo",
+        "E",
+        "N",
+        "1-1",
+        "1",
+        "Motivo da Rejeição da NFS-e:\n\n1 - NFS-e em duplicidade;\n2 - NFS-e já emitida pelo tomador;\n3 - Não ocorrência do fato gerador;\n4 - Erro quanto a responsabilidade tributária;\n5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;\n9 - Outros;",
+        "-"
+      ]
+    },
+    {
+      "r": 65,
+      "cells": [
+        "64",
+        "evento/pedRegEvento/infPedReg/e204207/",
+        "xMotivo",
+        "E",
+        "C",
+        "0-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 66,
+      "cells": [
+        "65",
+        "evento/pedRegEvento/infPedReg/",
+        "e205208",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nManifestação de NFS-e - Anulação da Rejeição",
+        "-"
+      ]
+    },
+    {
+      "r": 67,
+      "cells": [
+        "66",
+        "evento/pedRegEvento/infPedReg/e205208/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nManifestação de NFS-e - Anulação da Rejeição",
+        "-"
+      ]
+    },
+    {
+      "r": 68,
+      "cells": [
+        "67",
+        "evento/pedRegEvento/infPedReg/e205208/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o anulação da manifestação de rejeição da NFS-e.",
+        null
+      ]
+    },
+    {
+      "r": 69,
+      "cells": [
+        "68",
+        "evento/pedRegEvento/infPedReg/e205208/",
+        "idEvManifRej",
+        "E",
+        "C",
+        "1-1",
+        "59",
+        "Referência ao \"id\" do Evento de Manifestação de NFS-e - Rejeição, que originou o presente evento de anulação.",
+        "-"
+      ]
+    },
+    {
+      "r": 70,
+      "cells": [
+        "69",
+        "evento/pedRegEvento/infPedReg/e205208/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 71,
+      "cells": [
+        "70",
+        "evento/pedRegEvento/infPedReg/",
+        "e305101",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nCancelamento de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 72,
+      "cells": [
+        "71",
+        "evento/pedRegEvento/infPedReg/e305101/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nCancelamento de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 73,
+      "cells": [
+        "72",
+        "evento/pedRegEvento/infPedReg/e305101/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o cancelamento por ofício de NFS-e.",
+        "-"
+      ]
+    },
+    {
+      "r": 74,
+      "cells": [
+        "73",
+        "evento/pedRegEvento/infPedReg/e305101/",
+        "nProcAdm",
+        "E",
+        "N",
+        "1-1",
+        "30",
+        "Número do processo administrativo municipal vinculado ao cancelamento de NFS-e por ofício.",
+        "-"
+      ]
+    },
+    {
+      "r": 75,
+      "cells": [
+        "74",
+        "evento/pedRegEvento/infPedReg/e305101/",
+        "xProcAdm",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo do processo administrativo municipal indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 76,
+      "cells": [
+        "75",
+        "evento/pedRegEvento/infPedReg/",
+        "e305102",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nBloqueio de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 77,
+      "cells": [
+        "76",
+        "evento/pedRegEvento/infPedReg/e305102/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nBloqueio de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 78,
+      "cells": [
+        "77",
+        "evento/pedRegEvento/infPedReg/e305102/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o bloqueio de NFS-e por ofício.",
+        "-"
+      ]
+    },
+    {
+      "r": 79,
+      "cells": [
+        "78",
+        "evento/pedRegEvento/infPedReg/e305102/",
+        "codEvento",
+        "E",
+        "N",
+        "1-1",
+        "7",
+        "Eventos que podem ser escolhidos pelo município emissor para serem rejeitados após emissão e vinculação do evento de bloqueio por ofício em uma NFS-e:\n\ne101101 - Cancelamento de NFS-e;\ne105102 - Cancelamento de NFS-e por Substituição;\ne105104 - Cancelamento de NFS-e Deferido por Análise Fiscal;\ne105105 - Cancelamento de NFS-e Indeferido por Análise Fiscal;\ne305101 - Cancelamento de NFS-e por Ofício;",
+        "Verificar em conjunto o código do Evento de Bloqueio associado ao código do evento que está sendo bloqueado (valor do campo cEvtNFSe).\n\nEm <tipo_evento_bloqueio_NFS-e> substituir pelo nome do evento correspondente ao código do campo cEvtNFSe.\n\ne101101 - Cancelamento de NFS-e;\ne105102 - Cancelamento de NFS-e por Substituição;\ne105104 - Cancelamento de NFS-e Deferido por Análise Fiscal;\ne105105 - Cancelamento de NFS-e Indeferido por Análise Fiscal;\ne305101 - Cancelamento de NFS-e por Ofício;"
+      ]
+    },
+    {
+      "r": 80,
+      "cells": [
+        "79",
+        "evento/pedRegEvento/infPedReg/e305102/",
+        "xMotivo",
+        "E",
+        "C",
+        "1-1",
+        "15-255",
+        "Descrição para explicitar o motivo indicado neste evento.",
+        "-"
+      ]
+    },
+    {
+      "r": 81,
+      "cells": [
+        "80",
+        "evento/pedRegEvento/infPedReg/",
+        "e305103",
+        "CG",
+        "-",
+        "1-1",
+        "-",
+        "Parte Específica do Evento\nDesbloqueio de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 82,
+      "cells": [
+        "81",
+        "evento/pedRegEvento/infPedReg/e305103/",
+        "xDesc",
+        "E",
+        "C",
+        "1-1",
+        "5-60",
+        "Descrição do evento:\nDesbloqueio de NFS-e por Ofício",
+        "-"
+      ]
+    },
+    {
+      "r": 83,
+      "cells": [
+        "82",
+        "evento/pedRegEvento/infPedReg/e305103/",
+        "CPFAgTrib",
+        "E",
+        "N",
+        "1-1",
+        "11",
+        "CPF do agente da administração tributária municipal que efetuou o desbloqueio de NFS-e por ofício.",
+        "-"
+      ]
+    },
+    {
+      "r": 84,
+      "cells": [
+        "83",
+        "evento/pedRegEvento/infPedReg/e305103/",
+        "idBloqOfic",
+        "E",
+        "C",
+        "1-1",
+        "59",
+        "Referência ao \"id\" do \"Bloqueio de ofício\" que originou o presente evento de desbloqueio.",
+        "-"
+      ]
+    },
+    {
+      "r": 85,
+      "cells": [
+        "84",
+        "evento/pedRegEvento/",
+        "Signature",
+        "G",
+        "-",
+        "0-1",
+        "-",
+        "Assinatura do pedido de registro de evento segundo o Padrão XML Digital Signature.",
+        "-"
+      ]
+    },
+    {
+      "r": 86,
+      "cells": [
+        "85",
+        "evento/",
+        "Signature",
+        "G",
+        "-",
+        "1-1",
+        "-",
+        "Assinatura do pedido de registro segundo o Padrão XML Digital Signature.",
+        "-"
+      ]
+    }
+  ]
+}

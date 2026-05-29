@@ -1,0 +1,458 @@
+{
+  "source": "anexo_c-indop_ibscbs-snnfse-v1-01-20260122.xlsx",
+  "sheet": "IndOp",
+  "dims": {
+    "rows": 35,
+    "cols": 9
+  },
+  "rows": [
+    {
+      "r": 1,
+      "cells": [
+        "Art. 11",
+        "Tipo de operação",
+        "Considera-se local da operação",
+        "Característica do fornecimento",
+        null,
+        null,
+        "Código indOp",
+        "Local do fornecimento a ser identificado no Dfe",
+        "Campo no leiaute da NFSe"
+      ]
+    },
+    {
+      "r": 2,
+      "cells": [
+        "Inc. II",
+        "Operação com bem imóvel, bem imaterial, inclusive direito, relacionada a bem imóvel",
+        "o local onde o imóvel estiver situado",
+        "Execução de operações com bem imóvel, bem imaterial, inclusive direito, relacionado a bem imóvel",
+        "0201",
+        "01",
+        "020101",
+        "Localidade do imóvel (1)",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 3,
+      "cells": [
+        "Inc. II",
+        "Serviço prestado fisicamente sobre bem imóvel",
+        "o local onde o imóvel estiver situado",
+        "Execução de serviços sobre bem imóvel",
+        "0202",
+        "01",
+        "020201",
+        "Localidade do imóvel (1)",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 4,
+      "cells": [
+        "Inc. II",
+        "Serviço de administração e\nintermediação de bem imóvel",
+        "o local onde o imóvel estiver situado",
+        "Execução dos serviços de administração e intermediação de bens imóveis",
+        "0203",
+        "01",
+        "020301",
+        "Localidade do imóvel (1)",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 5,
+      "cells": [
+        "Inc. III",
+        "Serviço prestado fisicamente sobre a pessoa ou fruído presencialmente por pessoa física",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos exclusivamente prestados fisicamente sobre a pessoa ou integralmente fruídos presencialmente por pessoa física (2)",
+        "0301",
+        "01",
+        "030101",
+        "Estabelecimento do fornecedor",
+        "NFSe/infNFSe/DPS/infDPS/prest/end/"
+      ]
+    },
+    {
+      "r": 6,
+      "cells": [
+        "Inc. III",
+        "Serviço prestado fisicamente sobre a pessoa ou fruído presencialmente por pessoa física",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos exclusivamente prestados fisicamente sobre a pessoa ou integralmente fruídos presencialmente por pessoa física (2)",
+        "0301",
+        "02",
+        "030102",
+        "Endereço do adquirente",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 7,
+      "cells": [
+        "Inc. III",
+        "Serviço prestado fisicamente sobre a pessoa ou fruído presencialmente por pessoa física",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos exclusivamente prestados fisicamente sobre a pessoa ou integralmente fruídos presencialmente por pessoa física (2)",
+        "0301",
+        "03",
+        "030103",
+        "Endereço do destinatário",
+        "NFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 8,
+      "cells": [
+        "Inc. III",
+        "Serviço prestado fisicamente sobre a pessoa ou fruído presencialmente por pessoa física",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos exclusivamente prestados fisicamente sobre a pessoa ou integralmente fruídos presencialmente por pessoa física (2)",
+        "0301",
+        "04",
+        "030104",
+        "Endereço diverso do fornecedor, adquirente ou destinatário",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 9,
+      "cells": [
+        "Inc. IV",
+        "Serviço de planejamento, organização e administração de feiras, exposições, congressos, espetáculos, exibições e congêneres",
+        "o local do evento a que\nse refere o serviço",
+        "Execução de serviços de planejamento, organização e administração de feiras, exposições, congressos, espetáculos, exibições e congêneres",
+        "0401",
+        "01",
+        "040101",
+        "Local do Evento",
+        "NFSe/infNFSe/DPS/infDPS/serv/atvEvento/"
+      ]
+    },
+    {
+      "r": 10,
+      "cells": [
+        "Inc. V",
+        "Serviço prestado fisicamente sobre bem móvel material",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos fisicamente prestados sobre bem móvel material",
+        "0501",
+        "01",
+        "050101",
+        "Estabelecimento do fornecedor",
+        "NFSe/infNFSe/DPS/infDPS/prest/end/"
+      ]
+    },
+    {
+      "r": 11,
+      "cells": [
+        "Inc. V",
+        "Serviço prestado fisicamente sobre bem móvel material",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos fisicamente prestados sobre bem móvel material",
+        "0501",
+        "02",
+        "050102",
+        "Endereço do adquirente",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 12,
+      "cells": [
+        "Inc. V",
+        "Serviço prestado fisicamente sobre bem móvel material",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos fisicamente prestados sobre bem móvel material",
+        "0501",
+        "03",
+        "050103",
+        "Endereço do destinatário",
+        "NFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 13,
+      "cells": [
+        "Inc. V",
+        "Serviço prestado fisicamente sobre bem móvel material",
+        "o local da prestação do serviço",
+        "Execução de serviços diversos fisicamente prestados sobre bem móvel material",
+        "0501",
+        "04",
+        "050104",
+        "Endereço diverso do fornecedor, adquirente ou destinatário",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 14,
+      "cells": [
+        "Inc. V",
+        "Serviços portuários",
+        "o local da prestação do serviço",
+        "Execução de serviços portuários",
+        "0502",
+        "01",
+        "050201",
+        "Local da prestação",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 15,
+      "cells": [
+        "Inc. VI",
+        "Serviço de transporte de passageiros",
+        "o local da prestação do serviço",
+        "Execução de serviços de transporte de passageiros",
+        "0601",
+        "01",
+        "060101",
+        "Local de início do transporte",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 16,
+      "cells": [
+        "Inc. VII",
+        "Serviço de transporte de carga",
+        "o local da prestação do serviço",
+        "Execução de serviços de transporte de carga",
+        "0701",
+        "01",
+        "070101",
+        "Endereço fornecido para entrega",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 17,
+      "cells": [
+        "Inc. VII",
+        "Serviço de transporte de carga",
+        "o local da prestação do serviço",
+        "Execução de serviços de transporte de carga",
+        "0701",
+        "02",
+        "070102",
+        "Local da retirada",
+        "NFSe/infNFSe/DPS/infDPS/serv/locPrest/cLocPrestacao"
+      ]
+    },
+    {
+      "r": 18,
+      "cells": [
+        "Inc. VIII",
+        "Serviço de exploração de via",
+        "o território de cada Município e Estado, ou do Distrito Federal, proporcionalmente à correspondente\nextensão da via explorada",
+        "Execução de serviços de exploração de via",
+        "80101",
+        "Local da prestação, correspondente à extensão da via explorada e proporcional ao território dos entes tributantes",
+        "080101",
+        "Local da prestação, correspondente à extensão da via explorada e proporcional ao território dos entes tributantes",
+        "EXCLUSIVO PARA NFS-e Via."
+      ]
+    },
+    {
+      "r": 19,
+      "cells": [
+        "Inc. X",
+        "Cessão de espaço para prestação de serviços publicitários, em operações onerosas (4)",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução de operações de cessão de espaço para prestação de serviços publicitários",
+        "1005",
+        "01",
+        "100101",
+        "Local do domicílio principal do adquirente (3)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 20,
+      "cells": [
+        "Inc. X",
+        "Cessão de espaço para prestação de serviços publicitários, em operações onerosas (4)",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução de operações de cessão de espaço para prestação de serviços publicitários",
+        "1005",
+        "02",
+        "100102",
+        "Local do domicílio do destinatário, nos casos de adquirente residente ou domiciliado no exterior (5)(6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end/endExt\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/end/endExt"
+      ]
+    },
+    {
+      "r": 21,
+      "cells": [
+        "Inc. X",
+        "Cessão de espaço para prestação de serviços publicitários, em operações não onerosas (4)",
+        "o local do domicílio principal do:\n...\nb) destinatário, nas operações não onerosas.",
+        "Execução de operações de cessão de espaço para prestação de serviços publicitários",
+        "1006",
+        "01",
+        "100201",
+        "Local do domicílio principal do destinatário (6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 22,
+      "cells": [
+        "Inc. X",
+        "Demais serviços, em operações onerosas",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução dos demais serviços em operações não especificadas anteriormente ou, nos serviços de que trata o inc. III, estes sejam, ainda que parcialmente, prestados à distância (2)",
+        "1001",
+        "01",
+        "100301",
+        "Local do domicílio principal do adquirente (3)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 23,
+      "cells": [
+        "Inc. X",
+        "Demais serviços, em operações onerosas",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução dos demais serviços em operações não especificadas anteriormente ou, nos serviços de que trata o inc. III, estes sejam, ainda que parcialmente, prestados à distância (2)",
+        "1001",
+        "02",
+        "100302",
+        "Local do domicílio do destinatário, nos casos de adquirente residente ou domiciliado no exterior (5)(6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 24,
+      "cells": [
+        "Inc. X",
+        "Demais serviços, em operações não onerosas",
+        "o local do domicílio principal do:\n...\nb) destinatário, nas operações não onerosas.",
+        "Execução dos demais serviços em operações não especificadas anteriormente ou, nos serviços de que tratam o inc. III, estes sejam, ainda que parcialmente, prestados à distância",
+        "1002",
+        "01",
+        "100401",
+        "Local do domicílio principal do destinatário (6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 25,
+      "cells": [
+        "Inc. X",
+        "Demais bens móveis imateriais, inclusive direitos, em operações onerosas",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução de demais operações não especificadas anteriormente com bens móveis imateriais, inclusive direitos",
+        "1003",
+        "01",
+        "100501",
+        "Local do domicílio principal do adquirente (3)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 26,
+      "cells": [
+        "Inc. X",
+        "Demais bens móveis imateriais, inclusive direitos, em operações onerosas",
+        "o local do domicílio principal do:\na) adquirente, nas operações onerosas;\n...",
+        "Execução de demais operações não especificadas anteriormente com bens móveis imateriais, inclusive direitos",
+        "1003",
+        "02",
+        "100502",
+        "Local do domicílio do destinatário, nos casos de adquirente residente ou domiciliado no exterior (5)(6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end/endExt/\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/end/endExt/"
+      ]
+    },
+    {
+      "r": 27,
+      "cells": [
+        "Inc. X",
+        "Demais bens móveis imateriais, inclusive direitos, em operações não onerosas",
+        "o local do domicílio principal do:\n...\nb) destinatário, nas operações não onerosas.",
+        "Execução de demais operações não especificadas anteriormente com bens móveis imateriais, inclusive direitos",
+        "1004",
+        "01",
+        "100601",
+        "Local do domicílio principal do destinatário (6)",
+        "-> Se NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 0–O destinatário é o próprio tomador/adquirente identificado na NFS-e (tomador=adquirente=destinatário)\nNFSe/infNFSe/DPS/infDPS/toma/end\n-> SeNaoSe NFSe/infNFSe/DPS/infDPS/IBSCBS/indDest = 1 – o destinatário não é o próprio adquirente, podendo ser outra pessoa, física ou jurídica (ou equiparada), ou um estabelecimento diferente do indicado como tomador (tomador=adquirente≠destinatário);\nNFSe/infNFSe/DPS/infDPS/IBSCBS/dest/"
+      ]
+    },
+    {
+      "r": 29,
+      "cells": [
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        "(1) caso o bem imóvel esteja situado em mais de um Município, considera-se local do imóvel o Município onde está situada a maior parte da sua área (Art. 11, §2º)",
+        null
+      ]
+    },
+    {
+      "r": 30,
+      "cells": [
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        "(2) Aos serviços do inc. III, se parcialmente prestados à distância, aplica-se o disposto no inciso X (art. 11, §4º)",
+        null
+      ]
+    },
+    {
+      "r": 32,
+      "cells": [
+        "(4) Aplica-se o disposto no inciso X do artigo 11 às operações de cessão de espaço para prestação de serviços publicitários (art. 11, §11)",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "r": 33,
+      "cells": [
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        "(5) Na hipótese do inc. X do caput do art. 11, caso o adquirente seja residente ou domiciliado no exterior e o destinatário seja residente ou domiciliado no País, considera-se como local da operação o domicílio do destinatário (art. 11, §8)",
+        null
+      ]
+    },
+    {
+      "r": 34,
+      "cells": [
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        "(6) Domicílio do destinatário: vide §3º do art. 11 a respeito da caracterização do domicílio",
+        null
+      ]
+    }
+  ]
+}

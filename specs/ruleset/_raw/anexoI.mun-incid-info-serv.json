@@ -1,0 +1,4443 @@
+{
+  "source": "anexo_i-sefin_adn-dps_nfse-snnfse-v1-01-20260209.xlsx",
+  "sheet": "MUN.INCID_INFO.SERV.",
+  "dims": {
+    "rows": 341,
+    "cols": 8
+  },
+  "rows": [
+    {
+      "r": 1,
+      "cells": [
+        "LISTA NACIONAL DE SERVIÇOS",
+        "LISTA NACIONAL DE SERVIÇOS",
+        "DETERMINAÇÃO DA LOCALIDADE DE INCIDÊNCIA (LI) DE ACORDO COM A LC 116/03",
+        "DETERMINAÇÃO DA LOCALIDADE DE INCIDÊNCIA (LI) DE ACORDO COM A LC 116/03",
+        "DETERMINAÇÃO DA LOCALIDADE DE INCIDÊNCIA (LI) DE ACORDO COM A LC 116/03",
+        "DETERMINAÇÃO DA LOCALIDADE DE INCIDÊNCIA (LI) DE ACORDO COM A LC 116/03",
+        "GRUPOS DE INFORMAÇÕES PARA DETALHAMENTO DO SERVIÇO",
+        "GRUPOS DE INFORMAÇÕES PARA DETALHAMENTO DO SERVIÇO"
+      ]
+    },
+    {
+      "r": 2,
+      "cells": [
+        "CÓDIGO DE TRIBUTAÇÃO NACIONAL",
+        "DESCRIÇÃO DO DESDOBRO NACIONAL\nDA LISTA DE SERVIÇO ANEXA\nÀ LC 116/2003",
+        "REGRAS DE INCIDÊNCIA DO ISSQN NO SISTEMA NACIONAL NFS-e",
+        "REGRAS DE INCIDÊNCIA DO ISSQN NO SISTEMA NACIONAL NFS-e",
+        "REGRAS DE INCIDÊNCIA DO ISSQN NO SISTEMA NACIONAL NFS-e",
+        "REGRAS DE INCIDÊNCIA DO ISSQN NO SISTEMA NACIONAL NFS-e",
+        "OBRIGATORIEDADE DOS GRUPOS DE INFORMAÇÕES ESPECÍFICAS\nPARA CADA SUBITEM DA LISTA DE DE SERVIÇO\n\nConforme leiaute DPS\nobra\natvEvento\n\nObs: O grupo de informações para Comércio Exterior (comExt)\né definido conforme planilha\nEXPORTACAO_EMISSÃO_NFS-e",
+        "INFORMAÇÕES COMPLEMENTARES\n\nConforme leiaute DPS\n\ninfoComplem"
+      ]
+    },
+    {
+      "r": 3,
+      "cells": [
+        "CÓDIGO DE TRIBUTAÇÃO NACIONAL",
+        "DESCRIÇÃO DO DESDOBRO NACIONAL\nDA LISTA DE SERVIÇO ANEXA\nÀ LC 116/2003",
+        "LI para os serviços indicados seguem as regras geral de EP e as exceções para LP e ET.\n\n* Com exceção do subitem 200101 da lista nacional de serviços,\ntodos os demais serviços podem ser prestados em \"Águas Marítimas\"\n(cLocPrestacao = 0000000). Neste caso o LI será EDP.\n\n** Caso o emitente informe o subitem 200101,\no LP não poderá ser \"Águas Marítimas\" e o LI será o município informado em LP.\n\n(Art 3º, § 3º da LC 116/03).",
+        "LI para os serviços indicados seguem as regras geral de EP e as exceções para LP e ET.\n\n* Com exceção do subitem 200101 da lista nacional de serviços,\ntodos os demais serviços podem ser prestados em \"Águas Marítimas\"\n(cLocPrestacao = 0000000). Neste caso o LI será EDP.\n\n** Caso o emitente informe o subitem 200101,\no LP não poderá ser \"Águas Marítimas\" e o LI será o município informado em LP.\n\n(Art 3º, § 3º da LC 116/03).",
+        "LI para os serviços indicados seguem as regras geral de EP e as exceções para LP e ET.\n\n* Com exceção do subitem 200101 da lista nacional de serviços,\ntodos os demais serviços podem ser prestados em \"Águas Marítimas\"\n(cLocPrestacao = 0000000). Neste caso o LI será EDP.\n\n** Caso o emitente informe o subitem 200101,\no LP não poderá ser \"Águas Marítimas\" e o LI será o município informado em LP.\n\n(Art 3º, § 3º da LC 116/03).",
+        "IMPORTAÇÃO\n\n\nEmitente = T | I\n\nPaís Exterior P\ne/ou\nPaís Exterior LP\n\nA incidência do ISSQN em casos de Importação de serviço prevalece sobre as regras do Art 3º da LC 116/03",
+        "OBRIGATORIEDADE DOS GRUPOS DE INFORMAÇÕES ESPECÍFICAS\nPARA CADA SUBITEM DA LISTA DE DE SERVIÇO\n\nConforme leiaute DPS\nobra\natvEvento\n\nObs: O grupo de informações para Comércio Exterior (comExt)\né definido conforme planilha\nEXPORTACAO_EMISSÃO_NFS-e",
+        "INFORMAÇÕES COMPLEMENTARES\n\nConforme leiaute DPS\n\ninfoComplem"
+      ]
+    },
+    {
+      "r": 4,
+      "cells": [
+        "CÓDIGO DE TRIBUTAÇÃO NACIONAL",
+        "DESCRIÇÃO DO DESDOBRO NACIONAL\nDA LISTA DE SERVIÇO ANEXA\nÀ LC 116/2003",
+        "* Estabelecimento /\nDomicílio do Prestador\n(EP)",
+        "Local da Prestação\n(LP)",
+        "Estabelecimeto /\nDomicílio do Tomador\n(ET)",
+        "Estabelecimento /\nDomicílio do Emitente (EDEmit)\n\nLI = EDEmit (T|I)",
+        "OBRIGATORIEDADE DOS GRUPOS DE INFORMAÇÕES ESPECÍFICAS\nPARA CADA SUBITEM DA LISTA DE DE SERVIÇO\n\nConforme leiaute DPS\nobra\natvEvento\n\nObs: O grupo de informações para Comércio Exterior (comExt)\né definido conforme planilha\nEXPORTACAO_EMISSÃO_NFS-e",
+        "INFORMAÇÕES COMPLEMENTARES\n\nConforme leiaute DPS\n\ninfoComplem"
+      ]
+    },
+    {
+      "r": 5,
+      "cells": [
+        "10101",
+        "Análise e desenvolvimento de sistemas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 6,
+      "cells": [
+        "10201",
+        "Programação.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 7,
+      "cells": [
+        "10301",
+        "Processamento de dados, textos, imagens, vídeos, páginas eletrônicas, aplicativos e sistemas de informação, entre outros formatos, e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 8,
+      "cells": [
+        "10302",
+        "Armazenamento ou hospedagem de dados, textos, imagens, vídeos, páginas eletrônicas, aplicativos e sistemas de informação, entre outros formatos, e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 9,
+      "cells": [
+        "10401",
+        "Elaboração de programas de computadores, inclusive de jogos eletrônicos, independentemente da arquitetura construtiva da máquina em que o programa será executado, incluindo tablets, smartphones e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 10,
+      "cells": [
+        "10501",
+        "Licenciamento ou cessão de direito de uso de programas de computação.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 11,
+      "cells": [
+        "10601",
+        "Assessoria e consultoria em informática.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 12,
+      "cells": [
+        "10701",
+        "Suporte técnico em informática, inclusive instalação, configuração e manutenção de programas de computação e bancos de dados.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 13,
+      "cells": [
+        "10801",
+        "Planejamento, confecção, manutenção e atualização de páginas eletrônicas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 14,
+      "cells": [
+        "10901",
+        "Disponibilização, sem cessão definitiva, de conteúdos de áudio por meio da internet (exceto a distribuição de conteúdos pelas prestadoras de Serviço de Acesso Condicionado, de que trata a Lei nº 12.485, de 12 de setembro de 2011, sujeita ao ICMS).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 15,
+      "cells": [
+        "10902",
+        "Disponibilização, sem cessão definitiva, de conteúdos de vídeo, imagem e texto por meio da internet, respeitada a imunidade de livros, jornais e periódicos (exceto a distribuição de conteúdos pelas prestadoras de Serviço de Acesso Condicionado, de que trata a Lei nº 12.485, de 12 de setembro de 2011, sujeita ao ICMS).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 16,
+      "cells": [
+        "20101",
+        "Serviços de pesquisas e desenvolvimento de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 17,
+      "cells": [
+        "30201",
+        "Cessão de direito de uso de marcas e de sinais de propaganda.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 18,
+      "cells": [
+        "30301",
+        "Exploração de salões de festas, centro de convenções, stands e congêneres, para realização de eventos ou negócios de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 19,
+      "cells": [
+        "30302",
+        "Exploração de escritórios virtuais e congêneres, para realização de eventos ou negócios de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 20,
+      "cells": [
+        "30303",
+        "Exploração de quadras esportivas, estádios, ginásios, canchas e congêneres, para realização de eventos ou negócios de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 21,
+      "cells": [
+        "30304",
+        "Exploração de auditórios, casas de espetáculos e congêneres, para realização de eventos ou negócios de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 22,
+      "cells": [
+        "30305",
+        "Exploração de parques de diversões e congêneres, para realização de eventos ou negócios de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 23,
+      "cells": [
+        "30401",
+        "Locação, sublocação, arrendamento, direito de passagem ou permissão de uso, compartilhado ou não, de ferrovia.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 24,
+      "cells": [
+        "30402",
+        "Locação, sublocação, arrendamento, direito de passagem ou permissão de uso, compartilhado ou não, de rodovia.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 25,
+      "cells": [
+        "30403",
+        "Locação, sublocação, arrendamento, direito de passagem ou permissão de uso, compartilhado ou não, de postes, cabos, dutos e condutos de qualquer natureza.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 26,
+      "cells": [
+        "30501",
+        "Cessão de andaimes, palcos, coberturas e outras estruturas de uso temporário.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 27,
+      "cells": [
+        "40101",
+        "Medicina.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 28,
+      "cells": [
+        "40102",
+        "Biomedicina.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 29,
+      "cells": [
+        "40201",
+        "Análises clínicas e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 30,
+      "cells": [
+        "40202",
+        "Patologia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 31,
+      "cells": [
+        "40203",
+        "Eletricidade médica (eletroestimulação de nervos e musculos, cardioversão, etc) e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 32,
+      "cells": [
+        "40204",
+        "Radioterapia, quimioterapia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 33,
+      "cells": [
+        "40205",
+        "Ultra-sonografia, ressonância magnética, radiologia, tomografia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 34,
+      "cells": [
+        "40301",
+        "Hospitais e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 35,
+      "cells": [
+        "40302",
+        "Laboratórios e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 36,
+      "cells": [
+        "40303",
+        "Clínicas, sanatórios, manicômios, casas de saúde, prontos-socorros, ambulatórios e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 37,
+      "cells": [
+        "40401",
+        "Instrumentação cirúrgica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 38,
+      "cells": [
+        "40501",
+        "Acupuntura.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 39,
+      "cells": [
+        "40601",
+        "Enfermagem, inclusive serviços auxiliares.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 40,
+      "cells": [
+        "40701",
+        "Serviços farmacêuticos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 41,
+      "cells": [
+        "40801",
+        "Terapia ocupacional.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 42,
+      "cells": [
+        "40802",
+        "Fisioterapia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 43,
+      "cells": [
+        "40803",
+        "Fonoaudiologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 44,
+      "cells": [
+        "40901",
+        "Terapias de qualquer espécie destinadas ao tratamento físico, orgânico e mental.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 45,
+      "cells": [
+        "41001",
+        "Nutrição.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 46,
+      "cells": [
+        "41101",
+        "Obstetrícia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 47,
+      "cells": [
+        "41201",
+        "Odontologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 48,
+      "cells": [
+        "41301",
+        "Ortóptica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 49,
+      "cells": [
+        "41401",
+        "Próteses sob encomenda.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 50,
+      "cells": [
+        "41501",
+        "Psicanálise.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 51,
+      "cells": [
+        "41601",
+        "Psicologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 52,
+      "cells": [
+        "41701",
+        "Casas de repouso e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 53,
+      "cells": [
+        "41702",
+        "Casas de recuperação e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 54,
+      "cells": [
+        "41703",
+        "Creches e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 55,
+      "cells": [
+        "41704",
+        "Asilos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 56,
+      "cells": [
+        "41801",
+        "Inseminação artificial, fertilização in vitro e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 57,
+      "cells": [
+        "41901",
+        "Bancos de sangue, leite, pele, olhos, óvulos, sêmen e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 58,
+      "cells": [
+        "42001",
+        "Coleta de sangue, leite, tecidos, sêmen, órgãos e materiais biológicos de qualquer espécie.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 59,
+      "cells": [
+        "42101",
+        "Unidade de atendimento, assistência ou tratamento móvel e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 60,
+      "cells": [
+        "42201",
+        "Planos de medicina de grupo ou individual e convênios para prestação de assistência médica, hospitalar, odontológica e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 61,
+      "cells": [
+        "42301",
+        "Outros planos de saúde que se cumpram através de serviços de terceiros contratados, credenciados, cooperados ou apenas pagos pelo operador do plano mediante indicação do beneficiário.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 62,
+      "cells": [
+        "50101",
+        "Medicina veterinária",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 63,
+      "cells": [
+        "50102",
+        "Zootecnia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 64,
+      "cells": [
+        "50201",
+        "Hospitais e congêneres, na área veterinária.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 65,
+      "cells": [
+        "50202",
+        "Clínicas, ambulatórios, prontos-socorros e congêneres, na área veterinária.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 66,
+      "cells": [
+        "50301",
+        "Laboratórios de análise na área veterinária.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 67,
+      "cells": [
+        "50401",
+        "Inseminação artificial, fertilização in vitro e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 68,
+      "cells": [
+        "50501",
+        "Bancos de sangue e de órgãos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 69,
+      "cells": [
+        "50601",
+        "Coleta de sangue, leite, tecidos, sêmen, órgãos e materiais biológicos de qualquer espécie.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 70,
+      "cells": [
+        "50701",
+        "Unidade de atendimento, assistência ou tratamento móvel e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 71,
+      "cells": [
+        "50801",
+        "Guarda, tratamento, amestramento, embelezamento, alojamento e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 72,
+      "cells": [
+        "50901",
+        "Planos de atendimento e assistência médico-veterinária.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 73,
+      "cells": [
+        "60101",
+        "Barbearia, cabeleireiros, manicuros, pedicuros e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 74,
+      "cells": [
+        "60201",
+        "Esteticistas, tratamento de pele, depilação e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 75,
+      "cells": [
+        "60301",
+        "Banhos, duchas, sauna, massagens e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 76,
+      "cells": [
+        "60401",
+        "Ginástica, dança, esportes, natação, artes marciais e demais atividades físicas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 77,
+      "cells": [
+        "60501",
+        "Centros de emagrecimento, spa e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 78,
+      "cells": [
+        "60601",
+        "Aplicação de tatuagens, piercings e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 79,
+      "cells": [
+        "70101",
+        "Engenharia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 80,
+      "cells": [
+        "70102",
+        "Agronomia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 81,
+      "cells": [
+        "70103",
+        "Agrimensura e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 82,
+      "cells": [
+        "70104",
+        "Arquitetura, urbanismo e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 83,
+      "cells": [
+        "70105",
+        "Geologia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 84,
+      "cells": [
+        "70106",
+        "Paisagismo e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 85,
+      "cells": [
+        "70201",
+        "Execução, por administração, de obras de construção civil, hidráulica ou elétrica e de outras obras semelhantes, inclusive sondagem, perfuração de poços, escavação, drenagem e irrigação, terraplanagem, pavimentação, concretagem e a instalação e montagem de produtos, peças e equipamentos (exceto o fornecimento de mercadorias produzidas pelo prestador de serviços fora do local da prestação dos serviços, que fica sujeito ao ICMS).",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 86,
+      "cells": [
+        "70202",
+        "Execução, por empreitada ou subempreitada, de obras de construção civil, hidráulica ou elétrica e de outras obras semelhantes, inclusive sondagem, perfuração de poços, escavação, drenagem e irrigação, terraplanagem, pavimentação, concretagem e a instalação e montagem de produtos, peças e equipamentos (exceto o fornecimento de mercadorias produzidas pelo prestador de serviços fora do local da prestação dos serviços, que fica sujeito ao ICMS).",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 87,
+      "cells": [
+        "70301",
+        "Elaboração de planos diretores, estudos de viabilidade, estudos organizacionais e outros, relacionados com obras e serviços de engenharia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 88,
+      "cells": [
+        "70302",
+        "Elaboração de anteprojetos, projetos básicos e projetos executivos para trabalhos de engenharia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 89,
+      "cells": [
+        "70401",
+        "Demolição.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 90,
+      "cells": [
+        "70501",
+        "Reparação, conservação e reforma de edifícios e congêneres (exceto o fornecimento de mercadorias produzidas pelo prestador dos serviços, fora do local da prestação dos serviços, que fica sujeito ao ICMS).",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 91,
+      "cells": [
+        "70502",
+        "Reparação, conservação e reforma de estradas, pontes, portos e congêneres (exceto o fornecimento de mercadorias produzidas pelo prestador dos serviços, fora do local da prestação dos serviços, que fica sujeito ao ICMS).",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 92,
+      "cells": [
+        "70601",
+        "Colocação e instalação de tapetes, carpetes, cortinas e congêneres, com material fornecido pelo tomador do serviço.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 93,
+      "cells": [
+        "70602",
+        "Colocação e instalação de assoalhos, revestimentos de parede, vidros, divisórias, placas de gesso e congêneres, com material fornecido pelo tomador do serviço.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 94,
+      "cells": [
+        "70701",
+        "Recuperação, raspagem, polimento e lustração de pisos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 95,
+      "cells": [
+        "70801",
+        "Calafetação.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 96,
+      "cells": [
+        "70901",
+        "Varrição, coleta e remoção de lixo, rejeitos e outros resíduos quaisquer.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 97,
+      "cells": [
+        "70902",
+        "Incineração, tratamento, reciclagem, separação e destinação final de lixo, rejeitos e outros resíduos quaisquer.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 98,
+      "cells": [
+        "71001",
+        "Limpeza, manutenção e conservação de vias e logradouros públicos, parques, jardins e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 99,
+      "cells": [
+        "71002",
+        "Limpeza, manutenção e conservação de imóveis, chaminés, piscinas e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 100,
+      "cells": [
+        "71101",
+        "Decoração.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 101,
+      "cells": [
+        "71102",
+        "Jardinagem, inclusive corte e poda de árvores.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 102,
+      "cells": [
+        "71201",
+        "Controle e tratamento de efluentes de qualquer natureza e de agentes físicos, químicos e biológicos.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 103,
+      "cells": [
+        "71301",
+        "Dedetização, desinfecção, desinsetização, imunização, higienização, desratização, pulverização e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 104,
+      "cells": [
+        "71601",
+        "Florestamento, reflorestamento, semeadura, adubação, reparação de solo, plantio, silagem, colheita, corte e descascamento de árvores, silvicultura, exploração florestal e dos serviços congêneres indissociáveis da formação, manutenção e colheita de florestas, para quaisquer fins e por quaisquer meios.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 105,
+      "cells": [
+        "71701",
+        "Escoramento, contenção de encostas e serviços congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 106,
+      "cells": [
+        "71801",
+        "Limpeza e dragagem de rios, portos, canais, baías, lagos, lagoas, represas, açudes e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 107,
+      "cells": [
+        "71901",
+        "Acompanhamento e fiscalização da execução de obras de engenharia, arquitetura e urbanismo.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 108,
+      "cells": [
+        "72001",
+        "Aerofotogrametria (inclusive interpretação), cartografia, mapeamento e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 109,
+      "cells": [
+        "72002",
+        "Levantamentos batimétricos, geográficos, geodésicos, geológicos, geofísicos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 110,
+      "cells": [
+        "72003",
+        "Levantamentos topográficos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 111,
+      "cells": [
+        "72101",
+        "Pesquisa, perfuração, cimentação, mergulho, perfilagem, concretação, testemunhagem, pescaria, estimulação e outros serviços relacionados com a exploração e explotação de petróleo, gás natural e de outros recursos minerais.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 112,
+      "cells": [
+        "72201",
+        "Nucleação e bombardeamento de nuvens e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 113,
+      "cells": [
+        "80101",
+        "Ensino regular pré-escolar, fundamental e médio.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 114,
+      "cells": [
+        "80102",
+        "Ensino regular superior.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 115,
+      "cells": [
+        "80201",
+        "Instrução, treinamento, orientação pedagógica e educacional, avaliação de conhecimentos de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 116,
+      "cells": [
+        "90101",
+        "Hospedagem em hotéis, hotelaria marítima e congêneres (o valor da alimentação e gorjeta, quando incluído no preço da diária, fica sujeito ao Imposto Sobre Serviços).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 117,
+      "cells": [
+        "90102",
+        "Hospedagem em pensões, albergues, pousadas, hospedarias, ocupação por temporada com fornecimento de serviços e congêneres (o valor da alimentação e gorjeta, quando incluído no preço da diária, fica sujeito ao Imposto Sobre Serviços).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 118,
+      "cells": [
+        "90103",
+        "Hospedagem em motéis e congêneres (o valor da alimentação e gorjeta, quando incluído no preço da diária, fica sujeito ao Imposto Sobre Serviços).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 119,
+      "cells": [
+        "90104",
+        "Hospedagem em apart-service condominiais, flat, apart-hotéis, hotéis residência, residence-service, suite service e congêneres (o valor da alimentação e gorjeta, quando incluído no preço da diária, fica sujeito ao Imposto Sobre Serviços).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 120,
+      "cells": [
+        "90201",
+        "Agenciamento e intermediação de programas de turismo, passeios, viagens, excursões, hospedagens e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 121,
+      "cells": [
+        "90202",
+        "Organização, promoção e execução de programas de turismo, passeios, viagens, excursões, hospedagens e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 122,
+      "cells": [
+        "90301",
+        "Guias de turismo.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 123,
+      "cells": [
+        "100101",
+        "Agenciamento, corretagem ou intermediação de câmbio.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 124,
+      "cells": [
+        "100102",
+        "Agenciamento, corretagem ou intermediação de seguros.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 125,
+      "cells": [
+        "100103",
+        "Agenciamento, corretagem ou intermediação de cartões de crédito.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 126,
+      "cells": [
+        "100104",
+        "Agenciamento, corretagem ou intermediação de planos de saúde.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 127,
+      "cells": [
+        "100105",
+        "Agenciamento, corretagem ou intermediação de planos de previdência privada.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 128,
+      "cells": [
+        "100201",
+        "Agenciamento, corretagem ou intermediação de títulos em geral e valores mobiliários.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 129,
+      "cells": [
+        "100202",
+        "Agenciamento, corretagem ou intermediação de contratos quaisquer.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 130,
+      "cells": [
+        "100301",
+        "Agenciamento, corretagem ou intermediação de direitos de propriedade industrial, artística ou literária.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 131,
+      "cells": [
+        "100401",
+        "Agenciamento, corretagem ou intermediação de contratos de arrendamento mercantil (leasing).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 132,
+      "cells": [
+        "100402",
+        "Agenciamento, corretagem ou intermediação de contratos de franquia (franchising).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 133,
+      "cells": [
+        "100403",
+        "Agenciamento, corretagem ou intermediação de faturização (factoring).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 134,
+      "cells": [
+        "100501",
+        "Agenciamento, corretagem ou intermediação de bens móveis ou imóveis, não abrangidos em outros itens ou subitens, por quaisquer meios.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 135,
+      "cells": [
+        "100502",
+        "Agenciamento, corretagem ou intermediação de bens móveis ou imóveis realizados no âmbito de Bolsas de Mercadorias e Futuros, por quaisquer meios.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 136,
+      "cells": [
+        "100601",
+        "Agenciamento marítimo.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 137,
+      "cells": [
+        "100701",
+        "Agenciamento de notícias.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 138,
+      "cells": [
+        "100801",
+        "Agenciamento de publicidade e propaganda, inclusive o agenciamento de veiculação por quaisquer meios.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 139,
+      "cells": [
+        "100901",
+        "Representação de qualquer natureza, inclusive comercial.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 140,
+      "cells": [
+        "101001",
+        "Distribuição de bens de terceiros.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 141,
+      "cells": [
+        "110101",
+        "Guarda e estacionamento de veículos terrestres automotores.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 142,
+      "cells": [
+        "110102",
+        "Guarda e estacionamento de aeronaves e de embarcações.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 143,
+      "cells": [
+        "110201",
+        "Vigilância, segurança ou monitoramento de bens, pessoas e semoventes.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 144,
+      "cells": [
+        "110301",
+        "Escolta, inclusive de veículos e cargas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 145,
+      "cells": [
+        "110401",
+        "Armazenamento, depósito, guarda de bens de qualquer espécie.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 146,
+      "cells": [
+        "110402",
+        "Carga, descarga, arrumação de bens de qualquer espécie.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 147,
+      "cells": [
+        "110501",
+        "Serviços relacionados ao monitoramento e rastreamento a distância, em qualquer via ou local, de veículos, cargas, pessoas e semoventes em circulação ou movimento, realizados por meio de telefonia móvel, transmissão de satélites, rádio ou qualquer outro meio, inclusive pelas empresas de Tecnologia da Informação Veicular, independentemente de o prestador de serviços ser proprietário ou não da infraestrutura de telecomunicações que utiliza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 148,
+      "cells": [
+        "120101",
+        "Espetáculos teatrais.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 149,
+      "cells": [
+        "120201",
+        "Exibições cinematográficas.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 150,
+      "cells": [
+        "120301",
+        "Espetáculos circenses.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 151,
+      "cells": [
+        "120401",
+        "Programas de auditório.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 152,
+      "cells": [
+        "120501",
+        "Parques de diversões, centros de lazer e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 153,
+      "cells": [
+        "120601",
+        "Boates, taxi-dancing e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 154,
+      "cells": [
+        "120701",
+        "Shows, ballet, danças, desfiles, bailes, óperas, concertos, recitais, festivais e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 155,
+      "cells": [
+        "120801",
+        "Feiras, exposições, congressos e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 156,
+      "cells": [
+        "120901",
+        "Bilhares.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 157,
+      "cells": [
+        "120902",
+        "Boliches.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 158,
+      "cells": [
+        "120903",
+        "Diversões eletrônicas ou não.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 159,
+      "cells": [
+        "121001",
+        "Corridas e competições de animais.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 160,
+      "cells": [
+        "121101",
+        "Competições esportivas ou de destreza física ou intelectual, com ou sem a participação do espectador.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 161,
+      "cells": [
+        "121201",
+        "Execução de música.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 162,
+      "cells": [
+        "121301",
+        "Produção, mediante ou sem encomenda prévia, de eventos, espetáculos, entrevistas, shows, ballet, danças, desfiles, bailes, teatros, óperas, concertos, recitais, festivais e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 163,
+      "cells": [
+        "121401",
+        "Fornecimento de música para ambientes fechados ou não, mediante transmissão por qualquer processo.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 164,
+      "cells": [
+        "121501",
+        "Desfiles de blocos carnavalescos ou folclóricos, trios elétricos e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 165,
+      "cells": [
+        "121601",
+        "Exibição de filmes, entrevistas, musicais, espetáculos, shows, concertos, desfiles, óperas, competições esportivas, de destreza intelectual ou congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 166,
+      "cells": [
+        "121701",
+        "Recreação e animação, inclusive em festas e eventos de qualquer natureza.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "atvEvento",
+        "X"
+      ]
+    },
+    {
+      "r": 167,
+      "cells": [
+        "130201",
+        "Fonografia ou gravação de sons, inclusive trucagem, dublagem, mixagem e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 168,
+      "cells": [
+        "130301",
+        "Fotografia e cinematografia, inclusive revelação, ampliação, cópia, reprodução, trucagem e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 169,
+      "cells": [
+        "130401",
+        "Reprografia, microfilmagem e digitalização.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 170,
+      "cells": [
+        "130501",
+        "Composição gráfica, inclusive confecção de impressos gráficos, fotocomposição, clicheria, zincografia, litografia e fotolitografia, exceto se destinados a posterior operação de comercialização ou industrialização, ainda que incorporados, de qualquer forma, a outra mercadoria que deva ser objeto de posterior circulação, tais como bulas, rótulos, etiquetas, caixas, cartuchos, embalagens e manuais técnicos e de instrução, quando ficarão sujeitos ao ICMS.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 171,
+      "cells": [
+        "140101",
+        "Lubrificação, limpeza, lustração, revisão, carga e recarga, conserto, restauração, blindagem, manutenção e conservação de máquinas, veículos, aparelhos, equipamentos, motores, elevadores ou de qualquer objeto (exceto peças e partes empregadas, que ficam sujeitas ao ICMS).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 172,
+      "cells": [
+        "140201",
+        "Assistência técnica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 173,
+      "cells": [
+        "140301",
+        "Recondicionamento de motores (exceto peças e partes empregadas, que ficam sujeitas ao ICMS).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 174,
+      "cells": [
+        "140401",
+        "Recauchutagem ou regeneração de pneus.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 175,
+      "cells": [
+        "140501",
+        "Restauração, recondicionamento, acondicionamento, pintura, beneficiamento, lavagem, secagem, tingimento, galvanoplastia, anodização, corte, recorte, plastificação, costura, acabamento, polimento e congêneres de objetos quaisquer.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 176,
+      "cells": [
+        "140601",
+        "Instalação e montagem de aparelhos, máquinas e equipamentos, inclusive montagem industrial, prestados ao usuário final, exclusivamente com material por ele fornecido.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 177,
+      "cells": [
+        "140701",
+        "Colocação de molduras e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 178,
+      "cells": [
+        "140801",
+        "Encadernação, gravação e douração de livros, revistas e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 179,
+      "cells": [
+        "140901",
+        "Alfaiataria e costura, quando o material for fornecido pelo usuário final, exceto aviamento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 180,
+      "cells": [
+        "141001",
+        "Tinturaria e lavanderia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 181,
+      "cells": [
+        "141101",
+        "Tapeçaria e reforma de estofamentos em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 182,
+      "cells": [
+        "141201",
+        "Funilaria e lanternagem.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 183,
+      "cells": [
+        "141301",
+        "Carpintaria.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 184,
+      "cells": [
+        "141302",
+        "Serralheria.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 185,
+      "cells": [
+        "141401",
+        "Guincho intramunicipal.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 186,
+      "cells": [
+        "141402",
+        "Guindaste e içamento.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 187,
+      "cells": [
+        "141403",
+        "Guincho intramunicipal em construção civil.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 188,
+      "cells": [
+        "141404",
+        "Guindaste e içamento em construção civil.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "obra",
+        "X"
+      ]
+    },
+    {
+      "r": 189,
+      "cells": [
+        "150101",
+        "Administração de fundos quaisquer e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 190,
+      "cells": [
+        "150102",
+        "Administração de consórcio e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 191,
+      "cells": [
+        "150103",
+        "Administração de cartão de crédito ou débito e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 192,
+      "cells": [
+        "150104",
+        "Administração de carteira de clientes e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 193,
+      "cells": [
+        "150105",
+        "Administração de cheques pré-datados e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 194,
+      "cells": [
+        "150201",
+        "Abertura de conta-corrente no País, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 195,
+      "cells": [
+        "150202",
+        "Abertura de conta-corrente no exterior, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 196,
+      "cells": [
+        "150203",
+        "Abertura de conta de investimentos e aplicação no País, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 197,
+      "cells": [
+        "150204",
+        "Abertura de conta de investimentos e aplicação no exterior, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 198,
+      "cells": [
+        "150205",
+        "Abertura de caderneta de poupança no País, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 199,
+      "cells": [
+        "150206",
+        "Abertura de caderneta de poupança no exterior, bem como a manutenção da referida conta ativa e inativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 200,
+      "cells": [
+        "150207",
+        "Abertura de contas em geral no País, não abrangida em outro subitem, bem como a manutenção das referidas contas ativas e inativas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 201,
+      "cells": [
+        "150208",
+        "Abertura de contas em geral no exterior, não abrangida em outro subitem, bem como a manutenção das referidas contas ativas e inativas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 202,
+      "cells": [
+        "150301",
+        "Locação de cofres particulares.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 203,
+      "cells": [
+        "150302",
+        "Manutenção de cofres particulares.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 204,
+      "cells": [
+        "150303",
+        "Locação de terminais eletrônicos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 205,
+      "cells": [
+        "150304",
+        "Manutenção de terminais eletrônicos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 206,
+      "cells": [
+        "150305",
+        "Locação de terminais de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 207,
+      "cells": [
+        "150306",
+        "Manutenção de terminais de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 208,
+      "cells": [
+        "150307",
+        "Locação de bens e equipamentos em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 209,
+      "cells": [
+        "150308",
+        "Manutenção de bens e equipamentos em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 210,
+      "cells": [
+        "150401",
+        "Fornecimento ou emissão de atestados em geral, inclusive atestado de idoneidade, atestado de capacidade financeira e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 211,
+      "cells": [
+        "150501",
+        "Cadastro, elaboração de ficha cadastral, renovação cadastral e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 212,
+      "cells": [
+        "150502",
+        "Inclusão no Cadastro de Emitentes de Cheques sem Fundos - CCF.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 213,
+      "cells": [
+        "150503",
+        "Exclusão no Cadastro de Emitentes de Cheques sem Fundos - CCF.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 214,
+      "cells": [
+        "150504",
+        "Inclusão em quaisquer outros bancos cadastrais.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 215,
+      "cells": [
+        "150505",
+        "Exclusão em quaisquer outros bancos cadastrais.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 216,
+      "cells": [
+        "150601",
+        "Emissão, reemissão e fornecimento de avisos, comprovantes e documentos em geral",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 217,
+      "cells": [
+        "150602",
+        "Abono de firmas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 218,
+      "cells": [
+        "150603",
+        "Coleta e entrega de documentos, bens e valores.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 219,
+      "cells": [
+        "150604",
+        "Comunicação com outra agência ou com a administração central.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 220,
+      "cells": [
+        "150605",
+        "Licenciamento eletrônico de veículos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 221,
+      "cells": [
+        "150606",
+        "Transferência de veículos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 222,
+      "cells": [
+        "150607",
+        "Agenciamento fiduciário ou depositário.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 223,
+      "cells": [
+        "150608",
+        "Devolução de bens em custódia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 224,
+      "cells": [
+        "150701",
+        "Acesso, movimentação, atendimento e consulta a contas em geral, por qualquer meio ou processo, inclusive por telefone, fac-símile, internet e telex.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 225,
+      "cells": [
+        "150702",
+        "Acesso a terminais de atendimento, inclusive vinte e quatro horas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 226,
+      "cells": [
+        "150703",
+        "Acesso a outro banco e à rede compartilhada.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 227,
+      "cells": [
+        "150704",
+        "Fornecimento de saldo, extrato e demais informações relativas a contas em geral, por qualquer meio ou processo.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 228,
+      "cells": [
+        "150801",
+        "Emissão, reemissão, alteração, cessão, substituição, cancelamento e registro de contrato de crédito.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 229,
+      "cells": [
+        "150802",
+        "Estudo, análise e avaliação de operações de crédito.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 230,
+      "cells": [
+        "150803",
+        "Emissão, concessão, alteração ou contratação de aval, fiança, anuência e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 231,
+      "cells": [
+        "150804",
+        "Serviços relativos à abertura de crédito, para quaisquer fins.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 232,
+      "cells": [
+        "150901",
+        "Arrendamento mercantil (leasing) de quaisquer bens, inclusive cessão de direitos e obrigações, substituição de garantia, alteração, cancelamento e registro de contrato, e demais serviços relacionados ao arrendamento mercantil (leasing).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 233,
+      "cells": [
+        "151001",
+        "Serviços relacionados a cobranças em geral, de títulos quaisquer, de contas ou carnês, de câmbio, de tributos e por conta de terceiros, inclusive os efetuados por meio eletrônico, automático ou por máquinas de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 234,
+      "cells": [
+        "151002",
+        "Serviços relacionados a recebimentos em geral, de títulos quaisquer, de contas ou carnês, de câmbio, de tributos e por conta de terceiros, inclusive os efetuados por meio eletrônico, automático ou por máquinas de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 235,
+      "cells": [
+        "151003",
+        "Serviços relacionados a pagamentos em geral, de títulos quaisquer, de contas ou carnês, de câmbio, de tributos e por conta de terceiros, inclusive os efetuados por meio eletrônico, automático ou por máquinas de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 236,
+      "cells": [
+        "151004",
+        "Serviços relacionados a fornecimento de posição de cobrança, recebimento ou pagamento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 237,
+      "cells": [
+        "151005",
+        "Serviços relacionados a emissão de carnês, fichas de compensação, impressos e documentos em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 238,
+      "cells": [
+        "151101",
+        "Devolução de títulos, protesto de títulos, sustação de protesto, manutenção de títulos, reapresentação de títulos, e demais serviços a eles relacionados.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 239,
+      "cells": [
+        "151201",
+        "Custódia em geral, inclusive de títulos e valores mobiliários.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 240,
+      "cells": [
+        "151301",
+        "Serviços relacionados a operações de câmbio em geral, edição, alteração, prorrogação, cancelamento e baixa de contrato de câmbio.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 241,
+      "cells": [
+        "151302",
+        "Serviços relacionados a emissão de registro de exportação ou de crédito.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 242,
+      "cells": [
+        "151303",
+        "Serviços relacionados a cobrança ou depósito no exterior.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 243,
+      "cells": [
+        "151304",
+        "Serviços relacionados a emissão, fornecimento e cancelamento de cheques de viagem.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 244,
+      "cells": [
+        "151305",
+        "Serviços relacionados a fornecimento, transferência, cancelamento e demais serviços relativos a carta de crédito de importação, exportação e garantias recebidas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 245,
+      "cells": [
+        "151306",
+        "Serviços relacionados a envio e recebimento de mensagens em geral relacionadas a operações de câmbio.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 246,
+      "cells": [
+        "151401",
+        "Fornecimento, emissão, reemissão de cartão magnético, cartão de crédito, cartão de débito, cartão salário e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 247,
+      "cells": [
+        "151402",
+        "Renovação de cartão magnético, cartão de crédito, cartão de débito, cartão salário e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 248,
+      "cells": [
+        "151403",
+        "Manutenção de cartão magnético, cartão de crédito, cartão de débito, cartão salário e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 249,
+      "cells": [
+        "151501",
+        "Compensação de cheques e títulos quaisquer.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 250,
+      "cells": [
+        "151502",
+        "Serviços relacionados a depósito, inclusive depósito identificado, a saque de contas quaisquer, por qualquer meio ou processo, inclusive em terminais eletrônicos e de atendimento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 251,
+      "cells": [
+        "151601",
+        "Emissão, reemissão, liquidação, alteração, cancelamento e baixa de ordens de pagamento, ordens de crédito e similares, por qualquer meio ou processo.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 252,
+      "cells": [
+        "151602",
+        "Serviços relacionados à transferência de valores, dados, fundos, pagamentos e similares, inclusive entre contas em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 253,
+      "cells": [
+        "151701",
+        "Emissão e fornecimento de cheques quaisquer, avulso ou por talão.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 254,
+      "cells": [
+        "151702",
+        "Devolução de cheques quaisquer, avulso ou por talão.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 255,
+      "cells": [
+        "151703",
+        "Sustação, cancelamento e oposição de cheques quaisquer, avulso ou por talão.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 256,
+      "cells": [
+        "151801",
+        "Serviços relacionados a crédito imobiliário, de avaliação e vistoria de imóvel ou obra.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 257,
+      "cells": [
+        "151802",
+        "Serviços relacionados a crédito imobiliário, de análise técnica e jurídica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 258,
+      "cells": [
+        "151803",
+        "Serviços relacionados a crédito imobiliário, de emissão, reemissão, alteração, transferência e renegociação de contrato.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 259,
+      "cells": [
+        "151804",
+        "Serviços relacionados a crédito imobiliário, de emissão e reemissão do termo de quitação.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 260,
+      "cells": [
+        "151805",
+        "Demais serviços relacionados a crédito imobiliário.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 261,
+      "cells": [
+        "160101",
+        "Serviços de transporte coletivo municipal rodoviário de passageiros.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 262,
+      "cells": [
+        "160102",
+        "Serviços de transporte coletivo municipal metroviário de passageiros.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 263,
+      "cells": [
+        "160103",
+        "Serviços de transporte coletivo municipal ferroviário de passageiros.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 264,
+      "cells": [
+        "160104",
+        "Serviços de transporte coletivo municipal aquaviário de passageiros.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 265,
+      "cells": [
+        "160201",
+        "Outros serviços de transporte de natureza municipal.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 266,
+      "cells": [
+        "170101",
+        "Assessoria ou consultoria de qualquer natureza, não contida em outros itens desta lista.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 267,
+      "cells": [
+        "170102",
+        "Análise, exame, pesquisa, coleta, compilação e fornecimento de dados e informações de qualquer natureza, inclusive cadastro e similares.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 268,
+      "cells": [
+        "170201",
+        "Datilografia, digitação, estenografia e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 269,
+      "cells": [
+        "170202",
+        "Expediente, secretaria em geral, apoio e infra-estrutura administrativa e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 270,
+      "cells": [
+        "170203",
+        "Resposta audível e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 271,
+      "cells": [
+        "170204",
+        "Redação, edição, revisão e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 272,
+      "cells": [
+        "170205",
+        "Interpretação, tradução e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 273,
+      "cells": [
+        "170301",
+        "Planejamento, coordenação, programação ou organização técnica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 274,
+      "cells": [
+        "170302",
+        "Planejamento, coordenação, programação ou organização financeira.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 275,
+      "cells": [
+        "170303",
+        "Planejamento, coordenação, programação ou organização administrativa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 276,
+      "cells": [
+        "170401",
+        "Recrutamento, agenciamento, seleção e colocação de mão-de-obra.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 277,
+      "cells": [
+        "170501",
+        "Fornecimento de mão-de-obra, mesmo em caráter temporário, inclusive de empregados ou trabalhadores, avulsos ou temporários, contratados pelo prestador de serviço.",
+        "-",
+        "-",
+        "X",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 278,
+      "cells": [
+        "170601",
+        "Propaganda e publicidade, inclusive promoção de vendas, planejamento de campanhas ou sistemas de publicidade, elaboração de desenhos, textos e demais materiais publicitários.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 279,
+      "cells": [
+        "170801",
+        "Franquia (franchising).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 280,
+      "cells": [
+        "170901",
+        "Perícias, laudos, exames técnicos e análises técnicas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 281,
+      "cells": [
+        "171001",
+        "Planejamento, organização e administração de feiras, exposições, e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 282,
+      "cells": [
+        "171002",
+        "Planejamento, organização e administração de congressos e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 283,
+      "cells": [
+        "171101",
+        "Organização de festas e recepções.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 284,
+      "cells": [
+        "171102",
+        "Bufê (exceto o fornecimento de alimentação e bebidas, que fica sujeito ao ICMS).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 285,
+      "cells": [
+        "171201",
+        "Administração em geral, inclusive de bens e negócios de terceiros.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 286,
+      "cells": [
+        "171301",
+        "Leilão e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 287,
+      "cells": [
+        "171401",
+        "Advocacia",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 288,
+      "cells": [
+        "171501",
+        "Arbitragem de qualquer espécie, inclusive jurídica.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 289,
+      "cells": [
+        "171601",
+        "Auditoria.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 290,
+      "cells": [
+        "171701",
+        "Análise de Organização e Métodos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 291,
+      "cells": [
+        "171801",
+        "Atuária e cálculos técnicos de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 292,
+      "cells": [
+        "171901",
+        "Contabilidade, inclusive serviços técnicos e auxiliares.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 293,
+      "cells": [
+        "172001",
+        "Consultoria e assessoria econômica ou financeira.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 294,
+      "cells": [
+        "172101",
+        "Estatística.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 295,
+      "cells": [
+        "172201",
+        "Cobrança em geral.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 296,
+      "cells": [
+        "172301",
+        "Assessoria, análise, avaliação, atendimento, consulta, cadastro, seleção, gerenciamento de informações, administração de contas a receber ou a pagar e em geral, relacionados a operações de faturização (factoring).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 297,
+      "cells": [
+        "172401",
+        "Apresentação de palestras, conferências, seminários e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 298,
+      "cells": [
+        "172501",
+        "Inserção de textos, desenhos e outros materiais de propaganda e publicidade, em qualquer meio (exceto em livros, jornais, periódicos e nas modalidades de serviços de radiodifusão sonora e de sons e imagens de recepção livre e gratuita).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 299,
+      "cells": [
+        "180101",
+        "Serviços de regulação de sinistros vinculados a contratos de seguros e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 300,
+      "cells": [
+        "180102",
+        "Serviços de inspeção e avaliação de riscos para cobertura de contratos de seguros e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 301,
+      "cells": [
+        "180103",
+        "Serviços de prevenção e gerência de riscos seguráveis e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 302,
+      "cells": [
+        "190101",
+        "Serviços de distribuição e venda de bilhetes e demais produtos de loteria, cartões, pules ou cupons de apostas, sorteios, prêmios, inclusive os decorrentes de títulos de capitalização e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 303,
+      "cells": [
+        "190102",
+        "Serviços de distribuição e venda de bingos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 304,
+      "cells": [
+        "200101",
+        "Serviços portuários, ferroportuários, utilização de porto, movimentação de passageiros, reboque de embarcações, rebocador escoteiro, atracação, desatracação, serviços de praticagem, capatazia, armazenagem de qualquer natureza, serviços acessórios, movimentação de mercadorias, serviços de apoio marítimo, de movimentação ao largo, serviços de armadores, estiva, conferência, logística e congêneres.",
+        "-",
+        "(**) X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 305,
+      "cells": [
+        "200201",
+        "Serviços aeroportuários, utilização de aeroporto, movimentação de passageiros, armazenagem de qualquer natureza, capatazia, movimentação de aeronaves, serviços de apoio aeroportuários, serviços acessórios, movimentação de mercadorias, logística e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 306,
+      "cells": [
+        "200301",
+        "Serviços de terminais rodoviários, ferroviários, metroviários, movimentação de passageiros, mercadorias, inclusive suas operações, logística e congêneres.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 307,
+      "cells": [
+        "210101",
+        "Serviços de registros públicos, cartorários e notariais.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 308,
+      "cells": [
+        "220101",
+        "Serviços de exploração de rodovia mediante cobrança de preço ou pedágio dos usuários, envolvendo execução de serviços de conservação, manutenção, melhoramentos para adequação de capacidade e segurança de trânsito, operação, monitoração, assistência aos usuários e outros serviços definidos em contratos, atos de concessão ou de permissão ou em normas oficiais.",
+        "-",
+        "X",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 309,
+      "cells": [
+        "230101",
+        "Serviços de programação e comunicação visual e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 310,
+      "cells": [
+        "230102",
+        "Serviços de desenho industrial e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 311,
+      "cells": [
+        "240101",
+        "Serviços de chaveiros, confecção de carimbos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 312,
+      "cells": [
+        "240102",
+        "Serviços de placas, sinalização visual, banners, adesivos e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 313,
+      "cells": [
+        "250101",
+        "Funerais, inclusive fornecimento de caixão, urna ou esquifes; aluguel de capela; transporte do corpo cadavérico; fornecimento de flores, coroas e outros paramentos; desembaraço de certidão de óbito; fornecimento de véu, essa e outros adornos; embalsamento, embelezamento, conservação ou restauração de cadáveres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 314,
+      "cells": [
+        "250201",
+        "Translado intramunicipal de corpos e partes de corpos cadavéricos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 315,
+      "cells": [
+        "250202",
+        "Cremação de corpos e partes de corpos cadavéricos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 316,
+      "cells": [
+        "250301",
+        "Planos ou convênio funerários.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 317,
+      "cells": [
+        "250401",
+        "Manutenção e conservação de jazigos e cemitérios.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 318,
+      "cells": [
+        "250501",
+        "Cessão de uso de espaços em cemitérios para sepultamento.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 319,
+      "cells": [
+        "260101",
+        "Serviços de coleta, remessa ou entrega de correspondências, documentos, objetos, bens ou valores, inclusive pelos correios e suas agências franqueadas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 320,
+      "cells": [
+        "260102",
+        "Serviços de courrier e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 321,
+      "cells": [
+        "270101",
+        "Serviços de assistência social.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 322,
+      "cells": [
+        "280101",
+        "Serviços de avaliação de bens e serviços de qualquer natureza.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 323,
+      "cells": [
+        "290101",
+        "Serviços de biblioteconomia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 324,
+      "cells": [
+        "300101",
+        "Serviços de biologia e biotecnologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 325,
+      "cells": [
+        "300102",
+        "Serviços de química.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 326,
+      "cells": [
+        "310101",
+        "Serviços técnicos em edificações e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 327,
+      "cells": [
+        "310102",
+        "Serviços técnicos em eletrônica, eletrotécnica e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 328,
+      "cells": [
+        "310103",
+        "Serviços técnicos em mecânica e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 329,
+      "cells": [
+        "310104",
+        "Serviços técnicos em telecomunicações e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 330,
+      "cells": [
+        "320101",
+        "Serviços de desenhos técnicos.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 331,
+      "cells": [
+        "330101",
+        "Serviços de desembaraço aduaneiro, comissários, despachantes e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 332,
+      "cells": [
+        "340101",
+        "Serviços de investigações particulares, detetives e congêneres.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 333,
+      "cells": [
+        "350101",
+        "Serviços de reportagem e jornalismo.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 334,
+      "cells": [
+        "350102",
+        "Serviços de assessoria de imprensa.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 335,
+      "cells": [
+        "350103",
+        "Serviços de relações públicas.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 336,
+      "cells": [
+        "360101",
+        "Serviços de meteorologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 337,
+      "cells": [
+        "370101",
+        "Serviços de artistas, atletas, modelos e manequins.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 338,
+      "cells": [
+        "380101",
+        "Serviços de museologia.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 339,
+      "cells": [
+        "390101",
+        "Serviços de ourivesaria e lapidação (quando o material for fornecido pelo tomador do serviço).",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 340,
+      "cells": [
+        "400101",
+        "Obras de arte sob encomenda.",
+        "X",
+        "-",
+        "-",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 341,
+      "cells": [
+        "990101",
+        "Serviços sem a incidência de ISSQN e ICMS",
+        "-",
+        "-",
+        "-",
+        "-",
+        "-",
+        "X"
+      ]
+    }
+  ]
+}

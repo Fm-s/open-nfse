@@ -1,0 +1,334 @@
+{
+  "source": "anexo_ii-sefin_adn-pedregevt_evt-snnfse-v1-01-20260122.xlsx",
+  "sheet": "TIPO EVENTOS DE NFSe",
+  "dims": {
+    "rows": 18,
+    "cols": 13
+  },
+  "rows": [
+    {
+      "r": 1,
+      "cells": [
+        "#",
+        "EVENTOS DE NFS-e",
+        "EVENTOS DE NFS-e",
+        "CÓDIGO\nCateg./Autor/Amb./Seq.",
+        "GRUPOS\nCATEGORIA DE EVENTOS",
+        "GRUPOS\nCATEGORIA DE EVENTOS",
+        "AUTOR DO\nPEDIDO DE REGISTRO DE EVENTO",
+        "ASSINATURA DIGITAL OBRIGATÓRIA NO PEDREGEVT",
+        "AMBIENTE RECEPTOR DO\nPEDIDO DE REGISTRO DE EVENTO",
+        "AMBIENTE RECEPTOR DO\nPEDIDO DE REGISTRO DE EVENTO",
+        "NFS-e PRECISA EXISTIR NO ADN?",
+        "EVENTO ÚNICO?",
+        "VISIBILIDADE"
+      ]
+    },
+    {
+      "r": 2,
+      "cells": [
+        "1",
+        "Cancelamento de NFS-e",
+        "Cancelamento de NFS-e",
+        "1 01 1 01",
+        "NFS-e",
+        "1 - Cancelamentos",
+        "Emite",
+        "Sim",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 3,
+      "cells": [
+        "2",
+        "Cancelamento de NFS-e por Substituição",
+        "Cancelamento de NFS-e por Substituição",
+        "1 05 1 02",
+        "NFS-e",
+        "1 - Cancelamentos",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 4,
+      "cells": [
+        "3",
+        "Solicitação de Análise Fiscal para Cancelamento de NFS-e",
+        "Solicitação de Análise Fiscal para Cancelamento de NFS-e",
+        "1 01 1 03",
+        "NFS-e",
+        "1 - Cancelamentos",
+        "Emite",
+        "Sim",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / AT"
+      ]
+    },
+    {
+      "r": 5,
+      "cells": [
+        "4",
+        "Cancelamento de NFS-e Deferido por Análise Fiscal",
+        "Cancelamento de NFS-e Deferido por Análise Fiscal",
+        "1 05 1 04",
+        "NFS-e",
+        "1 - Cancelamentos",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / AT"
+      ]
+    },
+    {
+      "r": 6,
+      "cells": [
+        "5",
+        "Cancelamento de NFS-e Indeferido por Análise Fiscal",
+        "Cancelamento de NFS-e Indeferido por Análise Fiscal",
+        "1 05 1 05",
+        "NFS-e",
+        "1 - Cancelamentos",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / AT"
+      ]
+    },
+    {
+      "r": 7,
+      "cells": [
+        "6",
+        "Manifestação de NFS-e",
+        "Confirmação do Prestador",
+        "2 02 2 01",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Prestador)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 8,
+      "cells": [
+        "7",
+        "Manifestação de NFS-e",
+        "Confirmação do Tomador",
+        "2 03 2 02",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Tomador)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 9,
+      "cells": [
+        "8",
+        "Manifestação de NFS-e",
+        "Confirmação do Intermediário",
+        "2 04 2 03",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Intermediário)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 10,
+      "cells": [
+        "9",
+        "Manifestação de NFS-e",
+        "Confirmação Tácita",
+        "2 05 2 04",
+        "NFS-e",
+        "2 - Manifestações",
+        "MIncid",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)\n\n2 - ADN",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)\n\n2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 11,
+      "cells": [
+        "10",
+        "Manifestação de NFS-e",
+        "Rejeição do Prestador",
+        "2 02 2 05",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Prestador)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 12,
+      "cells": [
+        "11",
+        "Manifestação de NFS-e",
+        "Rejeição do Tomador",
+        "2 03 2 06",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Tomador)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 13,
+      "cells": [
+        "12",
+        "Manifestação de NFS-e",
+        "Rejeição do Intermediário",
+        "2 04 2 07",
+        "NFS-e",
+        "2 - Manifestações",
+        "Emite\n(Intermediário)",
+        "Não",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 14,
+      "cells": [
+        "13",
+        "Manifestação de NFS-e",
+        "Anulação da Rejeição",
+        "2 05 2 08",
+        "NFS-e",
+        "2 - Manifestações",
+        "MIncid",
+        "-",
+        "2 - ADN",
+        "2 - ADN",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 15,
+      "cells": [
+        "14",
+        "Cancelamento de NFS-e por Ofício",
+        "Cancelamento de NFS-e por Ofício",
+        "3 05 1 01",
+        "NFS-e",
+        "3 - Ofícios",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Sim",
+        "EM / NE / CP / AT"
+      ]
+    },
+    {
+      "r": 16,
+      "cells": [
+        "15",
+        "Bloqueio de NFS-e por Ofício para:\n\nEv. Cancelamento de NFS-e;\nEv. Cancelamento de NFS-e por Substituição;\nEv. Cancelamento de NFS-e Deferido por Análise Fiscal;\nEv. Cancelamento de NFS-e Indeferido por Análise Fiscal;\nEv. Cancelamento de NFS-e por Ofício;",
+        "Bloqueio de NFS-e por Ofício para:\n\nEv. Cancelamento de NFS-e;\nEv. Cancelamento de NFS-e por Substituição;\nEv. Cancelamento de NFS-e Deferido por Análise Fiscal;\nEv. Cancelamento de NFS-e Indeferido por Análise Fiscal;\nEv. Cancelamento de NFS-e por Ofício;",
+        "3 05 1 02",
+        "NFS-e",
+        "3 - Ofícios",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Não",
+        "EM / AT"
+      ]
+    },
+    {
+      "r": 17,
+      "cells": [
+        "16",
+        "Desbloqueio de NFS-e por Ofício para:\n\nEv. Cancelamento de NFS-e;\nEv. Cancelamento de NFS-e por Substituição;\nEv. Cancelamento de NFS-e Deferido por Análise Fiscal;\nEv. Cancelamento de NFS-e Indeferido por Análise Fiscal;\nEv. Cancelamento de NFS-e por Ofício;",
+        "Desbloqueio de NFS-e por Ofício para:\n\nEv. Cancelamento de NFS-e;\nEv. Cancelamento de NFS-e por Substituição;\nEv. Cancelamento de NFS-e Deferido por Análise Fiscal;\nEv. Cancelamento de NFS-e Indeferido por Análise Fiscal;\nEv. Cancelamento de NFS-e por Ofício;",
+        "3 05 1 03",
+        "NFS-e",
+        "3 - Ofícios",
+        "MEmis",
+        "-",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "1 - Sistema que gerou a NFS-e\n(Sistema próprio do município ou Sefin Nacional NFS-e)",
+        "Sim",
+        "Não",
+        "EM / AT"
+      ]
+    },
+    {
+      "r": 18,
+      "cells": [
+        "CÓDIGO DO EVENTO:\n\nO código identificador do evento é formado por 6 dígitos.\nO 1º dígito identifica a categoria do evento;\nOs 2º e 3º dígitos identificam o(s) autor(es) do(s) evento(s);\nO 4º dígito identifica o ambiente receptor do evento e;\nOs dois últimos dígitos, 5º e 6º, são números crescentes por categorias de eventos;",
+        "CÓDIGO DO EVENTO:\n\nO código identificador do evento é formado por 6 dígitos.\nO 1º dígito identifica a categoria do evento;\nOs 2º e 3º dígitos identificam o(s) autor(es) do(s) evento(s);\nO 4º dígito identifica o ambiente receptor do evento e;\nOs dois últimos dígitos, 5º e 6º, são números crescentes por categorias de eventos;",
+        "CÓDIGO DO EVENTO:\n\nO código identificador do evento é formado por 6 dígitos.\nO 1º dígito identifica a categoria do evento;\nOs 2º e 3º dígitos identificam o(s) autor(es) do(s) evento(s);\nO 4º dígito identifica o ambiente receptor do evento e;\nOs dois últimos dígitos, 5º e 6º, são números crescentes por categorias de eventos;",
+        "AUTOR DO PEDIDO DE REGISTRO DE EVENTO:\n\n01 - Emite - Emitente da NFS-e;\n02 - Prestador;\n03 - Tomador;\n04 - Intermediário;\n05 - MEmis - Município Emissor;\n06 - MIncid - Município de Incidência;\n07 - Man - Módulo de Apuração Nacional;\n08 - RespTrib - Responsável Tributário\n56 - MEmis | MInci\n67 - MInci | Man\n99 - CGNFSe - Comitê Gestor da NFS-e",
+        "AUTOR DO PEDIDO DE REGISTRO DE EVENTO:\n\n01 - Emite - Emitente da NFS-e;\n02 - Prestador;\n03 - Tomador;\n04 - Intermediário;\n05 - MEmis - Município Emissor;\n06 - MIncid - Município de Incidência;\n07 - Man - Módulo de Apuração Nacional;\n08 - RespTrib - Responsável Tributário\n56 - MEmis | MInci\n67 - MInci | Man\n99 - CGNFSe - Comitê Gestor da NFS-e",
+        "AUTOR DO PEDIDO DE REGISTRO DE EVENTO:\n\n01 - Emite - Emitente da NFS-e;\n02 - Prestador;\n03 - Tomador;\n04 - Intermediário;\n05 - MEmis - Município Emissor;\n06 - MIncid - Município de Incidência;\n07 - Man - Módulo de Apuração Nacional;\n08 - RespTrib - Responsável Tributário\n56 - MEmis | MInci\n67 - MInci | Man\n99 - CGNFSe - Comitê Gestor da NFS-e",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";",
+        "VISIBILIDADE:\n\nEM - Emitente NFS-e;\nNE - Não Emitente;\nSP - Sujeito Passivo;\nCP - Consulta Pública;\nAT - Administração Tributária;*\n\n* Município Emissor da NFS-e, Município(s) do(s) Não Emitente(s) da NFS-e, Município de Incidência do ISSQN e Município do local da prestação do serviço. Conforme regra de negócio a visibilidade poderá ser restrita a apenas algum(uns) desses municípios descritos que compõem a AT;\n\n** Somente para NFS-e cujo cStat seja \"102 - NFS-e de Decisão Judicial\";"
+      ]
+    }
+  ]
+}
