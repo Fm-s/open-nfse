@@ -67,8 +67,8 @@ try {
 
 Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e original**. Você envia *uma* mensagem (`POST /nfse`); o **Sistema Nacional NFS-e** gera, de forma atômica com a emissão, o evento **105102 (Cancelamento por Substituição, `autor=MEmis`)** que cancela a original, e retorna a NFS-e substituta.
 
-::: tip Por que não há "máquina de 5 estados" / rollback
-O contribuinte **não** registra o evento 105102 — ele é gerado pelo servidor (`autor=05 MEmis`, assinado pelo município emissor). Como há um **único write** (a DPS), não existe janela de inconsistência nem rollback. O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. Postar um pedRegEvento 105102 como contribuinte é rejeitado: redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+::: tip Resultado e falhas
+É um **único write** (a DPS). O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. O contribuinte **não** registra o 105102 (autor `05 MEmis`, assinado pelo município emissor); postá-lo é rejeitado — redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
 :::
 
 ### Chamada
