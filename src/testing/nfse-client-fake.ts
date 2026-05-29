@@ -1,6 +1,8 @@
 import { TipoAmbiente } from '../ambiente.js';
+import type { FetchByNsuParams, ReplayItem } from '../client.js';
+import { type GerarDanfseOptions, gerarDanfse as gerarDanfseLocal } from '../danfse/gerar.js';
 import { StatusDistribuicao } from '../dfe/types.js';
-import type { DistributedDocument, NsuQueryResult } from '../dfe/types.js';
+import type { NsuQueryResult } from '../dfe/types.js';
 import { TimeoutError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import type {
@@ -13,17 +15,17 @@ import type { EventoResult } from '../eventos/post-evento.js';
 import {
   type DpsStatusResult,
   InvalidChaveAcessoError,
-  InvalidIdDpsError,
+  InvalidDpsIdError,
   NotFoundError,
 } from '../index.js';
 import { buildDps } from '../nfse/build-dps.js';
-import type { DPS } from '../nfse/domain.js';
+import type { DPS, NFSe } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
 import type {
   DpsDryRunResult,
   EmitLoteItem,
+  EmitLoteOptions,
   EmitLoteResult,
-  EmitManyOptions,
   EmitOptions,
   EmitirParams,
   EmitirResult,
@@ -38,7 +40,7 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from '../parametros-municipais/types.js';
-import type { PendingEmission } from '../retry/store.js';
+import type { PendingEmission, RetryStore } from '../retry/store.js';
 import { FakeState, type ProgrammedFailure } from './fake-state.js';
 import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';
@@ -114,7 +116,7 @@ export class NfseClientFake {
 
   async fetchDpsStatus(idDps: string): Promise<DpsStatusResult> {
     if (!REGEX_ID_DPS.test(idDps)) {
-      throw new InvalidIdDpsError(idDps);
+      throw new InvalidDpsIdError(idDps);
     }
     for (const nfse of this.state.emitted.values()) {
       if (nfse.idDps === idDps) {
@@ -140,11 +142,7 @@ export class NfseClientFake {
     }
   }
 
-  async fetchByNsu(params: {
-    readonly ultimoNsu: number;
-    readonly cnpjConsulta?: string;
-    readonly lote?: boolean;
-  }): Promise<NsuQueryResult> {
+  async fetchByNsu(params: FetchByNsuParams): Promise<NsuQueryResult> {
     const { ultimoNsu } = params;
     const docs = this.state.dfe.filter((d) => d.nsu > ultimoNsu);
     const finalNsu = docs.length ? (docs[docs.length - 1]?.nsu ?? ultimoNsu) : ultimoNsu;
@@ -292,7 +290,7 @@ export class NfseClientFake {
     return result;
   }
 
-  async emitirEmLote(dpsList: readonly DPS[], _options?: EmitManyOptions): Promise<EmitLoteResult> {
+  async emitirEmLote(dpsList: readonly DPS[], _options?: EmitLoteOptions): Promise<EmitLoteResult> {
     const items: EmitLoteItem[] = [];
     let successCount = 0;
     let failureCount = 0;
@@ -352,7 +350,7 @@ export class NfseClientFake {
     return { status: 'ok', novaNfse, cancelamento };
   }
 
-  async replayPendingEvents(): Promise<never[]> {
+  async replayPendingEvents(_override?: RetryStore): Promise<ReplayItem[]> {
     // Fake não mantém RetryStore complexa — retorna vazio por default.
     // Para testar replay, o consumidor passa um store real.
     return [];
@@ -421,12 +419,17 @@ export class NfseClientFake {
   // DANFSe
   // -------------------------------------------------------------------------
 
-  async gerarDanfse(nfse: import('../nfse/domain.js').NFSe): Promise<Buffer> {
-    const { gerarDanfse } = await import('../danfse/gerar.js');
-    return gerarDanfse(nfse);
+  async gerarDanfse(
+    nfse: NFSe,
+    options?: GerarDanfseOptions & { strategy?: 'auto' | 'online' | 'local' },
+  ): Promise<Buffer> {
+    // Fake sempre renderiza localmente (sem rede) — `strategy` é aceito para
+    // paridade de assinatura com o NfseClient real, mas 'online'/'auto' caem
+    // no mesmo renderer local determinístico.
+    return gerarDanfseLocal(nfse, options);
   }
 
-  async fetchDanfse(chaveAcesso: string): Promise<Buffer> {
+  async consultarDanfse(chaveAcesso: string): Promise<Buffer> {
     if (!REGEX_CHAVE.test(chaveAcesso)) {
       throw new InvalidChaveAcessoError(chaveAcesso);
     }
@@ -488,7 +491,7 @@ export class NfseClientFake {
           ambGer: '2' as never,
           nSeqEvento: '1',
           dhProc: new Date(),
-          nDFe: String(Date.now()),
+          nDFSe: String(Date.now()),
           pedRegEvento: {
             versao: '1.01',
             infPedReg: {

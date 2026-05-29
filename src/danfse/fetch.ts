@@ -12,7 +12,10 @@ const REGEX_CHAVE_ACESSO = /^\d{50}$/;
  * (403) se o CNPJ do certificado não tiver autorização para ver a nota,
  * `ServerError` (5xx) em indisponibilidade.
  */
-export async function fetchDanfse(httpClient: HttpClient, chaveAcesso: string): Promise<Buffer> {
+export async function consultarDanfse(
+  httpClient: HttpClient,
+  chaveAcesso: string,
+): Promise<Buffer> {
   if (!REGEX_CHAVE_ACESSO.test(chaveAcesso)) {
     throw new InvalidChaveAcessoError(chaveAcesso);
   }

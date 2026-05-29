@@ -6,7 +6,9 @@
            attributeFormDefault="unqualified"
            elementFormDefault="qualified">
   <xs:import namespace="http://www.w3.org/2000/09/xmldsig#" schemaLocation="xmldsig-core-schema.xsd"/>
-  <xs:include schemaLocation="tiposComplexos_v1.01.xsd"/>
+  <xs:include schemaLocation="tiposComplexos_v1.00.xsd"/>
+
+
   <!--TIPO COMPLEXO PARA EVENTO -->
   <xs:complexType name="TCEvento">
     <xs:sequence>
@@ -15,6 +17,7 @@
     </xs:sequence>
     <xs:attribute name="versao" type="TVerNFSe" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA INFORMAÇÕES DO EVENTO-->
   <xs:complexType name="TCInfEvento">
     <xs:sequence>
@@ -41,7 +44,7 @@
           </xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="nDFe" type="TSNumDFe">
+      <xs:element name="nDFSe" type="TSNumDFe">
         <xs:annotation>
           <xs:documentation>Ambiente gerador do evento</xs:documentation>
         </xs:annotation>
@@ -54,6 +57,7 @@
     </xs:sequence>
     <xs:attribute name="Id" type="TSIdEvento" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PEDIDO DE REGISTRO DE EVENTO -->
   <xs:complexType name="TCPedRegEvt">
     <xs:sequence>
@@ -62,6 +66,7 @@
     </xs:sequence>
     <xs:attribute name="versao" type="TVerNFSe" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA AS INFORMAÇÕES DO PEDIDO DE REGISTRO DE EVENTO -->
   <xs:complexType name="TCInfPedReg">
     <xs:sequence>
@@ -103,12 +108,6 @@
           <xs:documentation>Chave de Acesso da NFS-e vinculada ao Evento</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <!--
-        nPedRegEvento removido per Anexo II SEFIN_ADN v1.00-20251226 (publicado
-        2025-12-27). O campo era TSNum3Dig (1-999) e fazia parte da composição
-        do Id (TSIdPedRefEvt → 62 chars). Agora o Id é apenas
-        PRE + chave(50) + tipoEvento(6) = 59 chars (PRE[0-9]{56}).
-      -->
       <xs:choice>
         <xs:element name="e101101" type="TE101101">
           <xs:annotation>
@@ -135,6 +134,7 @@
             <xs:documentation>Cancelamento de NFS-e Indeferido por Análise Fiscal</xs:documentation>
           </xs:annotation>
         </xs:element>
+
         <xs:element name="e202201" type="TE202201">
           <xs:annotation>
             <xs:documentation>Confirmação do Prestador</xs:documentation>
@@ -175,6 +175,7 @@
             <xs:documentation>Anulação da Rejeição</xs:documentation>
           </xs:annotation>
         </xs:element>
+
         <xs:element name="e305101" type="TE305101">
           <xs:annotation>
             <xs:documentation>Cancelamento de NFS-e por Ofício</xs:documentation>
@@ -194,6 +195,7 @@
     </xs:sequence>
     <xs:attribute name="Id" type="TSIdPedRefEvt" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO-->
   <xs:complexType name="TE101101">
     <xs:sequence>
@@ -222,6 +224,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO POR SUBSTITUIÇÃO-->
   <xs:complexType name="TE105102">
     <xs:sequence>
@@ -255,6 +258,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE SOLICITAÇÃO DE ANÁLISE FISCAL PARA CANCELAMENTO DE NFS-E-->
   <xs:complexType name="TE101103">
     <xs:sequence>
@@ -283,6 +287,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO DE NFS-E DEFERIDO POR ANÁLISE FISCAL-->
   <xs:complexType name="TE105104">
     <xs:sequence>
@@ -330,6 +335,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO DE NFS-E INDEFERIDO POR ANÁLISE FISCAL-->
   <xs:complexType name="TE105105">
     <xs:sequence>
@@ -376,6 +382,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO PRESTADOR-->
   <xs:complexType name="TE202201">
     <xs:sequence>
@@ -394,6 +401,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO TOMADOR-->
   <xs:complexType name="TE203202">
     <xs:sequence>
@@ -412,6 +420,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO INTERMEDIÁRIO-->
   <xs:complexType name="TE204203">
     <xs:sequence>
@@ -430,6 +439,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO TÁCITA-->
   <xs:complexType name="TE205204">
     <xs:sequence>
@@ -448,6 +458,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO PRESTADOR-->
   <xs:complexType name="TE202205">
     <xs:sequence>
@@ -472,6 +483,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO TOMADOR-->
   <xs:complexType name="TE203206">
     <xs:sequence>
@@ -496,6 +508,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO INTERMEDIÁRIO-->
   <xs:complexType name="TE204207">
     <xs:sequence>
@@ -520,6 +533,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE ANULAÇÃO DE REJEIÇÃO-->
   <xs:complexType name="TE205208">
     <xs:sequence>
@@ -544,6 +558,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO POR OFÍCIO DA NFS-E--> 
   <xs:complexType name="TE305101">
     <xs:sequence>
@@ -583,6 +598,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE BLOQUEIO POR OFÍCIO DA NFS-E--> 
   <xs:complexType name="TE305102">
     <xs:sequence>
@@ -618,6 +634,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE DESBLOQUEIO POR OFÍCIO DA NFS-E-->
   <xs:complexType name="TE305103">
     <xs:sequence>
@@ -650,6 +667,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO LISTA DE EVENTOS--> 
   <xs:complexType name="TCListaEventos">
     <xs:sequence>
@@ -662,6 +680,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO INFORMAÇÕES DO EVENTO DE REJEIÇÃO DA NFS-E-->
   <xs:complexType name="TCInfoEventoRejeicao">
     <xs:sequence>
@@ -669,6 +688,7 @@
         <xs:annotation>
           <xs:documentation>
             Motivo da Rejeição da NFS-e:
+
             1 - NFS-e em duplicidade;
             2 - NFS-e já emitida pelo tomador;
             3 - Não ocorrência do fato gerador;
@@ -685,6 +705,7 @@
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO INFORMAÇÕES DO EVENTO DE ANULAÇÃO DE REJEIÇÃO DA NFS-E-->
   <xs:complexType name="TCInfoEventoAnulacaoRejeicao">
     <xs:sequence>

@@ -215,14 +215,14 @@ describe('emit', () => {
   it('validates the DPS XSD before signing and throws XsdValidationError on bad input', async () => {
     // no interceptor: if the call reaches POST, the test fails fast.
     const badDps = minimalDps();
-    // strip cNBS to force a validation failure
-    const { cNBS: _omit, ...cServSemNBS } = badDps.infDPS.serv.cServ;
+    // strip cTribNac (required by the XSD) to force a validation failure
+    const { cTribNac: _omit, ...cServSemTribNac } = badDps.infDPS.serv.cServ;
     void _omit;
     const broken: DPS = {
       ...badDps,
       infDPS: {
         ...badDps.infDPS,
-        serv: { ...badDps.infDPS.serv, cServ: cServSemNBS as typeof badDps.infDPS.serv.cServ },
+        serv: { ...badDps.infDPS.serv, cServ: cServSemTribNac as typeof badDps.infDPS.serv.cServ },
       },
     };
     await expect(emitDpsPronta(httpClient, cert, broken)).rejects.toMatchObject({

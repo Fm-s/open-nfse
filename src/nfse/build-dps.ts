@@ -76,8 +76,12 @@ export interface TomadorInput {
 export interface ServicoInput {
   /** Código nacional do serviço (LC 116 + Anexo). */
   readonly cTribNac: string;
-  /** Código NBS do serviço (required pelo XSD). */
-  readonly cNBS: string;
+  /**
+   * Código NBS do serviço. Opcional — apesar da NT04 declarar o elemento sem
+   * `minOccurs`, a SEFIN não rejeita DPS sem `cNBS`. Quando omitido, o
+   * `<cNBS>` não é serializado.
+   */
+  readonly cNBS?: string;
   readonly descricao: string;
   /** Default: `emitente.codMunicipio`. */
   readonly codMunicipioPrestacao?: string;
@@ -92,9 +96,14 @@ export interface ValoresInput {
   readonly vReceb?: number;
   /**
    * Alíquota ISS em **percentual** (ex: `2.5` = 2,5%, NÃO `0.025`). Preenche
-   * `tribMun.pAliq`. Omita para imune/isenta, retido pelo tomador, ou Simples
-   * Nacional sem `pAliq` específica do município. Valores `0 < x < 0.5` são
+   * `tribMun.pAliq` (`TCTribMunicipal`, `minOccurs="0"`). Pelo XSD: se o
+   * município de incidência pertence ao Sistema Nacional NFS-e a alíquota é
+   * parametrizada e fornecida pelo sistema — nesse caso omita (`undefined`);
+   * fora do Sistema Nacional, o emitente fornece. Valores `0 < x < 0.5` são
    * rejeitados em tempo de build (quase sempre erro de fração-vs-percentual).
+   *
+   * Em termos de serialização: `undefined` não emite `<pAliq>`; um valor
+   * definido (inclusive `0`) emite `<pAliq>` com aquele valor.
    */
   readonly aliqIss?: number;
   /** Default `'1'` (operação tributável). */
@@ -169,7 +178,7 @@ export function buildDps(params: BuildDpsParams): DPS {
   const valores = buildInfoValores(params.valores);
 
   const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
-  assertVerAplicLength(verAplic);
+  assertVerAplic(verAplic);
 
   const infDPS: InfDPS = {
     Id,
@@ -241,7 +250,7 @@ function buildServ(serv: ServicoInput, cMunDefault: string): Serv {
       cTribNac: serv.cTribNac,
       ...(serv.cTribMun ? { cTribMun: serv.cTribMun } : {}),
       xDescServ: serv.descricao,
-      cNBS: serv.cNBS,
+      ...(serv.cNBS ? { cNBS: serv.cNBS } : {}),
       ...(serv.codigoInterno ? { cIntContrib: serv.codigoInterno } : {}),
     },
   };
@@ -299,11 +308,23 @@ function assertAliqIssRange(aliqIss: number | undefined): void {
   }
 }
 
-/** `TSVerAplic` limita verAplic a maxLength=20. Fail-fast local. */
-function assertVerAplicLength(verAplic: string): void {
+/**
+ * `TSVerAplic` (base `TSString`): 1 a 20 caracteres, todos imprimíveis
+ * (`[!-ÿ]`), sem espaço/controle nas pontas — pattern
+ * `[!-ÿ][ -ÿ]*[!-ÿ]|[!-ÿ]`. Fail-fast local em vez de rejeição XSD.
+ */
+const TSSTRING_PATTERN = /^(?:[!-ÿ][ -ÿ]*[!-ÿ]|[!-ÿ])$/u;
+
+function assertVerAplic(verAplic: string): void {
   if (verAplic.length < 1 || verAplic.length > 20) {
     throw new RuleViolationError(
       `verAplic deve ter entre 1 e 20 caracteres (atual: ${verAplic.length}) — per TSVerAplic do RTC v1.01`,
+      'TSVerAplic',
+    );
+  }
+  if (!TSSTRING_PATTERN.test(verAplic)) {
+    throw new RuleViolationError(
+      'verAplic deve conter apenas caracteres imprimíveis, sem espaço ou controle nas pontas — per TSString do RTC v1.01',
       'TSVerAplic',
     );
   }

@@ -141,9 +141,9 @@ Mesmo no caminho "caught up", a Receita inclui uma mensagem em `erros` (ex: `E22
 import { TipoDocumento, TipoEvento } from 'open-nfse';
 
 for (const doc of r.documentos) {
-  if (doc.tipoDocumento === TipoDocumento.NFSE) {
+  if (doc.tipoDocumento === TipoDocumento.Nfse) {
     // XML de NFS-e completa
-  } else if (doc.tipoDocumento === TipoDocumento.EVENTO_NFSE) {
+  } else if (doc.tipoDocumento === TipoDocumento.Evento) {
     // XML de evento (cancelamento, substituição, etc.)
     console.log(doc.tipoEvento);   // "101101" etc
   }

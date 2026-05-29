@@ -69,7 +69,7 @@ describe('validateDpsXml', () => {
     expect(r.violations.some((v) => /nDPS/.test(v.message))).toBe(true);
   });
 
-  it('rejects DPS missing required cNBS in cServ', async () => {
+  it('accepts DPS without cNBS — optional in practice despite NT04 declaring it without minOccurs', async () => {
     const dps = minimalDps();
     const { cNBS: _omit, ...cServSemNBS } = dps.infDPS.serv.cServ;
     void _omit;
@@ -81,8 +81,8 @@ describe('validateDpsXml', () => {
       },
     });
     const r = await validateDpsXml(xml, { throwOnInvalid: false });
-    expect(r.valid).toBe(false);
-    expect(r.violations.some((v) => /cNBS/.test(v.message))).toBe(true);
+    expect(r.valid).toBe(true);
+    expect(r.violations).toHaveLength(0);
   });
 
   it('rejects dhEmi with milliseconds or Z suffix (pattern requires ±HH:00)', async () => {

@@ -18,7 +18,7 @@ const r = await cliente.consultarAliquota('2111300', '250101', '2026-03-01');
 
 // r.aliquotas é um Record<codServico, Aliquota[]>
 for (const aliq of r.aliquotas['250101'] ?? []) {
-  console.log(aliq.incidencia, aliq.aliquota, aliq.dataInicio);
+  console.log(aliq.incidencia, aliq.aliquota, aliq.dataInicioVigencia);
 }
 ```
 

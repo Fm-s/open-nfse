@@ -10,9 +10,9 @@ Cliente TypeScript/Node.js para o **Padrão Nacional de NFS-e** (nfse.gov.br) �
 
 ## Status
 
-**v0.8.0 — 429-aware retry pipeline.** Ciclo fiscal completo: consulta (chave + NSU), emissão segura com `DpsCounter` + `RetryStore`, cancelamento e substituição com máquina de 4 estados, validações locais (XSD / CPF+CNPJ / CEP), parâmetros municipais com cache, DANFSe em PDF (online + fallback local), `NfseClientFake` em `open-nfse/testing`.
+**v0.9.x — alinhamento ao schema oficial RTC v1.01 + NT-007.** Ciclo fiscal completo: consulta (chave + NSU), emissão segura com `DpsCounter` + `RetryStore`, cancelamento e substituição com máquina de 5 estados, validações locais (XSD / CPF+CNPJ / CEP), parâmetros municipais com cache, DANFSe em PDF (online + fallback local), `NfseClientFake` em `open-nfse/testing`. Pipeline de retry consciente de 429 (`TooManyRequestsError` → `retry_pending` com `notBefore` honrando `Retry-After`; `RetryPolicy` pluggable).
 
-**Novidades em v0.8** — `TooManyRequestsError` (429) classificado como transiente: emissões e eventos viram `retry_pending` no `RetryStore` automaticamente, com `notBefore` honrando `Retry-After`. `RetryPolicy` pluggable (`createDefaultRetryPolicy()` por default; implemente custom para backoff exponencial / jitter usando `RetryContext.attempt`). Bug crítico pré-existente (v0.7.2) corrigido: eventos persistidos no `RetryStore` agora carregam XML assinado; dados legados são re-assinados automaticamente no replay. Veja [CHANGELOG](./CHANGELOG.md) para a lista completa.
+**Novidades em v0.9** — o validador passou a ser gerado dos schemas oficiais `schemas/1.01/` e a lib foi auditada **campo a campo** contra eles: domínio completo do `CST` PIS/COFINS e `TipoRetPisCofins` (NT-007, em produção desde 2026-02-09), `cNBS` opcional, remoção de elementos inexistentes no RTC v1.01 (`lsadppu`/`explRod`), correção do parsing de eventos de rejeição/anulação e de campos `minOccurs="0"` lidos como obrigatórios. Inclui **breaking renames** pré-1.0 (`fetchDanfse`→`consultarDanfse`, `EmitManyOptions`→`EmitLoteOptions`, `InvalidIdDpsError`→`InvalidDpsIdError`, enums de PIS/COFINS, `xOutInf` movido para `InfNFSe`). Veja [CHANGELOG](./CHANGELOG.md) para a lista completa.
 
 Foco até 1.0 é estabilização; a API pública pode receber ajustes, sem breaking changes sem aviso em CHANGELOG.
 
@@ -105,7 +105,7 @@ Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão co
 |-----------------------------------------|----------------------------------------------------------------------|
 | Consulta por chave + distribuição por NSU | [Consultar](https://fm-s.github.io/open-nfse/guide/consultar)      |
 | Emissão segura com counter + retry store | [Emitir](https://fm-s.github.io/open-nfse/guide/emitir)             |
-| Cancelamento e substituição (4 estados) | [Substituir e cancelar](https://fm-s.github.io/open-nfse/guide/substituir-cancelar) |
+| Cancelamento e substituição (5 estados) | [Substituir e cancelar](https://fm-s.github.io/open-nfse/guide/substituir-cancelar) |
 | Validações XSD + CPF/CNPJ + CEP         | [Validações](https://fm-s.github.io/open-nfse/guide/validacoes)     |
 | Parâmetros municipais com cache         | [Parâmetros](https://fm-s.github.io/open-nfse/guide/parametros)     |
 | DANFSe em PDF (online + local)          | [DANFSe](https://fm-s.github.io/open-nfse/guide/danfse)             |
@@ -123,7 +123,7 @@ Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão co
 │  fetch-by-nsu       │  emitir-em-lote │  substituir (4-st)  │
 │                     │  emitirDpsPronta│  replayPendingEvents│
 │                                                            │
-│  Retry pipeline (v0.8): PendingEvent + RetryStore +        │
+│  Retry pipeline (429-aware): PendingEvent + RetryStore +   │
 │   RetryPolicy (notBefore + attempts + safe-wrap)           │
 │                                                            │
 │  parse-xml ↔ build-xml + sign-xml (RTC v1.01 ↔ DTO)         │
@@ -144,7 +144,7 @@ A API oficial está dividida em **quatro hosts distintos** (SEFIN Nacional, ADN 
 
 ## Princípios
 
-DTO in, DTO out. Erros tipados em 3 níveis. Sem estado interno, com primitives de orquestração (`emitirEmLote`, máquina de 4 estados de `substituir`) e retry (`RetryStore` + `RetryPolicy` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais; `xs:choice` vira discriminated union. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://fm-s.github.io/open-nfse/guide/principios).
+DTO in, DTO out. Erros tipados em 3 níveis. Sem estado interno, com primitives de orquestração (`emitirEmLote`, máquina de 5 estados de `substituir`) e retry (`RetryStore` + `RetryPolicy` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais; `xs:choice` vira discriminated union. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://fm-s.github.io/open-nfse/guide/principios).
 
 ## Ambientes
 

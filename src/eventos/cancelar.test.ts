@@ -64,7 +64,7 @@ function mockEventoXml(chave: string, tipoEvento: '101101' | '105102'): string {
     tipoEvento === '101101'
       ? '<e101101><xDesc>Cancelamento de NFS-e</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101>'
       : `<e105102><xDesc>Cancelamento de NFS-e por Substituicao</xDesc><cMotivo>99</cMotivo><chSubstituta>${CHAVE_NOVA}</chSubstituta></e105102>`;
-  return `<?xml version="1.0" encoding="UTF-8"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT${chave}${tipoEvento}001"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-04-17T12:00:00-03:00</dhProc><nDFe>123456</nDFe><pedRegEvento versao="1.01"><infPedReg Id="PRE${chave}${tipoEvento}001"><tpAmb>2</tpAmb><verAplic>client</verAplic><dhEvento>2026-04-17T12:00:00-03:00</dhEvento><CNPJAutor>00574753000100</CNPJAutor><chNFSe>${chave}</chNFSe><nPedRegEvento>001</nPedRegEvento>${det}</infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT${chave}${tipoEvento}001"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>sig</SignatureValue><KeyInfo><X509Data><X509Certificate>cert</X509Certificate></X509Data></KeyInfo></Signature></evento>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT${chave}${tipoEvento}001"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-04-17T12:00:00-03:00</dhProc><nDFSe>123456</nDFSe><pedRegEvento versao="1.01"><infPedReg Id="PRE${chave}${tipoEvento}001"><tpAmb>2</tpAmb><verAplic>client</verAplic><dhEvento>2026-04-17T12:00:00-03:00</dhEvento><CNPJAutor>00574753000100</CNPJAutor><chNFSe>${chave}</chNFSe><nPedRegEvento>001</nPedRegEvento>${det}</infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT${chave}${tipoEvento}001"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>sig</SignatureValue><KeyInfo><X509Data><X509Certificate>cert</X509Certificate></X509Data></KeyInfo></Signature></evento>`;
 }
 
 function mockEventoSuccessBody(chave: string, tipoEvento: '101101' | '105102') {
@@ -263,7 +263,7 @@ describe('cancelar', () => {
   });
 });
 
-describe('substituir — 4-state machine', () => {
+describe('substituir — 5-state machine', () => {
   let mockAgent: MockAgent;
   let httpClient: HttpClient;
   let cert: A1Certificate;
@@ -418,6 +418,35 @@ describe('substituir — 4-state machine', () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]?.kind).toBe('rollback_cancelamento');
     expect(stored[0]?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
+  });
+
+  it("status='rollback_failed' when cancelamento permanent AND rollback permanent → nothing persisted", async () => {
+    mockEmitSuccess();
+    // Cancel of original — permanent rejection.
+    mockEventoFail(CHAVE_ORIGINAL, 400, {
+      erro: { codigo: 'E8001', descricao: 'prazo' },
+    });
+    // Rollback of nova — also permanent rejection.
+    mockEventoFail(CHAVE_NOVA, 400, {
+      erro: { codigo: 'E0050', descricao: 'rollback rejeitado' },
+    });
+
+    const retryStore = createInMemoryRetryStore();
+    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
+      ...baseSubstParams,
+      novaDps: minimalNovaDps(),
+      retryStore,
+    });
+
+    expect(r.status).toBe('rollback_failed');
+    if (r.status === 'rollback_failed') {
+      expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
+      expect(r.cancelamentoError).toBeInstanceOf(ReceitaRejectionError);
+      expect(r.rollbackError).toBeInstanceOf(ReceitaRejectionError);
+    }
+    // Terminal state — RetryStore stays empty (transient-only model).
+    const stored = await retryStore.list();
+    expect(stored).toHaveLength(0);
   });
 
   it('throws MissingRetryStoreError when a transient cancel would need persistence but no store is configured', async () => {

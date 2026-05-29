@@ -151,13 +151,27 @@ export async function emitDpsPronta(
     { acceptedStatuses: [400] },
   );
 
-  if (isSuccessBody(body)) {
-    return toEmitResult(body);
-  }
+  return parsePostResponseOrThrow(body);
+}
 
+function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
+  return (
+    typeof (body as SefinPostSuccessBody).chaveAcesso === 'string' &&
+    typeof (body as SefinPostSuccessBody).nfseXmlGZipB64 === 'string'
+  );
+}
+
+/**
+ * Interpreta a resposta do `POST /nfse`: corpo de sucesso → `NfseEmitResult`;
+ * 400 com corpo de rejeição → lança `ReceitaRejectionError` (regra de negócio).
+ * Corpo de erro irreconhecível cai num `ReceitaRejectionError('UNKNOWN')` com o
+ * JSON bruto. Único ponto de verdade — `emitDpsPronta`, `emitSeguro` e
+ * `replayEmission` compartilham este parsing (antes era copy-paste divergente).
+ */
+function parsePostResponseOrThrow(body: SefinPostBody): NfseEmitResult {
+  if (isSuccessBody(body)) return toEmitResult(body);
   const rejection = receitaRejectionFromPostError(body);
   if (rejection) throw rejection;
-
   throw new ReceitaRejectionError({
     mensagens: [
       {
@@ -166,13 +180,6 @@ export async function emitDpsPronta(
       },
     ],
   });
-}
-
-function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
-  return (
-    typeof (body as SefinPostSuccessBody).chaveAcesso === 'string' &&
-    typeof (body as SefinPostSuccessBody).nfseXmlGZipB64 === 'string'
-  );
 }
 
 function toEmitResult(body: SefinPostSuccessBody): NfseEmitResult {
@@ -193,7 +200,7 @@ function toEmitResult(body: SefinPostSuccessBody): NfseEmitResult {
 // Emissão em lote — SEFIN não tem endpoint de batch; paralelizamos no cliente.
 // ---------------------------------------------------------------------------
 
-export interface EmitManyOptions {
+export interface EmitLoteOptions {
   /** Máximo de requisições concorrentes. Default: 4. */
   readonly concurrency?: number;
   /**
@@ -202,7 +209,7 @@ export interface EmitManyOptions {
    * todas e deixar o caller decidir como reagir).
    */
   readonly stopOnError?: boolean;
-  /** Propagado para cada `emit()` do lote. Ver `EmitOptions.skipValidation`. */
+  /** Propagado para cada `emitDpsPronta()` do lote. Ver `EmitOptions.skipValidation`. */
   readonly skipValidation?: boolean;
   /** Propagado. Ver `EmitOptions.skipCepValidation`. */
   readonly skipCepValidation?: boolean;
@@ -233,7 +240,7 @@ export async function emitMany(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dpsList: readonly DPS[],
-  options?: EmitManyOptions,
+  options?: EmitLoteOptions,
 ): Promise<EmitLoteResult> {
   const concurrency = Math.max(1, Math.floor(options?.concurrency ?? DEFAULT_CONCURRENCY));
   const stopOnError = options?.stopOnError ?? false;
@@ -426,21 +433,8 @@ export async function emitSeguro(
       { acceptedStatuses: [400] },
     );
 
-    if (isSuccessBody(body)) {
-      return { status: 'ok', nfse: toEmitResult(body) };
-    }
-
-    // 400 com corpo de rejeição — permanente (regra de negócio violada).
-    const rejection = receitaRejectionFromPostError(body);
-    if (rejection) throw rejection;
-    throw new ReceitaRejectionError({
-      mensagens: [
-        {
-          codigo: 'UNKNOWN',
-          descricao: `Corpo de erro sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
-        },
-      ],
-    });
+    // Sucesso → ok; 400 com corpo de rejeição → throw permanente.
+    return { status: 'ok', nfse: parsePostResponseOrThrow(body) };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isTransient(error)) {
@@ -489,17 +483,7 @@ export async function replayEmission(
     { dpsXmlGZipB64 },
     { acceptedStatuses: [400] },
   );
-  if (isSuccessBody(body)) return toEmitResult(body);
-  const rejection = receitaRejectionFromPostError(body);
-  if (rejection) throw rejection;
-  throw new ReceitaRejectionError({
-    mensagens: [
-      {
-        codigo: 'UNKNOWN',
-        descricao: `replay: corpo sem mensagens reconhecíveis: ${JSON.stringify(body)}`,
-      },
-    ],
-  });
+  return parsePostResponseOrThrow(body);
 }
 
 function pickStr(obj: Record<string, unknown>, ...keys: string[]): string | undefined {

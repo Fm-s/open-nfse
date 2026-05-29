@@ -1,3 +1,4 @@
+import type { TipoBeneficioMunicipal } from '../nfse/enums.js';
 import type {
   Aliquota,
   Beneficio,
@@ -55,8 +56,8 @@ function parseAliquota(raw: RawAliquota): Aliquota {
   return {
     ...optional('incidencia', raw.Incidencia ?? undefined),
     ...optional('aliquota', raw.Aliq ?? undefined),
-    dataInicio: new Date(raw.DtIni),
-    ...(raw.DtFim ? { dataFim: new Date(raw.DtFim) } : {}),
+    dataInicioVigencia: new Date(raw.DtIni),
+    ...(raw.DtFim ? { dataFimVigencia: new Date(raw.DtFim) } : {}),
   };
 }
 
@@ -107,7 +108,7 @@ function parseBeneficio(raw: RawBeneficio): Beneficio {
     ...optional('descricao', raw.descricao ?? undefined),
     dataInicioVigencia: new Date(raw.dataInicioVigencia),
     ...(raw.dataFimVigencia ? { dataFimVigencia: new Date(raw.dataFimVigencia) } : {}),
-    tipoBeneficio: String(raw.tipoBeneficio),
+    tipoBeneficio: String(raw.tipoBeneficio) as TipoBeneficioMunicipal,
     ...(raw.tipoReducaoBC !== null && raw.tipoReducaoBC !== undefined
       ? { tipoReducaoBC: String(raw.tipoReducaoBC) as TipoReducaoBaseDeCalculo }
       : {}),
@@ -213,8 +214,8 @@ export function parseRegimesEspeciaisResult(
 function parseRegimeEspecial(raw: RawRegimeEspecial): RegimeEspecial {
   return {
     situacao: String(raw.situacao) as TipoConfiguracaoRegimeEspecial,
-    dataInicio: new Date(raw.dataInicio),
-    ...(raw.dataFim ? { dataFim: new Date(raw.dataFim) } : {}),
+    dataInicioVigencia: new Date(raw.dataInicio),
+    ...(raw.dataFim ? { dataFimVigencia: new Date(raw.dataFim) } : {}),
     ...optional('observacoes', raw.observacoes ?? undefined),
   };
 }

@@ -4,16 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.8.0 shipped — 429-aware retry pipeline.** Full fiscal lifecycle covered:
+**v0.9.x shipped — see CHANGELOG for the current patch.** Full fiscal lifecycle covered:
 
 - **v0.1** — `fetchByChave`, `fetchByNsu`, parser RTC v1.01.
 - **v0.2** — `emitirDpsPronta` / `emitirEmLote`, dry-run, XMLDSig, XSD WASM, CPF/CNPJ DV, ViaCEP, `buildDps`.
-- **v0.3** — `cancelar` (101101) + `substituir` (105102) with 4-state compensation machine (`ok` / `retry_pending` / `rolled_back` / `rollback_pending`), pluggable `RetryStore`, `replayPendingEvents`.
+- **v0.3** — `cancelar` (101101) + `substituir` (105102) with 5-state compensation machine (`ok` / `retry_pending` / `rolled_back` / `rollback_pending` / `rollback_failed`), pluggable `RetryStore`, `replayPendingEvents`.
 - **v0.4** — safe emit flow: `emitir(params)` with `DpsCounter`. Counter only consumes after offline validations pass; transient errors go to `RetryStore` instead of throwing. Old API preserved as `emitirDpsPronta(dps)` escape hatch.
 - **v0.5** — 6 `consultar*` methods against ADN `/parametrizacao`, with pluggable `ParametrosCache` (default in-memory + TTL).
 - **v0.6** — `NfseClientFake` in `open-nfse/testing` subpath, structurally compatible via `NfseClientLike`.
 - **v0.7** — DANFSe PDF: `gerarDanfse(nfse, options)` with strategy `'auto' | 'online' | 'local'` (default `'auto'` = ADN online + fallback to local pdfkit renderer); `fetchDanfse(chave)` online-only.
-- **v0.8** — 429 handling: typed `TooManyRequestsError`, classified as transient, persisted in `RetryStore` with `notBefore` (from `Retry-After`) and `attempts`. Pluggable `RetryPolicy` (interface + `createDefaultRetryPolicy`); the lib wraps every configured policy via internal `makeSafePolicy` so a buggy custom policy can't mask the original fiscal error. **Fixed** a critical pre-existing bug from v0.7.2: events persisted to `RetryStore` were unsigned (replay rejected by SEFIN); legacy data rescued automatically.
+- **v0.8.0** — 429 handling: typed `TooManyRequestsError`, classified as transient, persisted in `RetryStore` with `notBefore` (from `Retry-After`) and `attempts`. Pluggable `RetryPolicy` (interface + `createDefaultRetryPolicy`); the lib wraps every configured policy via internal `makeSafePolicy` so a buggy custom policy can't mask the original fiscal error. **Fixed** a critical pre-existing bug from v0.7.2: events persisted to `RetryStore` were unsigned (replay rejected by SEFIN); legacy data rescued automatically.
+- **v0.8.1–0.8.6** — XSD/serialization conformance hardening (enums, types), `buildDps` business-rule guards, and **alignment with Anexo II SEFIN_ADN v1.00-20251226**: the `infPedReg` `Id` dropped `nPedRegEvento` (now `PRE` + chave(50) + tipoEvento(6) = 59 chars, `PRE[0-9]{56}`), the `<nPedRegEvento>` element was removed from the event body, and event dedup is now `(chave, tipoEvento)`. `nPedRegEvento` no longer exists anywhere in the API — **do not re-introduce it.** See CHANGELOG for the full per-patch list.
 
 Docs site: VitePress + TypeDoc → https://fm-s.github.io/open-nfse/. Roadmap ahead: stabilization until 1.0 — public API may still receive tweaks. Details per-version in CHANGELOG.
 
@@ -67,8 +68,8 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 ├────────────────────────────────────────────────────────────────┤
 │  Leitura                │  Emissão seg.     │  Eventos          │
 │  nfse/fetch-by-chave    │  nfse/emit        │  eventos/cancelar │
-│  dfe/fetch-by-nsu       │  (emitSeguro,     │  (substituir 4-st)│
-│  nfse/parse-xml         │   emitDpsPronta,  │  eventos/post-ev  │
+│  dfe/fetch-by-nsu       │  (emitSeguro,     │  (substituir 5-st)│
+│  nfse/parse-xml         │   emitDpsPronta,  │eventos/post-evento│
 │                         │   emitMany)       │                   │
 │                                                                │
 │  Retry pipeline (v0.8): retry/{store, transient, policy}       │
@@ -107,7 +108,7 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 
 ## Schema provenance
 
-- **Canonical XSDs**: `schemas/rtc-v1.01/` — the 10 XSDs from NT04 RTC v1.01 (the Reforma Tributária revision). **Not the 2022 v1.00 base** — that one is obsolete for 2026 production.
+- **Canonical XSDs**: `schemas/1.01/` — the 10 official XSDs (RTC v1.01). `scripts/generate-schemas.mjs` inlines them into `src/nfse/_rtc-schemas.generated.ts` for the WASM validator; rerun it after any schema edit. `schemas/1.00/` is the obsolete 2022 base, kept for reference only. **One deliberate libxml-compat deviation** from the official bundle: `TSSerieDPS`'s pattern had literal `^`/`$` (`^0{0,4}\d{1,5}$`) — invalid as XSD-1.0 anchors, so stripped to `0{0,4}\d{1,5}`; re-apply if you re-download the official schema.
 - **OpenAPI specs**: `specs/*.openapi.json` — Swagger specs for SEFIN Nacional, ADN Contribuinte, ADN DANFSe. Extracted from Produção Restrita Swagger UIs (cert-gated) on 2026-04-16. When the Receita updates a spec, drop the new JSON here.
 - **Sample responses**: `specs/samples/*.xml` — real captured NFS-e XMLs from Produção Restrita. Used as fixture in `parse-xml.test.ts`. Add more samples as they're captured; parser coverage grows with them.
 
@@ -118,18 +119,29 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 Public commitments — changes need explicit user sign-off:
 
 1. **DTO in, DTO out.** Callers never see XML, GZip, Base64, mTLS plumbing, or XMLDSig. Everything is plain typed objects. (The raw `xmlNfse` string is still exposed on `NfseQueryResult` as an escape hatch, not a replacement.)
-2. **Typed errors, one class per failure mode.** `ExpiredCertificateError`, `NotFoundError`, `ReceitaRejectionError`, etc. Three-level hierarchy: `Error` → `OpenNfseError` → intermediate group (`HttpError`, `CertificateError`, `ValidationError`) → concrete.
-3. **No internal state, but yes to orchestration/retry primitives.** No database, no hidden cache, no singleton — but `emitirEmLote` orchestrates concurrency, `substituir` runs a 4-state compensation machine, and `RetryStore` + `replayPendingEvents` provide pluggable retry infrastructure. Durable persistence is the consumer's job.
+2. **Typed errors, one class per failure mode.** `ExpiredCertificateError`, `NotFoundError`, `ReceitaRejectionError`, etc. Hierarchy: `Error` → `OpenNfseError` → intermediate group (`HttpError`, `CertificateError`, `ValidationError`) → concrete. The HTTP-status subtree adds a fourth, load-bearing level: `HttpError` → `HttpStatusError` → `NotFoundError`/`TooManyRequestsError`/… — `instanceof HttpStatusError` drives transient classification, so don't flatten it.
+3. **No internal state, but yes to orchestration/retry primitives.** No database, no hidden cache, no singleton — but `emitirEmLote` orchestrates concurrency, `substituir` runs a 5-state compensation machine, and `RetryStore` + `replayPendingEvents` provide pluggable retry infrastructure. Durable persistence is the consumer's job.
 4. **Schema-driven types.** Every TS interface in `src/nfse/domain.ts` maps to a TCxxx complex type in the XSD. When a Nota Técnica lands, walk the XSD diff → update domain types + parser + add fixture → bump MINOR.
 5. **DPS builder (v0.2) will be separable from transport.** A caller must be able to build + validate + get signed XML without sending (dry-run / preview / offline tests).
 6. **Pluggable certificate provider.** `CertificateProvider` is an interface; concrete providers (file, buffer, and future KMS/Vault/env) implement it. `NfseClientConfig.certificado` also accepts the simple `{ pfx, password }` shape for the common case.
+
+## Naming conventions (binding)
+
+Keep new public symbols consistent with these rules — they were ratified in the v0.8.x API-consistency pass:
+
+- **Verbs follow the operation's nature, by language.** Fiscal/domain operations use Portuguese verbs (`emitir`, `cancelar`, `substituir`, `consultar*`, `gerarDanfse`, `consultarDanfse`). Generic transport reads use the English `fetch*` family (`fetchByChave`, `fetchByNsu`, `fetchDpsStatus`). DANFSe operations are uniformly PT: `gerarDanfse` (produces a PDF, local/online) + `consultarDanfse` (online-only GET) — the old `fetchDanfse` was renamed to remove the PT/EN clash on one noun.
+- **`*Params` vs `*Options`.** `*Params` is the **full input object** for a high-level client method — required fields included (`FetchByNsuParams`, `CancelarParams`, `EmitirParams`). `*Options` is an **optional-only config bag**, typically for a low-level free function (`FetchByNsuOptions`, `EmitOptions`, `EmitLoteOptions`, `ConsultaOptions`). `FetchByNsuParams extends FetchByNsuOptions` is the canonical example: the method bundles the required `ultimoNsu` on top of the optional bag — not drift.
+- **One stem per feature.** Batch emission is the `EmitLote*` stem throughout: method `emitirEmLote`, types `EmitLoteResult` / `EmitLoteItem` / `EmitLoteOptions`. Don't introduce a parallel `EmitMany*` / `Lote*` synonym.
+- **Error word-order is `DpsId`, not `IdDps`.** Matches `buildDpsId`. `InvalidDpsIdError` (invalid `infDPS.Id`), `InvalidDpsIdParamError` (bad `buildDpsId` args), `InvalidEventoPedidoIdParamError` (bad `buildEventoPedidoId` args).
+- **`create*` factories vs `new` for clients.** Pluggable, stateless primitives are built by `create*` factories (`createInMemoryRetryStore`, `createInMemoryDpsCounter`, `createInMemoryParametrosCache`, `createDefaultRetryPolicy`, `createViaCepValidator`) — they return a plain interface impl with no lifecycle. The two clients (`new NfseClient`, `new NfseClientFake`) use `new` deliberately: they own a lifecycle (an mTLS dispatcher + single-shot `close()`), which a factory would obscure. Don't add a `createNfseClient` factory.
+- **Module-local error classes.** Most typed errors live in `src/errors/`, but a few are declared next to the only code that throws them (`ClientClosedError` in `client.ts`, `DpsAlreadySignedError` in `sign-xml.js`, `MissingRetryStoreError`/`MissingDpsCounterError` near their stores). This is an accepted pattern for errors with a single throw site — keep it; don't relocate them to `src/errors/` just for uniformity.
 
 ## Roadmap ordering — why reads came before writes (historical)
 
 - **v0.1 (shipped) = consulta/distribuição only.** A broken read just needs a retry.
 - **v0.2 = emissão síncrona** (write-side). A broken emission can produce invalid fiscal documents in production, so it shipped only after reads, mTLS, cert loading, and error typing were proven.
 
-The ordering was risk management, not schedule. All versions through v0.7 are now shipped — focus until 1.0 is stabilization, not new features. New features warrant explicit scope discussion.
+The ordering was risk management, not schedule. All versions through v0.8 are now shipped — focus until 1.0 is stabilization, not new features. New features warrant explicit scope discussion.
 
 ## Scope fences
 
@@ -145,7 +157,7 @@ Explicitly out of scope — flag if a request pushes into these:
 
 IBS/CBS transition 2026–2033 with annual Notas Técnicas. Workflow when one lands:
 
-1. Download the new XSD bundle, drop in `schemas/rtc-vX.YZ/`.
+1. Download the new XSD bundle, drop in `schemas/X.YZ/` and point `generate-schemas.mjs` at it.
 2. Diff against current schemas — identify new/renamed/changed TCxxx types.
 3. Update `src/nfse/domain.ts` (interfaces), `src/nfse/enums.ts` (any new fixed-value simple types), `src/nfse/parse-xml.ts` (walkers + discriminant branches).
 4. Prefer optional fields over required — additive-friendly types reduce breaking-change blast radius.

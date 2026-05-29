@@ -3,7 +3,7 @@ import { AMBIENTE_ENDPOINTS, type Ambiente } from './ambiente.js';
 import type { CepValidator } from './cep/types.js';
 import { normalizeProvider } from './certificate/provider.js';
 import type { A1Certificate, CertificateInput, CertificateProvider } from './certificate/types.js';
-import { fetchDanfse as fetchDanfseInternal } from './danfse/fetch.js';
+import { consultarDanfse as consultarDanfseInternal } from './danfse/fetch.js';
 import { type GerarDanfseOptions, gerarDanfse as gerarDanfseLocal } from './danfse/gerar.js';
 import { fetchByNsu as fetchByNsuInternal } from './dfe/fetch-by-nsu.js';
 import type { FetchByNsuOptions, NsuQueryResult } from './dfe/types.js';
@@ -27,8 +27,8 @@ import type { NFSe } from './nfse/domain.js';
 import type { DpsCounter } from './nfse/dps-counter.js';
 import {
   type DpsDryRunResult,
+  type EmitLoteOptions,
   type EmitLoteResult,
-  type EmitManyOptions,
   type EmitOptions,
   type EmitirParams,
   type EmitirResult,
@@ -346,10 +346,10 @@ export class NfseClient {
    * para decidir quando re-emitir os itens que falharam (mesmo `nDPS` —
    * SEFIN deduplica via `infDPS.Id`).
    */
-  async emitirEmLote(dpsList: readonly DPS[], options?: EmitManyOptions): Promise<EmitLoteResult> {
+  async emitirEmLote(dpsList: readonly DPS[], options?: EmitLoteOptions): Promise<EmitLoteResult> {
     const state = await this.ensureState();
     const mergedCepValidator = options?.cepValidator ?? this.cepValidator;
-    const merged: EmitManyOptions = {
+    const merged: EmitLoteOptions = {
       ...(options?.concurrency !== undefined ? { concurrency: options.concurrency } : {}),
       ...(options?.stopOnError !== undefined ? { stopOnError: options.stopOnError } : {}),
       ...(options?.skipValidation !== undefined ? { skipValidation: options.skipValidation } : {}),
@@ -412,8 +412,11 @@ export class NfseClient {
    *    o pendente em `retryStore` para replay posterior.
    *  - `'rolled_back'` — emit ok, cancel falhou permanentemente; rollback
    *    cancelou a nova via evento 101101. Nota: audit trail fica fragmentado.
-   *  - `'rollback_pending'` — pior caso, rollback também falhou; o pendente
-   *    de rollback é salvo em `retryStore` para replay.
+   *  - `'rollback_pending'` — rollback também falhou **transitoriamente**; o
+   *    pendente de rollback é salvo em `retryStore` para replay.
+   *  - `'rollback_failed'` — pior caso: rollback falhou **permanentemente**.
+   *    Estado terminal, nada é persistido (RetryStore = só transientes);
+   *    a nova ficou emitida e a original não-cancelada — intervenção manual.
    *
    * Lança direto apenas quando a emissão (step 1) falha — nesse caso nada
    * foi alterado no SEFIN e o caller pode retentar limpo.
@@ -692,13 +695,13 @@ export class NfseClient {
     const strategy = options?.strategy ?? 'auto';
     const state = await this.ensureState();
     if (strategy === 'online') {
-      return fetchDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
+      return consultarDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
     }
     if (strategy === 'local') {
       return gerarDanfseLocal(nfse, options);
     }
     try {
-      return await fetchDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
+      return await consultarDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
     } catch (err) {
       // Só caímos no renderer local quando o ADN está indisponível (rede,
       // timeout, 5xx). Erros de autenticação/autorização/configuração devem
@@ -726,9 +729,9 @@ export class NfseClient {
    * se o PDF veio de fato — erros de rede ou HTTP 4xx/5xx viram exceção.
    * Para fallback automático, use `gerarDanfse(nfse)`.
    */
-  async fetchDanfse(chaveAcesso: string): Promise<Buffer> {
+  async consultarDanfse(chaveAcesso: string): Promise<Buffer> {
     const state = await this.ensureState();
-    return fetchDanfseInternal(state.danfse, chaveAcesso);
+    return consultarDanfseInternal(state.danfse, chaveAcesso);
   }
 
   /**

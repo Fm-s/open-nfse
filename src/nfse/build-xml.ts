@@ -1,4 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
+import { RuleViolationError } from '../errors/validation.js';
 import { ATTR_PREFIX } from '../xml/parser.js';
 import type {
   AtvEvento,
@@ -14,7 +15,6 @@ import type {
   Endereco,
   EnderecoSimples,
   ExigSuspensa,
-  ExploracaoRodoviaria,
   IdentificadorPessoa,
   ImovelIdentificacao,
   InfDPS,
@@ -30,7 +30,6 @@ import type {
   InfoValores,
   ListaDocDedRed,
   LocPrest,
-  LocacaoSublocacao,
   ReferenciaDocDedRed,
   RegTrib,
   RtcDocumentoReferenciado,
@@ -218,10 +217,8 @@ function buildServ(s: Serv): object {
     locPrest: buildLocPrest(s.locPrest),
     cServ: buildCServ(s.cServ),
     ...onlyDefined('comExt', s.comExt && buildComExterior(s.comExt)),
-    ...onlyDefined('lsadppu', s.lsadppu && buildLocacaoSublocacao(s.lsadppu)),
     ...onlyDefined('obra', s.obra && buildInfoObra(s.obra)),
     ...onlyDefined('atvEvento', s.atvEvento && buildAtvEvento(s.atvEvento)),
-    ...onlyDefined('explRod', s.explRod && buildExploracaoRodoviaria(s.explRod)),
     ...onlyDefined('infoCompl', s.infoCompl && buildInfoCompl(s.infoCompl)),
   };
 }
@@ -256,15 +253,6 @@ function buildComExterior(c: ComExterior): object {
   };
 }
 
-function buildLocacaoSublocacao(l: LocacaoSublocacao): object {
-  return {
-    categ: l.categ,
-    objeto: l.objeto,
-    extensao: l.extensao,
-    nPostes: l.nPostes,
-  };
-}
-
 function buildInfoObra(o: InfoObra): object {
   return {
     ...onlyDefined('inscImobFisc', o.inscImobFisc),
@@ -290,18 +278,6 @@ function buildAtvEvento(a: AtvEvento): object {
 function buildAtvEventoIdentificacao(i: AtvEventoIdentificacao): object {
   if ('idAtvEvt' in i) return { idAtvEvt: i.idAtvEvt };
   return { end: buildEnderecoSimples(i.end) };
-}
-
-function buildExploracaoRodoviaria(r: ExploracaoRodoviaria): object {
-  return {
-    categVeic: r.categVeic,
-    nEixos: r.nEixos,
-    rodagem: r.rodagem,
-    sentido: r.sentido,
-    placa: r.placa,
-    codAcessoPed: r.codAcessoPed,
-    codContrato: r.codContrato,
-  };
 }
 
 function buildInfoCompl(i: InfoCompl): object {
@@ -463,7 +439,7 @@ function buildTribTotalPercent(p: TribTotalPercent): object {
 function buildRtcInfoIbsCbs(r: RtcInfoIbsCbs): object {
   return {
     finNFSe: r.finNFSe,
-    indFinal: r.indFinal,
+    ...onlyDefined('indFinal', r.indFinal),
     cIndOp: r.cIndOp,
     ...onlyDefined('tpOper', r.tpOper),
     ...onlyDefined('gRefNFSe', r.gRefNFSe && buildInfoRefNFSe(r.gRefNFSe)),
@@ -617,9 +593,18 @@ function formatDate(d: Date): string {
 
 /**
  * Formats a decimal per RTC v1.01 TSDec*V2 pattern: either the integer form
- * (`"0"`, `"42"`) or exactly two fraction digits (`"0.50"`, `"51.60"`).
+ * (`"0"`, `"42"`) or exactly two fraction digits (`"0.50"`, `"51.60"`). Os
+ * patterns TSDec*V2 são **não-negativos e sem notação científica**; valores
+ * negativos, `NaN`/`Infinity` ou ≥ 1e21 (que `toString()` emitiria como
+ * `"1e+21"`) são rejeitados aqui com erro claro em vez de virar XML inválido.
  */
 function formatDecimal(n: number): string {
+  if (!Number.isFinite(n) || n < 0 || n >= 1e21) {
+    throw new RuleViolationError(
+      `valor decimal inválido para o XML: ${n} — esperado número finito, não-negativo e < 1e21 (TSDec*V2)`,
+      'TSDec',
+    );
+  }
   if (Number.isInteger(n)) return n.toString();
   return n.toFixed(2);
 }

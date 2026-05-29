@@ -169,7 +169,6 @@ CREATE TABLE nfse_pending_events (
   chave_nfse           CHAR(50),
   chave_substituta     CHAR(50),
   tipo_evento          VARCHAR(10),
-  n_ped_reg_evento     VARCHAR(3),
   c_motivo             VARCHAR(2),
   x_motivo             TEXT,
   -- comum:
@@ -225,7 +224,7 @@ const pgStore: RetryStore = {
     const row = isPendingEmission(e)
       ? { ...common, id_dps: e.idDps, emitente_cnpj: e.emitenteCnpj, serie: e.serie, ndps: e.nDPS }
       : { ...common, chave_nfse: e.chaveNfse, chave_substituta: e.chaveSubstituta ?? null,
-          tipo_evento: e.tipoEvento, n_ped_reg_evento: e.nPedRegEvento,
+          tipo_evento: e.tipoEvento,
           c_motivo: e.cMotivo, x_motivo: e.xMotivo ?? null };
     await db.insertOrUpdate('nfse_pending_events', row, { onConflict: 'id' });
   },
@@ -326,7 +325,7 @@ Nunca disparam em operação normal. Se dispararem, investigue a infra entre seu
 
 1. Cert de Produção Restrita habilitado para o CNPJ.
 2. `examples/emit-nfse/` como smoke test.
-3. Cenários: emissão normal, rejeição por CNPJ inválido, timeout simulado, NSU com paginação real, `substituir` cobrindo os 4 estados.
+3. Cenários: emissão normal, rejeição por CNPJ inválido, timeout simulado, NSU com paginação real, `substituir` cobrindo os 5 estados.
 4. Só vá para `Ambiente.Producao` depois do ciclo completo em homologação — cada nota em produção é documento fiscal oficial.
 
 Signatures e parâmetros exatos: [API cheat sheet](../api-cheatsheet) · [API completa (TypeDoc)](../api/).

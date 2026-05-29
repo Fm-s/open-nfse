@@ -116,12 +116,24 @@ export function createInMemoryRetryStore(): RetryStore {
 }
 
 /**
- * Id estável para evento (cancelamento/substituição). Após Anexo II
- * SEFIN_ADN v1.00-20251226 a SEFIN deduplica por `(chave + tipoEvento)`
- * — o antigo `nPedRegEvento` foi removido do payload.
+ * Id estável para evento (cancelamento/substituição). Inclui `kind` para
+ * que operações distintas sobre a **mesma** NFS-e e tipo de evento não
+ * colidam no store: um cancelamento manual (`cancelamento_simples`) e um
+ * rollback automático de substituição (`rollback_cancelamento`) compartilham
+ * `chaveNfse` + `tipoEvento` `101101`, mas carregam XML assinado / `xMotivo`
+ * distintos. Sem o `kind` na chave, o `save` (last-writer-wins) descartaria
+ * silenciosamente um dos dois e o replay só veria o sobrevivente.
+ *
+ * Observação: a SEFIN deduplica server-side por `(chave, tipoEvento)` (Anexo
+ * II SEFIN_ADN v1.00-20251226, sem `nPedRegEvento`); a chave do store é
+ * intencionalmente mais granular para preservar ambos os pendentes locais.
  */
-export function pendingEventId(chaveNfse: string, tipoEvento: string): string {
-  return `${chaveNfse}:${tipoEvento}`;
+export function pendingEventId(
+  chaveNfse: string,
+  tipoEvento: string,
+  kind: Exclude<PendingEventKind, 'emission'>,
+): string {
+  return `${chaveNfse}:${tipoEvento}:${kind}`;
 }
 
 /** Id estável para emissão. O `idDps` já é único por natureza. */

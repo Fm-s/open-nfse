@@ -2,7 +2,7 @@
 
 Duas formas de obter o DANFSe (Documento Auxiliar da NFS-e) em PDF:
 
-1. **Online** — baixa o PDF oficial direto do ADN (`GET /danfse/{chave}`).
+1. **Online** — baixa o PDF oficial direto do ADN (`GET /{chaveAcesso}` no host DANFSe, `endpoints.danfse`).
 2. **Local** — renderiza com `pdfkit` + QR code, sem network.
 
 A lib oferece ambas e um **modo auto** que tenta online e cai pro local em falha — o padrão que você quer em produção.
@@ -18,7 +18,7 @@ if (r.status === 'ok') {
 ```
 
 Ordem de tentativa:
-1. `GET /danfse/{chave}` no ADN oficial
+1. `GET /{chaveAcesso}` no host DANFSe do ADN (`endpoints.danfse`)
 2. **Apenas falhas transientes** (`NetworkError`, `TimeoutError`, `ServerError`/5xx) → cai no renderer local
 3. Log `danfse.online.fallback` no logger configurado para rastreabilidade
 
@@ -49,13 +49,13 @@ await cliente.gerarDanfse(nfse, {
 
 No modo `online` essas opções são ignoradas — a Receita usa o template próprio dela.
 
-## `cliente.fetchDanfse(chave)` — só online
+## `cliente.consultarDanfse(chave)` — só online
 
 Quando você só tem a chave (sem o objeto `NFSe`), ou quer garantir que é o PDF oficial:
 
 ```typescript
 try {
-  const pdf = await cliente.fetchDanfse('21113002200574753000100000000000146726037032711025');
+  const pdf = await cliente.consultarDanfse('21113002200574753000100000000000146726037032711025');
   await fs.writeFile('nfse.pdf', pdf);
 } catch (err) {
   if (err instanceof InvalidChaveAcessoError) console.error('Chave com formato inválido');
@@ -68,7 +68,7 @@ try {
 Sem fallback — erros lançam. Use quando quiser falhar alto.
 
 ::: tip Validação upfront
-`fetchDanfse` valida `/^\d{50}$/` antes de tocar a rede e lança `InvalidChaveAcessoError` se a chave estiver fora do formato — mesmo comportamento de `fetchByChave`. Protege contra round-trips desperdiçados e input injection via URL.
+`consultarDanfse` valida `/^\d{50}$/` antes de tocar a rede e lança `InvalidChaveAcessoError` se a chave estiver fora do formato — mesmo comportamento de `fetchByChave`. Protege contra round-trips desperdiçados e input injection via URL.
 :::
 
 ## `gerarDanfse(nfse)` standalone — função pura

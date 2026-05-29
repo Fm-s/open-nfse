@@ -1,4 +1,4 @@
-export { Ambiente, TipoAmbiente } from './ambiente.js';
+export { Ambiente, AMBIENTE_ENDPOINTS, TipoAmbiente } from './ambiente.js';
 export type { AmbienteEndpoints } from './ambiente.js';
 
 export { noopLogger } from './logging.js';
@@ -8,6 +8,7 @@ export { ClientClosedError, NfseClient } from './client.js';
 export type { EmitenteConfig, FetchByNsuParams, NfseClientConfig } from './client.js';
 
 export { providerFromFile } from './certificate/provider.js';
+export { parsePfx } from './certificate/parse.js';
 export type {
   A1Certificate,
   CertificateInput,
@@ -50,7 +51,7 @@ export {
   InvalidChaveAcessoError,
   InvalidCnpjError,
   InvalidCpfError,
-  InvalidIdDpsError,
+  InvalidDpsIdError,
   InvalidXmlError,
   RuleViolationError,
   ValidationError,
@@ -82,7 +83,6 @@ export type {
   EnderObraEvento,
   EnderObraEventoLocalidade,
   ExigSuspensa,
-  ExploracaoRodoviaria,
   IdentificadorPessoa,
   ImovelIdentificacao,
   InfDPS,
@@ -98,7 +98,6 @@ export type {
   InfoTributacao,
   InfoValores,
   ListaDocDedRed,
-  LocacaoSublocacao,
   LocPrest,
   NFSe,
   ReferenciaDocDedRed,
@@ -172,12 +171,15 @@ export {
   RegimeEspecialTributacao,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
+  TipoChaveDFe,
   TipoDedRed,
   TipoEmissao,
   TipoEmitenteDps,
+  TipoEnteGovernamental,
   TipoExigSuspensa,
   TipoImunidadeISSQN,
   TipoOperacao,
+  TipoReembolsoRepasse,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -284,7 +286,7 @@ export type { ConsultaOptions } from './parametros-municipais/fetch.js';
 // v0.7 — DANFSe PDF
 export { gerarDanfse } from './danfse/gerar.js';
 export type { GerarDanfseOptions } from './danfse/gerar.js';
-export { fetchDanfse } from './danfse/fetch.js';
+export { consultarDanfse } from './danfse/fetch.js';
 export type {
   Aliquota,
   Beneficio,
@@ -342,7 +344,7 @@ export type {
   DpsDryRunResult,
   EmitLoteItem,
   EmitLoteResult,
-  EmitManyOptions,
+  EmitLoteOptions,
   EmitOptions,
   EmitirParams,
   EmitirResult,

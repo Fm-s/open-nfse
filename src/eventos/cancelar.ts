@@ -157,6 +157,19 @@ export type SubstituirResult =
       readonly cancelamentoError: Error;
       readonly rollbackError: Error;
       readonly pendingRollback: PendingEvent;
+    }
+  | {
+      /**
+       * Rollback falhou **permanentemente** (erro não-transiente). Não há o
+       * que retentar, então nada é persistido no `RetryStore` (mantém o modelo
+       * "RetryStore = transientes"). Estado terminal que exige intervenção
+       * manual: a NFS-e nova foi emitida, a original **não** foi cancelada, e o
+       * cancelamento da nova também foi rejeitado em definitivo.
+       */
+      readonly status: 'rollback_failed';
+      readonly novaNfse: NfseEmitResult;
+      readonly cancelamentoError: Error;
+      readonly rollbackError: Error;
     };
 
 export async function substituir(
@@ -269,6 +282,17 @@ export async function substituir(
     rollbackErr = toError(err);
   }
 
+  // Rollback permanentemente rejeitado → estado terminal, não persiste.
+  // Gating idêntico aos demais write paths (RetryStore = só transientes).
+  if (!isTransient(rollbackErr)) {
+    return {
+      status: 'rollback_failed',
+      novaNfse,
+      cancelamentoError: cancelamentoErr,
+      rollbackError: rollbackErr,
+    };
+  }
+
   const nowRollback = new Date();
   const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, nowRollback, {
     attempt: 1,
@@ -282,7 +306,7 @@ export async function substituir(
     xMotivo: `Rollback de substituição — chave original ${params.chaveOriginal}`,
     xmlAssinado: xmlRollbackAssinado,
     error: rollbackErr,
-    transient: isTransient(rollbackErr),
+    transient: true,
     now: nowRollback,
     ...(notBeforeRollback ? { notBefore: notBeforeRollback } : {}),
   });
@@ -353,7 +377,7 @@ interface PendingEventFactoryInput {
 
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
   return {
-    id: pendingEventId(input.chaveNfse, input.tipoEvento),
+    id: pendingEventId(input.chaveNfse, input.tipoEvento, input.kind),
     kind: input.kind,
     chaveNfse: input.chaveNfse,
     ...(input.chaveSubstituta ? { chaveSubstituta: input.chaveSubstituta } : {}),

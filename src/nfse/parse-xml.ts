@@ -19,7 +19,6 @@ import type {
   EnderecoSimples,
   EnderecoSimplesLocalidade,
   ExigSuspensa,
-  ExploracaoRodoviaria,
   IdentificadorPessoa,
   ImovelIdentificacao,
   InfDPS,
@@ -36,7 +35,6 @@ import type {
   InfoValores,
   ListaDocDedRed,
   LocPrest,
-  LocacaoSublocacao,
   NFSe,
   ReferenciaDocDedRed,
   RegTrib,
@@ -94,19 +92,21 @@ import type {
   ModoPrestacao,
   MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
-  ObjetoLocacao,
   OpcaoSimplesNacional,
   ProcessoEmissao,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
+  TipoChaveDFe,
   TipoDedRed,
   TipoEmissao,
   TipoEmitenteDps,
+  TipoEnteGovernamental,
   TipoExigSuspensa,
   TipoImunidadeISSQN,
   TipoOperacao,
+  TipoReembolsoRepasse,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -158,6 +158,7 @@ function parseInfNFSe(node: XmlObject): InfNFSe {
     nDFSe: requireText(node, 'nDFSe'),
     emit: parseEmitente(requireChild(node, 'emit')),
     valores: parseValoresNFSe(requireChild(node, 'valores')),
+    ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
     ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcIbsCbs)),
     DPS: parseDPS(requireChild(node, 'DPS')),
   };
@@ -197,7 +198,6 @@ function parseValoresNFSe(node: XmlObject): ValoresNFSe {
     ...optionalAssign('vISSQN', optionalNumber(node, 'vISSQN')),
     ...optionalAssign('vTotalRet', optionalNumber(node, 'vTotalRet')),
     vLiq: coerceNumber(requireText(node, 'vLiq')),
-    ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
   };
 }
 
@@ -247,11 +247,14 @@ function parseSubstituicao(node: XmlObject): Substituicao {
 function parseRtcInfoIbsCbs(node: XmlObject): RtcInfoIbsCbs {
   return {
     finNFSe: requireText(node, 'finNFSe') as FinalidadeNFSe,
-    indFinal: requireText(node, 'indFinal') as IndicadorFinal,
+    ...optionalAssign('indFinal', optionalText(node, 'indFinal') as IndicadorFinal | undefined),
     cIndOp: requireText(node, 'cIndOp'),
     ...optionalAssign('tpOper', optionalText(node, 'tpOper') as TipoOperacao | undefined),
     ...optionalAssign('gRefNFSe', mapIfPresent(optionalChild(node, 'gRefNFSe'), parseInfoRefNFSe)),
-    ...optionalAssign('tpEnteGov', optionalText(node, 'tpEnteGov')),
+    ...optionalAssign(
+      'tpEnteGov',
+      optionalText(node, 'tpEnteGov') as TipoEnteGovernamental | undefined,
+    ),
     indDest: requireText(node, 'indDest'),
     ...optionalAssign('dest', mapIfPresent(optionalChild(node, 'dest'), parseRtcInfoDest)),
     ...optionalAssign('imovel', mapIfPresent(optionalChild(node, 'imovel'), parseRtcInfoImovel)),
@@ -321,7 +324,7 @@ function parseRtcListaDoc(node: XmlObject): RtcListaDoc {
     ),
     dtEmiDoc: coerceDate(requireText(node, 'dtEmiDoc')),
     dtCompDoc: coerceDate(requireText(node, 'dtCompDoc')),
-    tpReeRepRes: requireText(node, 'tpReeRepRes'),
+    tpReeRepRes: requireText(node, 'tpReeRepRes') as TipoReembolsoRepasse,
     ...optionalAssign('xTpReeRepRes', optionalText(node, 'xTpReeRepRes')),
     vlrReeRepRes: coerceNumber(requireText(node, 'vlrReeRepRes')),
   };
@@ -339,7 +342,7 @@ function parseRtcDocumentoReferenciado(node: XmlObject): RtcDocumentoReferenciad
 
 function parseRtcListaDocDFe(node: XmlObject): RtcListaDocDFe {
   return {
-    tipoChaveDFe: requireText(node, 'tipoChaveDFe'),
+    tipoChaveDFe: requireText(node, 'tipoChaveDFe') as TipoChaveDFe,
     ...optionalAssign('xTipoChaveDFe', optionalText(node, 'xTipoChaveDFe')),
     chaveDFe: requireText(node, 'chaveDFe'),
   };
@@ -468,16 +471,8 @@ function parseServ(node: XmlObject): Serv {
     locPrest: parseLocPrest(requireChild(node, 'locPrest')),
     cServ: parseCServ(requireChild(node, 'cServ')),
     ...optionalAssign('comExt', mapIfPresent(optionalChild(node, 'comExt'), parseComExterior)),
-    ...optionalAssign(
-      'lsadppu',
-      mapIfPresent(optionalChild(node, 'lsadppu'), parseLocacaoSublocacao),
-    ),
     ...optionalAssign('obra', mapIfPresent(optionalChild(node, 'obra'), parseInfoObra)),
     ...optionalAssign('atvEvento', mapIfPresent(optionalChild(node, 'atvEvento'), parseAtvEvento)),
-    ...optionalAssign(
-      'explRod',
-      mapIfPresent(optionalChild(node, 'explRod'), parseExploracaoRodoviaria),
-    ),
     ...optionalAssign('infoCompl', mapIfPresent(optionalChild(node, 'infoCompl'), parseInfoCompl)),
   };
 }
@@ -494,27 +489,6 @@ function parseComExterior(node: XmlObject): ComExterior {
     ...optionalAssign('nDI', optionalText(node, 'nDI')),
     ...optionalAssign('nRE', optionalText(node, 'nRE')),
     mdic: requireText(node, 'mdic') as EnvioMDIC,
-  };
-}
-
-function parseExploracaoRodoviaria(node: XmlObject): ExploracaoRodoviaria {
-  return {
-    categVeic: requireText(node, 'categVeic'),
-    nEixos: requireText(node, 'nEixos'),
-    rodagem: requireText(node, 'rodagem'),
-    sentido: requireText(node, 'sentido'),
-    placa: requireText(node, 'placa'),
-    codAcessoPed: requireText(node, 'codAcessoPed'),
-    codContrato: requireText(node, 'codContrato'),
-  };
-}
-
-function parseLocacaoSublocacao(node: XmlObject): LocacaoSublocacao {
-  return {
-    categ: requireText(node, 'categ'),
-    objeto: requireText(node, 'objeto') as ObjetoLocacao,
-    extensao: requireText(node, 'extensao'),
-    nPostes: requireText(node, 'nPostes'),
   };
 }
 
@@ -815,7 +789,7 @@ function parseRtcIbsCbs(node: XmlObject): RtcIbsCbs {
   return {
     cLocalidadeIncid: requireText(node, 'cLocalidadeIncid'),
     xLocalidadeIncid: requireText(node, 'xLocalidadeIncid'),
-    pRedutor: coerceNumber(requireText(node, 'pRedutor')),
+    ...optionalAssign('pRedutor', optionalNumber(node, 'pRedutor')),
     valores: parseRtcValoresIbsCbs(requireChild(node, 'valores')),
     totCIBS: parseRtcTotalCIbs(requireChild(node, 'totCIBS')),
   };
@@ -892,14 +866,14 @@ function parseRtcTotalIbsCredPres(node: XmlObject): RtcTotalIbsCredPres {
 
 function parseRtcTotalIbsUF(node: XmlObject): RtcTotalIbsUF {
   return {
-    vDifUF: coerceNumber(requireText(node, 'vDifUF')),
+    ...optionalAssign('vDifUF', optionalNumber(node, 'vDifUF')),
     vIBSUF: coerceNumber(requireText(node, 'vIBSUF')),
   };
 }
 
 function parseRtcTotalIbsMun(node: XmlObject): RtcTotalIbsMun {
   return {
-    vDifMun: coerceNumber(requireText(node, 'vDifMun')),
+    ...optionalAssign('vDifMun', optionalNumber(node, 'vDifMun')),
     vIBSMun: coerceNumber(requireText(node, 'vIBSMun')),
   };
 }
@@ -910,7 +884,7 @@ function parseRtcTotalCbs(node: XmlObject): RtcTotalCbs {
       'gCBSCredPres',
       mapIfPresent(optionalChild(node, 'gCBSCredPres'), parseRtcTotalCbsCredPres),
     ),
-    vDifCBS: coerceNumber(requireText(node, 'vDifCBS')),
+    ...optionalAssign('vDifCBS', optionalNumber(node, 'vDifCBS')),
     vCBS: coerceNumber(requireText(node, 'vCBS')),
   };
 }

@@ -22,7 +22,7 @@ const r = await cliente.cancelar({
 });
 ```
 
-`nPedRegEvento` default é `'1'` — **determinístico por design**, para que retries caiam no dedup do SEFIN em vez de criar eventos duplicados.
+Eventos deduplicam server-side por `(chave, tipoEvento)` — **determinístico por design**, para que retries caiam no dedup do SEFIN em vez de criar eventos duplicados.
 
 ### 2. Lidando com cada resultado
 
@@ -55,7 +55,7 @@ try {
 } catch (err) {
   if (err instanceof ReceitaRejectionError) {
     // Permanente. Típico: E8001 (prazo expirado), E8xxx (regra municipal),
-    // E1xxx (nPedRegEvento duplicado).
+    // E1xxx (evento duplicado).
     logger.error('cancel rejeitado', { codigo: err.codigo, descricao: err.descricao });
     return;
   }
@@ -63,12 +63,12 @@ try {
 }
 ```
 
-## `substituir` — máquina de 4 estados
+## `substituir` — máquina de 5 estados
 
 Substituir é **emitir nova (com `<subst>` apontando para a original) + cancelar a original via 105102**. O XSD força essa ordem: `e105102` exige a `<chSubstituta>` da nova, que só existe após o emit.
 
 ::: warning Janela de inconsistência
-Entre emit e cancel há ~1-3 s em que **ambas as notas estão válidas**. A lib cobre a janela com rollback automático ou persistência para retry — um dos 4 estados abaixo.
+Entre emit e cancel há ~1-3 s em que **ambas as notas estão válidas**. A lib cobre a janela com rollback automático ou persistência para retry — um dos 5 estados abaixo.
 :::
 
 ### 1. Fluxo
@@ -81,7 +81,8 @@ emit novaDps (com subst preenchido)
    ├─ transient     → 'retry_pending'      ← cron retoma depois
    └─ permanente    → rollback nova via 101101
       ├─ ok         → 'rolled_back'        ← audit trail fragmentado, mas consistente
-      └─ transient  → 'rollback_pending'   ← pior caso, requer atenção
+      ├─ transient  → 'rollback_pending'   ← persistido no store; cron retoma
+      └─ permanente → 'rollback_failed'    ← pior caso terminal, intervenção manual
 ```
 
 ### 2. Chamada básica
@@ -148,7 +149,7 @@ try {
       break;
 
     case 'rollback_pending':
-      // Pior caso: nova válida, original válida, rollback transiente falhou.
+      // Nova válida, original válida, rollback transiente falhou.
       // Requer atenção humana eventualmente; cron retoma o rollback.
       logger.error('substituir inconsistente', {
         cancel: r.cancelamentoError.message,
@@ -156,6 +157,20 @@ try {
         pendente: r.pendingRollback.id,
       });
       alerts.send('Substituição pendente de rollback — duas notas válidas temporariamente', {
+        chaveOriginal,
+        chaveNova: r.novaNfse.chaveAcesso,
+      });
+      break;
+
+    case 'rollback_failed':
+      // Pior caso terminal: rollback falhou PERMANENTEMENTE. Nada foi
+      // persistido (RetryStore só guarda transientes) — não há replay que
+      // resolva. Nova válida + original válida → intervenção manual imediata.
+      logger.error('substituir rollback definitivamente falhou', {
+        cancel: r.cancelamentoError.message,
+        rollback: r.rollbackError.message,
+      });
+      alerts.send('Substituição requer intervenção manual — duas notas válidas e rollback rejeitado', {
         chaveOriginal,
         chaveNova: r.novaNfse.chaveAcesso,
       });
@@ -177,7 +192,8 @@ try {
 | `ok`                | Não                 | Persistir; done                                       |
 | `retry_pending`     | Sim (~minutos)      | Log; cron fecha                                       |
 | `rolled_back`       | Não (nova cancelada)| Persistir pair; revisar motivo — original intocada    |
-| `rollback_pending`  | Sim (indeterminado) | Alerta humano; cron tenta; pode virar `rolled_back` ou `failed_permanent` depois |
+| `rollback_pending`  | Sim (indeterminado) | Alerta humano; cron tenta o rollback transiente       |
+| `rollback_failed`   | Sim (terminal)      | Intervenção manual — rollback rejeitado em definitivo, nada persistido |
 
 ## Cron de replay
 
@@ -214,7 +230,7 @@ for (const item of items) {
 
 Idempotência é garantida pelo dedup server-side da Sefin:
 - **Emissões** deduplicam via `infDPS.Id` (45 chars, único por CNPJ+série+nDPS).
-- **Eventos** deduplicam via `(chave, tipoEvento, nPedRegEvento)` — `nPedRegEvento` default `'001'` é determinístico.
+- **Eventos** deduplicam via `(chave, tipoEvento)` — determinístico por NFS-e e tipo de evento.
 
 Re-POSTar o mesmo payload nunca cria duplicata: a Receita retorna o mesmo evento autorizado ou uma rejeição de duplicata reconhecível.
 
@@ -246,7 +262,7 @@ Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de c
 1. **Prazo é parametrizado pelo município** (rule E0050 para substituição, E0822 para cancelamento). Cada município define sua janela (24 h, 30 d, 180 d…) e a Receita retorna `E8001` ao expirar. Para checagem prévia, consulte via `consultarAliquota` / `consultarBeneficio` (guia [Parâmetros municipais](./parametros)).
 2. **Estado da NFS-e** — já cancelada, já substituída, ou com eventos bloqueantes → rejeição upfront.
 3. **Chain check em `substituir`** — se a original já foi cancelada, o emit da nova falha upfront no `subst.chSubstda`. Sem dangling state.
-4. **Dedup server-side** — SEFIN rejeita `{chave, tipoEvento, nPedRegEvento}` duplicado com código específico; retry nunca cria evento fantasma.
+4. **Dedup server-side** — SEFIN rejeita `{chave, tipoEvento}` duplicado com código específico; retry nunca cria evento fantasma.
 5. **`cMotivo=99` exige `xMotivo`** (rule E0078 do Anexo I). A lib faz o pré-check local e lança `RuleViolationError` antes do wire — evita consumir `nDPS` num emit que seria rejeitado.
 
 ### Classificação de erros transientes

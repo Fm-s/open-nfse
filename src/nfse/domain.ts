@@ -10,19 +10,21 @@ import type {
   ModoPrestacao,
   MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
-  ObjetoLocacao,
   OpcaoSimplesNacional,
   ProcessoEmissao,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
+  TipoChaveDFe,
   TipoDedRed,
   TipoEmissao,
   TipoEmitenteDps,
+  TipoEnteGovernamental,
   TipoExigSuspensa,
   TipoImunidadeISSQN,
   TipoOperacao,
+  TipoReembolsoRepasse,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -158,23 +160,6 @@ export interface ComExterior {
   readonly mdic: EnvioMDIC;
 }
 
-export interface ExploracaoRodoviaria {
-  readonly categVeic: string;
-  readonly nEixos: string;
-  readonly rodagem: string;
-  readonly sentido: string;
-  readonly placa: string;
-  readonly codAcessoPed: string;
-  readonly codContrato: string;
-}
-
-export interface LocacaoSublocacao {
-  readonly categ: string;
-  readonly objeto: ObjetoLocacao;
-  readonly extensao: string;
-  readonly nPostes: string;
-}
-
 export type AtvEventoIdentificacao =
   | { readonly idAtvEvt: string }
   | { readonly end: EnderecoSimples };
@@ -212,10 +197,8 @@ export interface Serv {
   readonly locPrest: LocPrest;
   readonly cServ: CServ;
   readonly comExt?: ComExterior;
-  readonly lsadppu?: LocacaoSublocacao;
   readonly obra?: InfoObra;
   readonly atvEvento?: AtvEvento;
-  readonly explRod?: ExploracaoRodoviaria;
   readonly infoCompl?: InfoCompl;
 }
 
@@ -368,12 +351,14 @@ export interface RtcTotalIbsCredPres {
 }
 
 export interface RtcTotalIbsUF {
-  readonly vDifUF: number;
+  /** `minOccurs="0"` — só presente quando há diferimento estadual. */
+  readonly vDifUF?: number;
   readonly vIBSUF: number;
 }
 
 export interface RtcTotalIbsMun {
-  readonly vDifMun: number;
+  /** `minOccurs="0"` — só presente quando há diferimento municipal. */
+  readonly vDifMun?: number;
   readonly vIBSMun: number;
 }
 
@@ -391,7 +376,8 @@ export interface RtcTotalCbsCredPres {
 
 export interface RtcTotalCbs {
   readonly gCBSCredPres?: RtcTotalCbsCredPres;
-  readonly vDifCBS: number;
+  /** `minOccurs="0"` — só presente quando há diferimento da CBS. */
+  readonly vDifCBS?: number;
   readonly vCBS: number;
 }
 
@@ -424,7 +410,8 @@ export interface RtcTotalCIbs {
 export interface RtcIbsCbs {
   readonly cLocalidadeIncid: string;
   readonly xLocalidadeIncid: string;
-  readonly pRedutor: number;
+  /** `minOccurs="0"` — só preenchido em compra governamental. */
+  readonly pRedutor?: number;
   readonly valores: RtcValoresIbsCbs;
   readonly totCIBS: RtcTotalCIbs;
 }
@@ -455,7 +442,7 @@ export interface RtcInfoImovel {
 }
 
 export interface RtcListaDocDFe {
-  readonly tipoChaveDFe: string;
+  readonly tipoChaveDFe: TipoChaveDFe;
   readonly xTipoChaveDFe?: string;
   readonly chaveDFe: string;
 }
@@ -486,7 +473,7 @@ export interface RtcListaDoc {
   readonly fornec?: RtcListaDocFornec;
   readonly dtEmiDoc: Date;
   readonly dtCompDoc: Date;
-  readonly tpReeRepRes: string;
+  readonly tpReeRepRes: TipoReembolsoRepasse;
   readonly xTpReeRepRes?: string;
   readonly vlrReeRepRes: number;
 }
@@ -542,11 +529,12 @@ export interface RtcInfoValoresIbsCbs {
 
 export interface RtcInfoIbsCbs {
   readonly finNFSe: FinalidadeNFSe;
-  readonly indFinal: IndicadorFinal;
+  /** `minOccurs="0"` no XSD — não force o preenchimento. */
+  readonly indFinal?: IndicadorFinal;
   readonly cIndOp: string;
   readonly tpOper?: TipoOperacao;
   readonly gRefNFSe?: InfoRefNFSe;
-  readonly tpEnteGov?: string;
+  readonly tpEnteGov?: TipoEnteGovernamental;
   readonly indDest: string;
   readonly dest?: RtcInfoDest;
   readonly imovel?: RtcInfoImovel;
@@ -596,7 +584,6 @@ export interface ValoresNFSe {
   readonly vISSQN?: number;
   readonly vTotalRet?: number;
   readonly vLiq: number;
-  readonly xOutInf?: string;
 }
 
 export interface InfNFSe {
@@ -619,6 +606,8 @@ export interface InfNFSe {
   readonly nDFSe: string;
   readonly emit: Emitente;
   readonly valores: ValoresNFSe;
+  /** `TCInfNFSe/xOutInf` (`minOccurs="0"`) — uso da Adm. Tributária Municipal. */
+  readonly xOutInf?: string;
   readonly IBSCBS?: RtcIbsCbs;
   readonly DPS: DPS;
 }

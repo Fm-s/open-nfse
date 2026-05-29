@@ -55,17 +55,27 @@ describe('createInMemoryRetryStore', () => {
 
 describe('pendingEventId', () => {
   it('is deterministic for the same inputs', () => {
-    const a = pendingEventId(CHAVE, '105102');
-    const b = pendingEventId(CHAVE, '105102');
+    const a = pendingEventId(CHAVE, '105102', 'cancelamento_por_substituicao');
+    const b = pendingEventId(CHAVE, '105102', 'cancelamento_por_substituicao');
     expect(a).toBe(b);
   });
 
   it('differs when any part changes', () => {
-    const base = pendingEventId(CHAVE, '105102');
-    expect(pendingEventId(CHAVE, '101101')).not.toBe(base);
-    expect(pendingEventId('99999999999999999999999999999999999999999999999999', '105102')).not.toBe(
-      base,
-    );
+    const base = pendingEventId(CHAVE, '105102', 'cancelamento_por_substituicao');
+    expect(pendingEventId(CHAVE, '101101', 'cancelamento_por_substituicao')).not.toBe(base);
+    expect(
+      pendingEventId(
+        '99999999999999999999999999999999999999999999999999',
+        '105102',
+        'cancelamento_por_substituicao',
+      ),
+    ).not.toBe(base);
+  });
+
+  it('differs by kind for the same NFS-e + tipoEvento (no silent collision)', () => {
+    const manual = pendingEventId(CHAVE, '101101', 'cancelamento_simples');
+    const rollback = pendingEventId(CHAVE, '101101', 'rollback_cancelamento');
+    expect(manual).not.toBe(rollback);
   });
 });
 

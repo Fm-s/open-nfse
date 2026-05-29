@@ -1,6 +1,6 @@
 import { TipoAmbiente } from '../ambiente.js';
 import { NotFoundError } from '../errors/http.js';
-import { InvalidIdDpsError } from '../errors/validation.js';
+import { InvalidDpsIdError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 
 /**
@@ -41,7 +41,7 @@ export async function fetchDpsStatus(
   idDps: string,
 ): Promise<DpsStatusResult> {
   if (!REGEX_DPS_ID.test(idDps)) {
-    throw new InvalidIdDpsError(idDps);
+    throw new InvalidDpsIdError(idDps);
   }
   const raw = await httpClient.get<SefinDpsGetResponse>(`/dps/${idDps}`);
   return {
@@ -60,7 +60,7 @@ export async function fetchDpsStatus(
  */
 export async function existsDpsStatus(httpClient: HttpClient, idDps: string): Promise<boolean> {
   if (!REGEX_DPS_ID.test(idDps)) {
-    throw new InvalidIdDpsError(idDps);
+    throw new InvalidDpsIdError(idDps);
   }
   try {
     await httpClient.head(`/dps/${idDps}`);

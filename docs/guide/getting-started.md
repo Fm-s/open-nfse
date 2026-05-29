@@ -138,6 +138,7 @@ O `NfseClient` é de vida única. Após `close()`, qualquer chamada subsequente 
 Para KMS, Vault, ou qualquer outra origem, implemente `CertificateProvider`:
 
 ```typescript
+import { parsePfx } from 'open-nfse';
 import type { CertificateProvider } from 'open-nfse';
 
 const provider: CertificateProvider = {
@@ -180,7 +181,7 @@ Eventos emitidos: `http.request`, `http.response` com `method`, `url`, `status`,
 
 - [Consultar NFS-e](./consultar) — fetch por chave + distribuição por NSU
 - [Emitir NFS-e](./emitir) — `emitir(params)` com counter + retry store
-- [Substituir e cancelar](./substituir-cancelar) — eventos com máquina de 4 estados
+- [Substituir e cancelar](./substituir-cancelar) — eventos com máquina de 5 estados
 - [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio etc.
 - [DANFSe (PDF)](./danfse) — online com fallback local
 - [Testando com o fake](./testing) — `NfseClientFake`

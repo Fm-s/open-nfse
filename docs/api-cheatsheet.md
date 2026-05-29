@@ -23,7 +23,7 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 |-----------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | `emitir`              | `(params: EmitirParams) → EmitirResult \| DpsDryRunResult`                                          | Counter após validação; transiente → `retry_pending`; permanente → throw |
 | `emitirDpsPronta`     | `(dps: DPS, options?: EmitOptions) → NfseEmitResult \| DpsDryRunResult`                             | Escape hatch: sem counter, sem retry store, throw em tudo      |
-| `emitirEmLote`        | `(dpsList: readonly DPS[], options?: EmitManyOptions) → EmitLoteResult`                             | Worker pool client-side; `stopOnError` opcional                |
+| `emitirEmLote`        | `(dpsList: readonly DPS[], options?: EmitLoteOptions) → EmitLoteResult`                             | Worker pool client-side; `stopOnError` opcional                |
 
 #### Eventos
 | Método                | Assinatura                                          | Comportamento                                                  |
@@ -49,9 +49,9 @@ Todas aceitam `options?: ConsultaOptions` e retornam `Consulta*Result`.
 | Método                | Assinatura                                                                                         |
 |-----------------------|----------------------------------------------------------------------------------------------------|
 | `gerarDanfse`         | `(nfse: NFSe, options?: GerarDanfseOptions & { strategy?: 'auto' \| 'online' \| 'local' }) → Buffer` |
-| `fetchDanfse`         | `(chaveAcesso: string) → Buffer`                                                                   |
+| `consultarDanfse`         | `(chaveAcesso: string) → Buffer`                                                                   |
 
-`'auto'` (default) tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `fetchDanfse` valida `/^\d{50}$/` upfront.
+`'auto'` (default) tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `consultarDanfse` valida `/^\d{50}$/` upfront.
 
 #### Lifecycle
 | Método                | Assinatura                                           |
@@ -96,7 +96,7 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 | `createInMemoryRetryStore` | `() → RetryStore`                                                                   | Store em memória (testes/demos)                          |
 | `createInMemoryParametrosCache` | `() → ParametrosCache`                                                         | Cache em memória (default do client)                     |
 | `gerarDanfse`              | `(nfse: NFSe, options?: GerarDanfseOptions) → Buffer`                               | PDF local (pdfkit + QR code)                             |
-| `fetchDanfse`              | `(httpClient: HttpClient, chaveAcesso: string) → Buffer`                            | GET /danfse/{chave} raw (uso interno do cliente)         |
+| `consultarDanfse`              | `(httpClient: HttpClient, chaveAcesso: string) → Buffer`                            | GET /danfse/{chave} raw (uso interno do cliente)         |
 | `buildCancelamentoXml`     | `(params: BuildCancelamentoXmlParams, options?) → string`                           | XML do pedRegEvento 101101                               |
 | `buildSubstituicaoXml`     | `(params: BuildSubstituicaoXmlParams, options?) → string`                           | XML do pedRegEvento 105102                               |
 | `buildEventoPedidoId`      | `(params: BuildEventoPedidoIdParams) → string`                                      | `infPedReg.Id` canônico                                  |

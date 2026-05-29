@@ -93,7 +93,7 @@ export function buildSubstituicaoXml(
   });
   const detEvento = {
     e105102: {
-      xDesc: 'Cancelamento de NFS-e por Substituicao',
+      xDesc: 'Cancelamento de NFS-e por Substituição',
       cMotivo: params.cMotivo,
       ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
       chSubstituta: params.chaveSubstituta,

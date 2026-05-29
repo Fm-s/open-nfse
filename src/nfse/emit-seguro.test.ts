@@ -172,9 +172,9 @@ describe('emitSeguro', () => {
 
   it('counter is called AFTER offline validations — invalid DPS does not burn a number', async () => {
     const counter: DpsCounter = { next: vi.fn() };
-    const paramsSemCnbs: EmitirParams = {
+    const paramsInvalidos: EmitirParams = {
       ...baseParams(),
-      servico: { cTribNac: '250101', cNBS: '', descricao: 'x' }, // cNBS vazio falha XSD
+      servico: { cTribNac: '99', cNBS: '123456789', descricao: 'x' }, // cTribNac fora do pattern (6 dígitos) falha XSD
       skipCepValidation: true,
       skipCpfCnpjValidation: true,
     };
@@ -187,7 +187,7 @@ describe('emitSeguro', () => {
           retryStore: undefined,
           retryPolicy: createDefaultRetryPolicy(),
         },
-        paramsSemCnbs,
+        paramsInvalidos,
       ),
     ).rejects.toThrow(); // XsdValidationError
     expect(counter.next).not.toHaveBeenCalled();

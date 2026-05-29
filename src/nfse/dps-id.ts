@@ -29,7 +29,9 @@ const REGEX_COD_MUN = /^\d{7}$/;
 const REGEX_CNPJ = /^\d{14}$/;
 const REGEX_CPF = /^\d{11}$/;
 const REGEX_SERIE = /^\d{1,5}$/;
-const REGEX_NDPS = /^\d{1,15}$/;
+// TSNumDPS: primeiro dígito 1-9 (sem zero à esquerda), 1 a 15 dígitos. O <nDPS>
+// emitido no XML segue esse pattern; o Id usa padStart e tolera zeros.
+const REGEX_NDPS = /^[1-9]\d{0,14}$/;
 
 export function buildDpsId(params: BuildDpsIdParams): string {
   const { cLocEmi, tipoInsc, inscricaoFederal, serie, nDPS } = params;
@@ -66,7 +68,11 @@ export function buildDpsId(params: BuildDpsIdParams): string {
     throw new InvalidDpsIdParamError('serie', serie, 'deve conter 1 a 5 dígitos.');
   }
   if (!REGEX_NDPS.test(nDPS)) {
-    throw new InvalidDpsIdParamError('nDPS', nDPS, 'deve conter 1 a 15 dígitos.');
+    throw new InvalidDpsIdParamError(
+      'nDPS',
+      nDPS,
+      'deve conter 1 a 15 dígitos, sem zero à esquerda.',
+    );
   }
 
   return `DPS${cLocEmi}${digitoTipo}${inscFormatted}${serie.padStart(5, '0')}${nDPS.padStart(15, '0')}`;

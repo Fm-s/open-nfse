@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] — 2026-05-28
+
+### Auditoria campo-a-campo contra o XSD oficial `schemas/1.01/`
+
+Correções de divergências entre os tipos/serialização/parsing da lib e o schema oficial:
+
+- **Eventos de rejeição/anulação (parser):** `parse-event.ts` esperava wrappers `<infRej>` (202205/203206/204207) e `<infAnRej>` (205208) que **não existem** no XSD — `cMotivo`/`xMotivo`/`CPFAgTrib`/`idEvManifRej` são filhos diretos. O parser lançava `InvalidXmlError` em **todo** evento de rejeição/anulação real. Achatado para casar com o schema; tipos `DetalheEvento` correspondentes achatados.
+- **`<lsadppu>` e `<explRod>` removidos:** não existem no RTC v1.01 (resíduo do layout v1.00). `buildServ` os emitia → XML inválido. Removidas as interfaces `LocacaoSublocacao`/`ExploracaoRodoviaria`, os campos `Serv.lsadppu`/`Serv.explRod`, a serialização e o parsing. **Breaking.**
+- **Campos `minOccurs="0"` que eram lidos como obrigatórios** (lançavam em NFS-e válida): `RtcIbsCbs.pRedutor` (o mais comum — só existe em compra governamental), `RtcTotalIbsUF.vDifUF`, `RtcTotalIbsMun.vDifMun`, `RtcTotalCbs.vDifCBS`, `RtcInfoIbsCbs.indFinal`. Agora opcionais no domínio, parseados com `optionalNumber`/`optionalText`, e `indFinal` emitido condicionalmente.
+- **`xOutInf` movido de `ValoresNFSe` para `InfNFSe`:** no XSD é filho direto de `TCInfNFSe` (após `valores`), não de `TCValoresNFSe` — antes nunca era lido. **Breaking** (acesso passa de `nfse.valores.xOutInf` para `nfse.xOutInf`).
+- **Enums incompletos:** `VinculoPrestacao` ganhou `9` (Desconhecido); `TipoDedRed` ganhou `3` (Produção Externa), `4` (Reembolso de despesas), `9` (Profissional parceiro) — valores válidos no XSD que eram rejeitados pela tipagem.
+- **`nDPS` sem zero à esquerda:** `REGEX_NDPS` aceitava `0` inicial, mas `TSNumDPS` (`<nDPS>`) exige primeiro dígito 1-9 — apertado para falhar localmente com mensagem clara em vez de rejeição da SEFIN.
+- **Novos enums (type-safety) para campos antes `string`:** `TipoEnteGovernamental` (`tpEnteGov`, `TSRTCTpEnteGov`), `TipoReembolsoRepasse` (`tpReeRepRes`, `TSRTCTpReeRepRes`), `TipoChaveDFe` (`tipoChaveDFe`, `TSRTCTipoChaveDFe`) — domínios fechados do XSD agora tipados. **Breaking** para quem atribuía strings arbitrárias a esses campos.
+- **`formatDecimal` endurecido:** rejeita `NaN`/`Infinity`, negativos e valores ≥ 1e21 (que `toString()` emitiria em notação científica) com `RuleViolationError` claro, em vez de gerar XML que viola os patterns `TSDec*V2` (não-negativos, sem notação científica).
+- **`verAplic` valida o pattern `TSString`:** além do comprimento (1–20), agora rejeita espaço/controle nas pontas e caracteres não-imprimíveis (`[!-ÿ][ -ÿ]*[!-ÿ]|[!-ÿ]`), batendo com `TSVerAplic`.
+
+### Schema oficial + PIS/COFINS (NT SE/CGNFS-e nº 007, em produção desde 2026-02-09)
+
+- **Migração para os schemas oficiais `schemas/1.01/`** — o conjunto curado `schemas/rtc-v1.01/` (≈NT-004) foi removido; o validador WASM passa a ser gerado dos XSDs oficiais. Única deviation: `TSSerieDPS` tinha pattern com `^`/`$` literais (`^0{0,4}\d{1,5}$`), inválido como âncora em XSD 1.0 e rejeitado pelo libxml — corrigido para `0{0,4}\d{1,5}`.
+- **`CST` (PIS/COFINS) completo** — antes só `00`–`09` (e `07` rotulado errado como "Tributável da Contribuição"); agora o domínio completo da NT-007 (`00`–`09`, `49`, `50`–`56`, `60`–`67`, `70`–`75`, `98`, `99`), com `07 = Isenta`. **Breaking:** `CST.TributavelDaContribuicao` → `CST.IsentaDaContribuicao`.
+- **`TipoRetPisCofins` expandido** — antes só `1`/`2` (`Retido`/`NaoRetido`); agora `0`–`9` com semântica de CSLL. **Breaking:** `TipoRetPisCofins.Retido`/`.NaoRetido` → `.PisCofinsRetidos`/`.PisCofinsNaoRetidos` (+ novos membros).
+- **`xDesc` do evento 105102 corrigido** — emitia `"Cancelamento de NFS-e por Substituicao"` (sem acento), rejeitado pela enumeração oficial; agora `"Cancelamento de NFS-e por Substituição"`.
+
+### Consistência da API (relatório de auditoria interno)
+
+Inclui breaking renames pré-1.0 — quem usa os nomes antigos recebe erro de TypeScript apontando o call site.
+
+### Changed (breaking)
+
+- **`cliente.fetchDanfse` → `cliente.consultarDanfse`** (e a função livre `fetchDanfse` → `consultarDanfse`). Unifica as operações de DANFSe em verbos PT (`gerarDanfse` + `consultarDanfse`); remove o conflito PT/EN sobre o mesmo substantivo.
+- **`EmitManyOptions` → `EmitLoteOptions`** — unifica o stem `EmitLote*` (método `emitirEmLote`, `EmitLoteResult`, `EmitLoteItem`, `EmitLoteOptions`).
+- **`InvalidIdDpsError` → `InvalidDpsIdError`** — corrige a ordem `DpsId` (consistente com `buildDpsId` e os erros `Invalid*ParamError`).
+- **`Aliquota.dataInicio`/`dataFim` → `dataInicioVigencia`/`dataFimVigencia`** e **`RegimeEspecial.dataInicio`/`dataFim` → `dataInicioVigencia`/`dataFimVigencia`** — padroniza a nomenclatura de janela de vigência com os outros structs de parâmetros municipais.
+- **`Beneficio.tipoBeneficio: string` → `TipoBeneficioMunicipal`** — passa a usar o enum existente (design principle #4).
+- **`ServicoInput.cNBS` agora é opcional** e `CServ.cNBS` deixa de ser serializado quando ausente. O XSD local foi ajustado para `minOccurs="0"`: a NT04 declara o elemento sem `minOccurs`, mas a SEFIN não rejeita DPS sem `cNBS`. Alinha o tipo, o builder e o validador (antes contradiziam-se).
+
+### Added
+
+- **Estado terminal `'rollback_failed'` em `substituir`** — quando o rollback automático (101101) falha **permanentemente**, o resultado é `rollback_failed` e nada é persistido no `RetryStore` (modelo "RetryStore = só transientes"). Antes o pendente era gravado mesmo em erro permanente. A máquina passa de 4 para 5 estados.
+- **`AMBIENTE_ENDPOINTS` e `parsePfx` exportados** no barrel (`open-nfse`) — antes eram referenciados em exemplos da doc mas não exportados.
+
+### Fixed
+
+- **`pendingEventId` inclui `kind` na chave** (`chave:tipoEvento:kind`) — um cancelamento manual e um rollback de substituição da mesma NFS-e (ambos `101101`) deixam de colidir no `RetryStore` (last-writer-wins descartava um deles silenciosamente).
+- **Parsing da resposta de `POST /nfse` centralizado** em `parsePostResponseOrThrow` — elimina três cópias divergentes (mensagem de erro inconsistente entre `emitDpsPronta` / `emitSeguro` / `replayEmission`).
+- **Documentação alinhada ao código 0.8.6** — varredura de `nPedRegEvento` (dedup de eventos é `(chave, tipoEvento)`), versão nos cabeçalhos de README/CLAUDE, exemplos que não compilavam (`AMBIENTE_ENDPOINTS`, `parsePfx`, casing de `TipoDocumento`), JSDoc de `getRetryAfterMs` (`Math.ceil`), e hierarquia de erros (subárvore HTTP de 4 níveis).
+- **Fidelidade do `NfseClientFake`** — `replayPendingEvents(override?)` retorna `ReplayItem[]`, `consultarDanfse`/`gerarDanfse` com `options`/`strategy`, `fetchByNsu` usa `FetchByNsuParams`.
+
 ## [0.8.6] — 2026-05-28
 
 Compatibilidade com **Anexo II SEFIN_ADN v1.00-20251226** (publicado 2025-12-27) — cancelamento e substituição emitiam o `Id` e o corpo de `infPedReg` no formato antigo, que a SEFIN passou a rejeitar em produção com `E1235: Falha no esquema XML do DF-e — The Pattern constraint failed`. O erro vinha disfarçado como `[UNKNOWN]: Corpo de erro sem mensagens reconhecíveis` porque o parser de erro também estava desalinhado com o shape real do envelope.

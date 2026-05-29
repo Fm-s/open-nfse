@@ -1,4 +1,4 @@
-// AUTO-GENERATED from schemas/rtc-v1.01/*.xsd by scripts/generate-schemas.mjs.
+// AUTO-GENERATED from schemas/1.01/*.xsd by scripts/generate-schemas.mjs.
 // Do not edit by hand. Regenerate when a new Nota Técnica updates the XSDs.
 
 export interface RtcSchemaFile {
@@ -45,7 +45,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   {
     fileName: "NFSe_v1.01.xsd",
     contents: `<?xml version="1.0" encoding="UTF-8"?>
-<!-- PL_NFSE_NT04_RTCv101 - Alterações dos esquemas decorrentes da Nota Técnica SE/CGNFS-e nº 004, de 19 de agosto de 2025 -->
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" 
            xmlns:ds="http://www.w3.org/2000/09/xmldsig#" 
            targetNamespace="http://www.sped.fazenda.gov.br/nfse" 
@@ -253,6 +252,17 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+  
+  <xs:simpleType name="TVerCNC">
+    <xs:annotation>
+      <xs:documentation>Tipo Versão do CNC - 1.00</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:whiteSpace value="preserve"/>
+      <xs:pattern value="1\\.00"/>
+    </xs:restriction>
+  </xs:simpleType>
+
 </xs:schema>`,
   },
   {
@@ -386,9 +396,18 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
       <xs:element name="valores" type="TCValoresNFSe">
         <xs:annotation>
-          <xs:documentation>Grupo de valores referentes ao Serviço Prestado</xs:documentation>
+          <xs:documentation>
+            Grupo de valores referentes ao Serviço Prestado
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
+      <xs:element name="xOutInf" type="TSDesc2000" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>
+            Uso da Administração Tributária Municipal.
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>      
       <xs:element name="IBSCBS" type="TCRTCIBSCBS" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
@@ -479,7 +498,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         <xs:annotation>
           <xs:documentation>
             Tipo Benefício Municipal (BM):
-
             1) Isenção;
             2) Redução da BC em 'ppBM' %;
             3) Redução da BC em R$ 'vInfoBM';
@@ -519,23 +537,16 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="vTotalRet" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor total de retenções = Σ(CP + IRRF + CSLL  + ISSQN* +  (PIS + COFINS)**)
-            vTotalRet (R$) = (vRetCP + vRetIRRF + vRetCSLL) + vISSQN* + (vPIS + vCOFINS)**
+            Valor total das retenções de tributos da NFS-e.
+            Valor total de retenções (R$) = Σ(vRetCP + vRetIRRF+ vRetCSLL + ISSQN*)
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="vLiq" type="TSDec15V2">
         <xs:annotation>
           <xs:documentation>
-            Valor líquido = Valor do serviço - Desconto condicionado - Desconto incondicionado - Valores retidos (CP, IRRF, CSLL)* - Valores, se retidos (ISSQN, PIS, COFINS)**
-            Valor Líquido (R$) = vServ – vDescIncond – vDescCond – (vRetCP + vRetIRRF + vRetCSLL)* – (vISSQN - vPIS + vCOFINS)**
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="xOutInf" type="TSDesc2000" minOccurs="0">
-        <xs:annotation>
-          <xs:documentation>
-            Uso da Administração Tributária Municipal.
+            Valor líquido da NFS-e.
+            Valor líquido (R$) = Valor do serviço - Desconto condicionado - Desconto incondicionado - Valores retidos
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -558,7 +569,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           </xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="pRedutor" type="TSDec2V2">
+      <xs:element name="pRedutor" type="TSDec2V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
             Percentual de redução de aliquota em compra governamental
@@ -806,7 +817,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <!--TIPO COMPLEXO DE TOTALIZADORES DOS VALORES IBS ESTADUAL-->
   <xs:complexType name="TCRTCTotalIBSUF">
     <xs:sequence>
-      <xs:element name="vDifUF" type="TSDec15V2">
+      <xs:element name="vDifUF" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
             Total do Diferimento do IBS estadual
@@ -827,7 +838,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <!--TIPO COMPLEXO DE TOTALIZADORES DOS VALORES IBS MUNICIPAL-->
   <xs:complexType name="TCRTCTotalIBSMun">
     <xs:sequence>
-      <xs:element name="vDifMun" type="TSDec15V2">
+      <xs:element name="vDifMun" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
             Total do Diferimento do IBS municipal
@@ -855,7 +866,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           </xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="vDifCBS" type="TSDec15V2">
+      <xs:element name="vDifCBS" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
             Total do Diferimento CBS
@@ -1226,7 +1237,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             Opção para que o contribuinte optante pelo Simples Nacional ME/EPP (opSimpNac = 3) possa indicar, ao emitir o documento fiscal, em qual regime de apuração os tributos federais e municipal estão inseridos, caso tenha ultrapassado algum sublimite ou limite definido para o Simples Nacional.
             1 – Regime de apuração dos tributos federais e municipal pelo SN;
             2 – Regime de apuração dos tributos federais pelo SN e ISSQN  por fora do SN conforme respectiva legislação municipal do tributo;
-            3 – Regime de apuração dos tributos federais e municipal por fora do SN conforme respectivas legilações federal e municipal de cada tributo;
+            3 – Regime de apuração dos tributos federais e municipal por fora do SN conforme respectivas legislações federal e municipal de cada tributo;
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -1241,6 +1252,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             4 - Notário ou Registrador;
             5 - Profissional Autônomo;
             6 - Sociedade de Profissionais;
+            9 - Outros;
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -1281,7 +1293,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:choice>
       <xs:element name="CAEPF" type="TSCAEPF" minOccurs="0">
         <xs:annotation>
-          <xs:documentation>Número do Cadastro de Atividade Econômica da Pessoa Física (CAEPF) do tomador, intermediário ou fornecedor do serviço.</xs:documentation>
+          <xs:documentation>Número do Cadastro de Atividade Econômica da Pessoa Física (CAEPF)</xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="IM" type="TSInscMun" minOccurs="0">
@@ -1548,11 +1560,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           <xs:documentation>Grupo de informações relativas à exportação/importação de serviço prestado</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="lsadppu" type="TCLocacaoSublocacao" minOccurs="0">
-        <xs:annotation>
-          <xs:documentation>Grupo de informações relativas a atividades de Locação, sublocação, arrendamento, direito de passagem ou permissão de uso, compartilhado ou não, de ferrovia, rodovia, postes, cabos, dutos e condutos de qualquer natureza</xs:documentation>
-        </xs:annotation>
-      </xs:element>
       <xs:element name="obra" type="TCInfoObra" minOccurs="0">
         <xs:annotation>
           <xs:documentation>Grupo de informações do DPS relativas à serviço de obra</xs:documentation>
@@ -1561,11 +1568,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="atvEvento" type="TCAtvEvento" minOccurs="0">
         <xs:annotation>
           <xs:documentation>Grupo de informações do DPS relativas à Evento</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="explRod" type="TCExploracaoRodoviaria" minOccurs="0">
-        <xs:annotation>
-          <xs:documentation>Grupo de informações relativas a pedágio</xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="infoCompl" type="TCInfoCompl" minOccurs="0">
@@ -1613,7 +1615,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           <xs:documentation>Descrição completa do serviço prestado</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="cNBS" type="TSCodNBS">
+      <xs:element name="cNBS" type="TSCodNBS" minOccurs="0">
         <xs:annotation>
           <xs:documentation>Código NBS correspondente ao serviço prestado, seguindo a versão 2.0, conforme Anexo B</xs:documentation>
         </xs:annotation>
@@ -1644,7 +1646,8 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
       <xs:element name="vincPrest" type="TSVincPrest">
         <xs:annotation>
-          <xs:documentation>Vínculo entre as partes no negócio:
+          <xs:documentation>
+            Vínculo entre as partes no negócio:
             0 - Sem vínculo com o Tomador/Prestador
             1 - Controlada;
             2 - Controladora;
@@ -1652,6 +1655,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             4 - Matriz;
             5 - Filial ou sucursal;
             6 - Outro vínculo;
+            9 - Desconhecido (tipo não informado na nota de origem);
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -1747,84 +1751,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
     </xs:sequence>
   </xs:complexType>
-  <!--TIPO COMPLEXO PARA INFORMAÇÕES DE PEDÁGIO-->
-  <xs:complexType name="TCExploracaoRodoviaria">
-    <xs:sequence>
-      <xs:element name="categVeic" type="TSCategVeic">
-        <xs:annotation>
-          <xs:documentation>
-            Categorias de veículos para cobrança:
-            00 - Categoria de veículos (tipo não informado na nota de origem)
-            01 - Automóvel, caminhonete e furgão;
-            02 - Caminhão leve, ônibus, caminhão trator e furgão;
-            03 - Automóvel e caminhonete com semireboque;
-            04 - Caminhão, caminhão-trator, caminhão-trator com semi-reboque e ônibus;
-            05 - Automóvel e caminhonete com reboque;
-            06 - Caminhão com reboque;
-            07 - Caminhão trator com semi-reboque;
-            08 - Motocicletas, motonetas e bicicletas motorizadas;
-            09 - Veículo especial;
-            10 - Veículo Isento;
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="nEixos" type="TSNumEixos">
-        <xs:annotation>
-          <xs:documentation>Número de eixos para fins de cobrança</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="rodagem" type="TSRodagem">
-        <xs:annotation>
-          <xs:documentation>Tipo de rodagem</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="sentido" type="TSSentido">
-        <xs:annotation>
-          <xs:documentation>Placa do veículo</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="placa" type="TSPlaca">
-        <xs:annotation>
-          <xs:documentation>Placa do veículo</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="codAcessoPed" type="TSCodAcessoPed">
-        <xs:annotation>
-          <xs:documentation>Código de acesso gerado automaticamente pelo sistema emissor da concessionária.</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="codContrato" type="TSCodContrato">
-        <xs:annotation>
-          <xs:documentation>Código de contrato gerado automaticamente pelo sistema nacional no cadastro da concessionária.</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-    </xs:sequence>
-  </xs:complexType>
-  <!--TIPO COMPLEXO PARA INFORMAÇÕES DE LOCAÇÃO, SUBLOCAÇÃO, ARRENDAMENTO, DIRETO DE PASSAGEM OU PERMISSÃO DE USO-->
-  <xs:complexType name="TCLocacaoSublocacao">
-    <xs:sequence>
-      <xs:element name="categ" type="TSCategoriaServico">
-        <xs:annotation>
-          <xs:documentation>Categoria do serviço</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="objeto" type="TCObjetoLocacao">
-        <xs:annotation>
-          <xs:documentation>Tipo de objetos da locação, sublocação, arrendamento, direito de passagem ou permissão de uso</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="extensao" type="TSExtensaoTotal">
-        <xs:annotation>
-          <xs:documentation>Extensão total da ferrovia, rodovia, cabos, dutos ou condutos</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="nPostes" type="TSNumeroPostes">
-        <xs:annotation>
-          <xs:documentation>Número total de postes</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-    </xs:sequence>
-  </xs:complexType>
   <!--TIPO COMPLEXO PARA INFORMAÇÕES DE ATIVIDADE DE EVENTO-->
   <xs:complexType name="TCAtvEvento">
     <xs:sequence>
@@ -1868,8 +1794,8 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:choice minOccurs="1">
         <xs:element name="cObra" type="TSCodObra">
           <xs:annotation>
-            <xs:documentation
-              >Número de identificação da obra.
+            <xs:documentation>
+              Número de identificação da obra.
               Cadastro Nacional de Obras (CNO) ou Cadastro Específico do INSS (CEI).
             </xs:documentation>
           </xs:annotation>
@@ -2112,10 +2038,13 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             Identificação da Dedução/Redução:
             1 – Alimentação e bebidas/frigobar;
             2 – Materiais;
+            3 - Produção Externa;
+            4 - Reembolso de despesas;
             5 – Repasse consorciado;
             6 – Repasse plano de saúde;
             7 – Serviços;
             8 – Subempreitada de mão de obra;
+            9 - Profissional parceiro;
             99 – Outras deduções;
           </xs:documentation>
         </xs:annotation>
@@ -2363,60 +2292,92 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         <xs:annotation>
           <xs:documentation>
             Código de Situação Tributária do PIS/COFINS (CST):
-            00 - Nenhum;      
+            00 - Nenhum;
             01 - Operação Tributável com Alíquota Básica;
             02 - Operação Tributável com Alíquota Diferenciada;
             03 - Operação Tributável com Alíquota por Unidade de Medida de Produto;
             04 - Operação Tributável monofásica - Revenda a Alíquota Zero;
             05 - Operação Tributável por Substituição Tributária;
             06 - Operação Tributável a Alíquota Zero;
-            07 - Operação Tributável da Contribuição;
+            07 - Operação Isenta da Contribuição;
             08 - Operação sem Incidência da Contribuição;
             09 - Operação com Suspensão da Contribuição;
+            49 - Outras Operações de Saída;
+            50 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita Tributada no Mercado Interno;
+            51 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita Não-Tributada no Mercado Interno;
+            52 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita de Exportação;
+            53 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno;
+            54 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas no Mercado Interno e de Exportação;
+            55 - Operação com Direito a Crédito – Vinculada a Receitas Não Tributadas no Mercado Interno e de Exportação;
+            56 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação;
+            60 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita Tributada no Mercado Interno;
+            61 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita Não-Tributada no Mercado Interno;
+            62 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita de Exportação;
+            63 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno;
+            64 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas no Mercado Interno e de Exportação;
+            65 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Não-Tributadas no Mercado Interno e de Exportação;
+            66 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação;
+            67 - Crédito Presumido – Outras Operações;
+            70 - Operação de Aquisição sem Direito a Crédito;
+            71 - Operação de Aquisição com Isenção;
+            72 - Operação de Aquisição com Suspensão;
+            73 - Operação de Aquisição a Alíquota Zero;
+            74 - Operação de Aquisição sem Incidência da Contribuição;
+            75 - Operação de Aquisição por Substituição Tributária;
+            98 - Outras Operações de Entrada;
+            99 - Outras Operações;
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="vBCPisCofins" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor da Base de Cálculo do PIS/COFINS (R$).
+            Valor da Base de Cálculo do PIS/COFINS, relativo à apuração própria (R$).
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="pAliqPis" type="TSDec2V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor da Alíquota do PIS (%).
+            Alíquota do PIS, relativa à apuração própria (%).
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="pAliqCofins" type="TSDec2V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor da Alíquota da COFINS (%).
+            Alíquota da COFINS, relativa à apuração própria (%).
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="vPis" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor monetário do PIS (R$).
+            Valor do débito de PIS apuração própria (R$).
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="vCofins" type="TSDec15V2" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Valor monetário do COFINS (R$).
+            Valor do débito de COFINS apuração própria (R$).
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="tpRetPisCofins" type="TSTipoRetPISCofins" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
-            Tipo de retencao do Pis/Cofins:
-            1 - Retido;
-            2 - Não Retido;
+            Tipo de retenção do PIS/COFINS:
+            0 - PIS/COFINS/CSLL Não Retidos;
+            1 - PIS/COFINS Retidos;
+            2 - PIS/COFINS Não Retidos;
+            3 - PIS/COFINS/CSLL Retidos;
+            4 - PIS/COFINS Retidos, CSLL Não Retido;
+            5 - PIS Retido, COFINS/CSLL Não Retido;
+            6 - COFINS Retido, PIS/CSLL Não Retido;
+            7 - PIS Não Retido, COFINS/CSLL Retidos;
+            8 - PIS/COFINS Não Retidos, CSLL Retido;
+            9 - COFINS Não Retido, PIS/CSLL Retidos;
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -2521,7 +2482,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
           </xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="indFinal" type="TSRTCIndFinal">
+      <xs:element name="indFinal" type="TSRTCIndFinal" minOccurs="0">
         <xs:annotation>
           <xs:documentation>
             Indica operação de uso ou consumo pessoal (art. 57)
@@ -3035,35 +2996,45 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     </xs:sequence>
     <xs:attribute name="versao" type="TVerNFSe" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA INFORMAÇÕES DO EVENTO-->
   <xs:complexType name="TCInfEvento">
     <xs:sequence>
-      <xs:element name="verAplic" type="TSVerAplic" minOccurs="0">
+      <xs:element name="verAplic" type="TSVerAplic">
         <xs:annotation>
-          <xs:documentation>Versão do aplicativo que gerou o pedido do evento.</xs:documentation>
+          <xs:documentation>Versão do aplicativo que gerou o evento</xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="ambGer" type="TSAmbGeradorEvt">
         <xs:annotation>
-          <xs:documentation>Ambiente gerador do evento</xs:documentation>
+          <xs:documentation>
+            Ambiente gerador do evento:
+            1 - Sistema próprio do município;
+            2 - Sefin Nacional NFS-e;
+            3 - ADN NFS-e;
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="nSeqEvento" type="TSNum3Dig">
         <xs:annotation>
-          <xs:documentation>Sequencial do evento para o mesmo tipo de evento. Para maioria dos eventos nSeqEvento=1. Nos casos em que possa existir mais de um evento do mesmo tipo o ambiente gerador deverá numerar de forma sequencial.</xs:documentation>
+          <xs:documentation>
+            Número sequencial do evento para o mesmo tipo de evento.
+            Para os eventos que ocorrem somente uma vez, como é o caso do cancelamento, o nSeqEvento = 001.
+            Para os eventos que possam existir mais de um evento do mesmo tipo o ambiente gerador deverá numerar de forma sequencial.
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="dhProc" type="TSDateTimeUTC">
         <xs:annotation>
           <xs:documentation>
             Data/Hora do registro do evento.
-            Data e hora no formato UTC (Universal Coordinated Time): AAAA-MM-DDThh:mm:ssTZD"
+            Data e hora no formato UTC (Universal Coordinated Time): AAAA-MM-DDThh:mm:ssTZD
           </xs:documentation>
         </xs:annotation>
       </xs:element>
-      <xs:element name="nDFe" type="TSNumDFe">
+      <xs:element name="nDFSe" type="TSNumDFe">
         <xs:annotation>
-          <xs:documentation>Ambiente gerador do evento</xs:documentation>
+          <xs:documentation>Número sequencial do documento gerado por ambiente gerador de DFSe do município</xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="pedRegEvento" type="TCPedRegEvt">
@@ -3074,6 +3045,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     </xs:sequence>
     <xs:attribute name="Id" type="TSIdEvento" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PEDIDO DE REGISTRO DE EVENTO -->
   <xs:complexType name="TCPedRegEvt">
     <xs:sequence>
@@ -3082,24 +3054,28 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     </xs:sequence>
     <xs:attribute name="versao" type="TVerNFSe" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA AS INFORMAÇÕES DO PEDIDO DE REGISTRO DE EVENTO -->
   <xs:complexType name="TCInfPedReg">
     <xs:sequence>
       <xs:element name="tpAmb" type="TSTipoAmbiente">
         <xs:annotation>
-          <xs:documentation>Identificação do Ambiente: 1 - Produção; 2 - Homologação</xs:documentation>
+          <xs:documentation>
+            Tipo de ambiente:
+            1 - Produção;
+            2 - Homologação;
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="verAplic" type="TSVerAplic">
         <xs:annotation>
-          <xs:documentation>Versão do aplicativo que gerou o pedido de registro de evento.</xs:documentation>
+          <xs:documentation>Versão do aplicativo que gerou o pedido de registro de evento</xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="dhEvento" type="TSDateTimeUTC">
         <xs:annotation>
           <xs:documentation>
-            Data e hora do evento no formato AAAA-MM-DDThh:mm:ssTZD (UTC - Universal Coordinated Time, onde TZD pode ser -02:00 (Fernando de Noronha), -03:00 (Brasília) ou -04:00 (Manaus), no horário de verão serão -01:00, -02:00 e -03:00.
-            Ex.: 2010-08-19T13:00:15-03:00.
+            Data e hora do evento no formato AAAA-MM-DDThh:mm:ssTZD (UTC - Universal Coordinated Time, onde TZD pode ser -02:00 (Fernando de Noronha), -03:00 (Brasília) ou -04:00 (Manaus), no horário de verão serão -01:00, -02:00 e -03:00. Ex.: 2010-08-19T13:00:15-03:00.
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -3109,26 +3085,28 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         </xs:annotation>
         <xs:element name="CNPJAutor" type="TSCNPJ">
           <xs:annotation>
-            <xs:documentation>CNPJ do autor do evento.</xs:documentation>
+            <xs:documentation>
+              Número de inscrição federal (CNPJ) do autor do evento.
+              CNPJ do autor do evento (parte interessada ou pessoa que figure na NFS-e.
+              O autor do evento não é o procurador)
+            </xs:documentation>
           </xs:annotation>
         </xs:element>
         <xs:element name="CPFAutor" type="TSCPF">
           <xs:annotation>
-            <xs:documentation>CPF do autor do evento.</xs:documentation>
+            <xs:documentation>
+              Número de inscrição federal (CPF) do autor do evento.
+              CPF do autor do evento (parte interessada ou pessoa que figure na NFS-e como prestador, tomador, intermediário.
+              O autor do evento poderá ser o procurador)
+            </xs:documentation>
           </xs:annotation>
         </xs:element>
       </xs:choice>
       <xs:element name="chNFSe" type="TSChaveNFSe">
         <xs:annotation>
-          <xs:documentation>Chave de Acesso da NFS-e vinculada ao Evento</xs:documentation>
+          <xs:documentation>Identificador da NFS-e à qual o evento será vinculado</xs:documentation>
         </xs:annotation>
       </xs:element>
-      <!--
-        nPedRegEvento removido per Anexo II SEFIN_ADN v1.00-20251226 (publicado
-        2025-12-27). O campo era TSNum3Dig (1-999) e fazia parte da composição
-        do Id (TSIdPedRefEvt → 62 chars). Agora o Id é apenas
-        PRE + chave(50) + tipoEvento(6) = 59 chars (PRE[0-9]{56}).
-      -->
       <xs:choice>
         <xs:element name="e101101" type="TE101101">
           <xs:annotation>
@@ -3155,6 +3133,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             <xs:documentation>Cancelamento de NFS-e Indeferido por Análise Fiscal</xs:documentation>
           </xs:annotation>
         </xs:element>
+
         <xs:element name="e202201" type="TE202201">
           <xs:annotation>
             <xs:documentation>Confirmação do Prestador</xs:documentation>
@@ -3195,6 +3174,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
             <xs:documentation>Anulação da Rejeição</xs:documentation>
           </xs:annotation>
         </xs:element>
+
         <xs:element name="e305101" type="TE305101">
           <xs:annotation>
             <xs:documentation>Cancelamento de NFS-e por Ofício</xs:documentation>
@@ -3212,8 +3192,9 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         </xs:element>
       </xs:choice>
     </xs:sequence>
-    <xs:attribute name="Id" type="TSIdPedRefEvt" use="required"/>
+    <xs:attribute name="Id" type="TSIdPedRegEvt" use="required"/>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO-->
   <xs:complexType name="TE101101">
     <xs:sequence>
@@ -3232,7 +3213,12 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
       <xs:element name="cMotivo" type="TSCodJustCanc">
         <xs:annotation>
-          <xs:documentation>Código de justificativa de cancelamento</xs:documentation>
+          <xs:documentation>
+            Código de justificativa de cancelamento:
+            1 - Erro na Emissão;
+            2 - Serviço não Prestado;
+            9 - Outros;
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="xMotivo" type="TSMotivo">
@@ -3242,6 +3228,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO POR SUBSTITUIÇÃO-->
   <xs:complexType name="TE105102">
     <xs:sequence>
@@ -3254,27 +3241,40 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Cancelamento de NFS-e por Substituicao"/>
+            <xs:enumeration value="Cancelamento de NFS-e por Substituição"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
       <xs:element name="cMotivo" type="TSCodJustSubst">
         <xs:annotation>
-          <xs:documentation>Código de justificativa de cancelamento substituição</xs:documentation>
+          <xs:documentation>
+            Código de justificativa de cancelamento substituição:
+            01 - Desenquadramento de NFS-e do Simples Nacional;
+            02 - Enquadramento de NFS-e no Simples Nacional;
+            03 - Inclusão Retroativa de Imunidade/Isenção para NFS-e;
+            04 - Exclusão Retroativa de Imunidade/Isenção para NFS-e;
+            05 - Rejeição de NFS-e pelo tomador ou pelo intermediário se responsável pelo recolhimento do tributo;
+            99 - Outros;
+            Obtido do campo da DPS "DPS/infDPS/subst/cMotivo"
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="xMotivo" type="TSMotivo" minOccurs="0">
         <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento.
+            Obtido do campo da DPS "DPS/infDPS/subst/xMotivo".
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="chSubstituta" type="TSChaveNFSe">
         <xs:annotation>
-          <xs:documentation>Chave de Acesso da NFS-e substituta.</xs:documentation>
+          <xs:documentation>Chave de Acesso da NFS-e substituta</xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE SOLICITAÇÃO DE ANÁLISE FISCAL PARA CANCELAMENTO DE NFS-E-->
   <xs:complexType name="TE101103">
     <xs:sequence>
@@ -3287,22 +3287,30 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Solicitacao de Analise Fiscal para Cancelamento de NFS-e"/>
+            <xs:enumeration value="Solicitação de Análise Fiscal para Cancelamento de NFS-e"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
       <xs:element name="cMotivo" type="TSCodJustAnaliseFiscalCanc">
         <xs:annotation>
-          <xs:documentation>Código do motivo da solicitação de análise fiscal para cancelamento de NFS-e:</xs:documentation>
+          <xs:documentation>
+            Código do motivo da solicitação de análise fiscal para cancelamento de NFS-e:
+            1 - Erro na Emissão;
+            2 - Serviço não Prestado;
+            9 - Outros;
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="xMotivo" type="TSMotivo">
         <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO DE NFS-E DEFERIDO POR ANÁLISE FISCAL-->
   <xs:complexType name="TE105104">
     <xs:sequence>
@@ -3322,7 +3330,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="CPFAgTrib" type="TSCPF">
         <xs:annotation>
           <xs:documentation>
-            CPF do agente da administração tributária municipal que efetuou o deferimento da  solicitação de análise fiscal para cancelamento de NFS-e.
+            CPF do agente da administração tributária municipal que efetuou o deferimento da solicitação de análise fiscal para cancelamento de NFS-e.
           </xs:documentation>
         </xs:annotation>
       </xs:element>
@@ -3350,6 +3358,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO DE NFS-E INDEFERIDO POR ANÁLISE FISCAL-->
   <xs:complexType name="TE105105">
     <xs:sequence>
@@ -3391,186 +3400,254 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       </xs:element>
       <xs:element name="xMotivo" type="TSMotivo">
         <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO PRESTADOR-->
   <xs:complexType name="TE202201">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Confirmação do Prestador".
+            Descrição do evento: "Manifestação de NFS-e - Confirmação do Prestador".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Confirmação do Prestador"/>
+            <xs:enumeration value="Manifestação de NFS-e - Confirmação do Prestador"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO TOMADOR-->
   <xs:complexType name="TE203202">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Confirmação do Tomador".
+            Descrição do evento: "Manifestação de NFS-e - Confirmação do Tomador".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Confirmação do Tomador"/>
+            <xs:enumeration value="Manifestação de NFS-e - Confirmação do Tomador"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO DO INTERMEDIÁRIO-->
   <xs:complexType name="TE204203">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Confirmação do Intermediário".
+            Descrição do evento: "Manifestação de NFS-e - Confirmação do Intermediário".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Confirmação do Intermediário"/>
+            <xs:enumeration value="Manifestação de NFS-e - Confirmação do Intermediário"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE CONFIRMAÇÃO TÁCITA-->
   <xs:complexType name="TE205204">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Confirmação Tácita".
+            Descrição do evento: "Manifestação de NFS-e - Confirmação Tácita".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Confirmação Tácita"/>
+            <xs:enumeration value="Manifestação de NFS-e - Confirmação Tácita"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO PRESTADOR-->
   <xs:complexType name="TE202205">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Rejeição do Prestador".
+            Descrição do evento: "Manifestação de NFS-e - Rejeição do Prestador".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Rejeição do Prestador"/>
+            <xs:enumeration value="Manifestação de NFS-e - Rejeição do Prestador"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="infRej" type="TCInfoEventoRejeicao">
+      <xs:element name="cMotivo" type="TSCodMotivoRejeicao">
         <xs:annotation>
           <xs:documentation>
+            Motivo da Rejeição da NFS-e:
+            1 - NFS-e em duplicidade;
+            2 - NFS-e já emitida pelo tomador;
+            3 - Não ocorrência do fato gerador;
+            4 - Erro quanto a responsabilidade tributária;
+            5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;
+            9 - Outros;
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="xMotivo" type="TSMotivo" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
           </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO TOMADOR-->
   <xs:complexType name="TE203206">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Rejeição do Tomador".
+            Descrição do evento: "Manifestação de NFS-e - Rejeição do Tomador".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Rejeição do Tomador"/>
+            <xs:enumeration value="Manifestação de NFS-e - Rejeição do Tomador"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="infRej" type="TCInfoEventoRejeicao">
+      <xs:element name="cMotivo" type="TSCodMotivoRejeicao">
         <xs:annotation>
           <xs:documentation>
+            Motivo da Rejeição da NFS-e:
+            1 - NFS-e em duplicidade;
+            2 - NFS-e já emitida pelo tomador;
+            3 - Não ocorrência do fato gerador;
+            4 - Erro quanto a responsabilidade tributária;
+            5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;
+            9 - Outros;
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="xMotivo" type="TSMotivo" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
           </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE REJEIÇÃO DO INTERMEDIÁRIO-->
   <xs:complexType name="TE204207">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Rejeição do Intermediário".
+            Descrição do evento: "Manifestação de NFS-e - Rejeição do Intermediário".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Rejeição do Intermediário"/>
+            <xs:enumeration value="Manifestação de NFS-e - Rejeição do Intermediário"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="infRej" type="TCInfoEventoRejeicao">
+      <xs:element name="cMotivo" type="TSCodMotivoRejeicao">
         <xs:annotation>
           <xs:documentation>
+            Motivo da Rejeição da NFS-e:
+            1 - NFS-e em duplicidade;
+            2 - NFS-e já emitida pelo tomador;
+            3 - Não ocorrência do fato gerador;
+            4 - Erro quanto a responsabilidade tributária;
+            5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;
+            9 - Outros;
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="xMotivo" type="TSMotivo" minOccurs="0">
+        <xs:annotation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
           </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE ANULAÇÃO DE REJEIÇÃO-->
   <xs:complexType name="TE205208">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Anulação da Rejeição".
+            Descrição do evento: "Manifestação de NFS-e - Anulação da Rejeição".
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:whiteSpace value="preserve"/>
-            <xs:enumeration value="Anulação da Rejeição"/>
+            <xs:enumeration value="Manifestação de NFS-e - Anulação da Rejeição"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
-      <xs:element name="infAnRej" type="TCInfoEventoAnulacaoRejeicao">
+      <xs:element name="CPFAgTrib" type="TSCPF">
         <xs:annotation>
           <xs:documentation>
+            CPF do agente da administração tributária municipal que efetuou o anulação da manifestação de rejeição da NFS-e
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="idEvManifRej" type="TSIdNumEvento">
+        <xs:annotation>
+          <xs:documentation>
+            Referência ao "id" do Evento de Manifestação de NFS-e - Rejeição, que originou o presente evento de anulação
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="xMotivo" type="TSMotivo">
+        <xs:annotation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
           </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
-  <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO POR OFÍCIO DA NFS-E--> 
+
+  <!--TIPO COMPLEXO PARA O EVENTO DE CANCELAMENTO POR OFÍCIO DA NFS-E-->
   <xs:complexType name="TE305101">
     <xs:sequence>
       <xs:element name="xDesc">
         <xs:annotation>
           <xs:documentation>
-            Descrição do evento: "Cancelamento de NFS-e por Ofício".
+            Descrição do evento: "Cancelamento de NFS-e por Ofício"
           </xs:documentation>
         </xs:annotation>
         <xs:simpleType>
@@ -3583,27 +3660,28 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="CPFAgTrib" type="TSCPF">
         <xs:annotation>
           <xs:documentation>
-            CPF do agente da administração tributária municipal que efetuou o cancelamento por ofício de NFS-e.
+            CPF do agente da administração tributária municipal que efetuou o cancelamento por ofício de NFS-e
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="nProcAdm" type="TSNumProcAdmAnaliseFiscalCanc">
         <xs:annotation>
           <xs:documentation>
-            Número do processo administrativo municipal vinculado ao cancelamento de NFS-e por ofício.
+            Número do processo administrativo municipal vinculado ao cancelamento de NFS-e por ofício
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="xProcAdm" type="TSMotivo">
         <xs:annotation>
           <xs:documentation>
-            Descrição para explicitar o motivo indicado neste evento.
+            Descrição para explicitar o motivo do processo administrativo municipal indicado neste evento
           </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
-  <!--TIPO COMPLEXO PARA O EVENTO DE BLOQUEIO POR OFÍCIO DA NFS-E--> 
+
+  <!--TIPO COMPLEXO PARA O EVENTO DE BLOQUEIO POR OFÍCIO DA NFS-E-->
   <xs:complexType name="TE305102">
     <xs:sequence>
       <xs:element name="xDesc">
@@ -3622,22 +3700,32 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="CPFAgTrib" type="TSCPF">
         <xs:annotation>
           <xs:documentation>
-            CPF do agente da administração tributária municipal que efetuou o cancelamento por ofício de NFS-e.
+            CPF do agente da administração tributária municipal que efetuou o bloqueio de NFS-e por ofício
+          </xs:documentation>
+        </xs:annotation>
+      </xs:element>
+      <xs:element name="codEvento" type="TSCodigoEventoNFSe">
+        <xs:annotation>
+          <xs:documentation>
+            Eventos que podem ser escolhidos pelo município emissor para serem rejeitados após emissão e vinculação do evento de bloqueio por ofício em uma NFS-e:
+            e101101 - Cancelamento de NFS-e;
+            e105102 - Cancelamento de NFS-e por Substituição;
+            e105104 - Cancelamento de NFS-e Deferido por Análise Fiscal;
+            e105105 - Cancelamento de NFS-e Indeferido por Análise Fiscal;
+            e305101 - Cancelamento de NFS-e por Ofício;
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="xMotivo" type="TSMotivo">
         <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="codEvento" type="TSCodigoEventoNFSe">
-        <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
+          <xs:documentation>
+            Descrição para explicitar o motivo indicado neste evento
+          </xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
+
   <!--TIPO COMPLEXO PARA O EVENTO DE DESBLOQUEIO POR OFÍCIO DA NFS-E-->
   <xs:complexType name="TE305103">
     <xs:sequence>
@@ -3657,74 +3745,15 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:element name="CPFAgTrib" type="TSCPF">
         <xs:annotation>
           <xs:documentation>
-            CPF do agente da administração tributária municipal que efetuou o cancelamento por ofício de NFS-e.
+            CPF do agente da administração tributária municipal que efetuou o desbloqueio de NFS-e por ofício
           </xs:documentation>
         </xs:annotation>
       </xs:element>
       <xs:element name="idBloqOfic" type="TSIdNumEvento">
         <xs:annotation>
           <xs:documentation>
-            Referência ao Id da "Manifestação de rejeição da NFS-e" que originou o presente evento de anulação.
+            Referência ao "id" do "Bloqueio de ofício" que originou o presente evento de desbloqueio
           </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-    </xs:sequence>
-  </xs:complexType>
-  <!--TIPO COMPLEXO LISTA DE EVENTOS--> 
-  <xs:complexType name="TCListaEventos">
-    <xs:sequence>
-      <xs:element name="codEvento" type="TSCodigoEventoNFSe" maxOccurs="9">
-        <xs:annotation>
-          <xs:documentation>
-            Grupo de informações de documento utilizado para Dedução/Redução do valor do serviço
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-    </xs:sequence>
-  </xs:complexType>
-  <!--TIPO COMPLEXO INFORMAÇÕES DO EVENTO DE REJEIÇÃO DA NFS-E-->
-  <xs:complexType name="TCInfoEventoRejeicao">
-    <xs:sequence>
-      <xs:element name="cMotivo" type="TSCodMotivoRejeicao">
-        <xs:annotation>
-          <xs:documentation>
-            Motivo da Rejeição da NFS-e:
-            1 - NFS-e em duplicidade;
-            2 - NFS-e já emitida pelo tomador;
-            3 - Não ocorrência do fato gerador;
-            4 - Erro quanto a responsabilidade tributária;
-            5 - Erro quanto ao valor do serviço, valor das deduções ou serviço prestado ou data do fato gerador;
-            9 - Outros;
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="xMotivo" type="TSMotivo" minOccurs="0">
-        <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo indicado neste evento</xs:documentation>
-        </xs:annotation>
-      </xs:element>
-    </xs:sequence>
-  </xs:complexType>
-  <!--TIPO COMPLEXO INFORMAÇÕES DO EVENTO DE ANULAÇÃO DE REJEIÇÃO DA NFS-E-->
-  <xs:complexType name="TCInfoEventoAnulacaoRejeicao">
-    <xs:sequence>
-      <xs:element name="CPFAgTrib" type="TSCPF">
-        <xs:annotation>
-          <xs:documentation>
-            CPF do agente da administração tributária municipal que efetuou o anulação da manifestação de rejeição da NFS-e.
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="idEvManifRej" type="TSIdNumEvento">
-        <xs:annotation>
-          <xs:documentation>
-            Referência ao Id da "Manifestação de rejeição da NFS-e" que originou o presente evento de anulação.
-          </xs:documentation>
-        </xs:annotation>
-      </xs:element>
-      <xs:element name="xMotivo" type="TSMotivo">
-        <xs:annotation>
-          <xs:documentation>Descrição para explicitar o motivo da anluação</xs:documentation>
         </xs:annotation>
       </xs:element>
     </xs:sequence>
@@ -3737,20 +3766,12 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
 <xs:schema attributeFormDefault="unqualified" elementFormDefault="qualified" targetNamespace="http://www.sped.fazenda.gov.br/nfse" xmlns="http://www.sped.fazenda.gov.br/nfse" xmlns:xs="http://www.w3.org/2001/XMLSchema">
   <xs:simpleType name="TVerNFSe">
     <xs:annotation>
-      <xs:documentation>Tipo Versão da NF-e - 1.01</xs:documentation>
+      <xs:documentation>Tipo Versão da NF-e - 1.00|1.01</xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
+      <xs:maxLength value="4"/>
       <xs:whiteSpace value="preserve"/>
-      <xs:pattern value="1\\.01"/>
-    </xs:restriction>
-  </xs:simpleType>
-  <xs:simpleType name="TVerCNC">
-    <xs:annotation>
-      <xs:documentation>Tipo Versão do CNC - 1.00</xs:documentation>
-    </xs:annotation>
-    <xs:restriction base="xs:string">
-      <xs:whiteSpace value="preserve"/>
-      <xs:pattern value="1\\.00"/>
+      <xs:pattern value="1\\.00|1\\.01"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSString">
@@ -3800,7 +3821,9 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSTipoAmbiente">
     <xs:annotation>
       <xs:documentation>
-        Tipos de ambiente do Sistema Nacional NFS-e: 1 - Produção; 2 - Homologação;
+        Tipos de ambiente do Sistema Nacional NFS-e: 
+        1 - Produção; 
+        2 - Homologação;
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -3898,10 +3921,12 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   </xs:simpleType>
   <xs:simpleType name="TSSerieDPS">
     <xs:restriction base="xs:string">
-      <xs:whiteSpace value="preserve"/>
-      <xs:minLength value="1"/>
       <xs:maxLength value="5"/>
-      <xs:pattern value="[0-9]{1,5}"/>
+      <!-- libxml-compat: o oficial publica "^0{0,4}\\d{1,5}$"; em XSD 1.0 ^ e $ são
+           caracteres LITERAIS (não âncoras), o que faz validadores XSD-corretos
+           (libxml) rejeitarem qualquer série. Removidos para refletir a intenção. -->
+      <xs:pattern value="0{0,4}\\d{1,5}"/>
+      <xs:whiteSpace value="preserve"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSEmitenteDPS">
@@ -4357,6 +4382,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         4 - Matriz;
         5 - Filial ou sucursal;
         6 - Outro vínculo;
+        9 - Desconhecido (tipo não informado na nota de origem);
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -4368,6 +4394,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:enumeration value="4"/>
       <xs:enumeration value="5"/>
       <xs:enumeration value="6"/>
+      <xs:enumeration value="9"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSMecAFComExPrest">
@@ -4660,10 +4687,13 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
 	Identificação da Dedução/Redução:
         1 – Alimentação e bebidas/frigobar;
         2 – Materiais;
+        3 - Produção Externa;
+        4 - Reembolso de despesas;
         5 – Repasse consorciado;
         6 – Repasse plano de saúde;
         7 – Serviços;
         8 – Subempreitada de mão de obra;
+        9 - Profissional parceiro;
         99 – Outras deduções;
       </xs:documentation>
     </xs:annotation>
@@ -4671,10 +4701,13 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:whiteSpace value="preserve"/>
       <xs:enumeration value="1"/>
       <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+      <xs:enumeration value="4"/>
       <xs:enumeration value="5"/>
       <xs:enumeration value="6"/>
       <xs:enumeration value="7"/>
       <xs:enumeration value="8"/>
+      <xs:enumeration value="9"/>
       <xs:enumeration value="99"/>
     </xs:restriction>
   </xs:simpleType>
@@ -4749,7 +4782,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         Opção para que o contribuinte optante pelo Simples Nacional ME/EPP (opSimpNac = 3) possa indicar, ao emitir o documento fiscal, em qual regime de apuração os tributos federais e municipal estão inseridos, caso tenha ultrapassado algum sublimite ou limite definido para o Simples Nacional.
         1 – Regime de apuração dos tributos federais e municipal pelo SN;
         2 – Regime de apuração dos tributos federais pelo SN e ISSQN  por fora do SN conforme respectiva legislação municipal do tributo;
-        3 – Regime de apuração dos tributos federais e municipal por fora do SN conforme respectivas legilações federal e municipal de cada tributo;
+        3 – Regime de apuração dos tributos federais e municipal por fora do SN conforme respectivas legislações federal e municipal de cada tributo;
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -4784,6 +4817,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         4 - Notário ou Registrador;
         5 - Profissional Autônomo;
         6 - Sociedade de Profissionais;
+        9 - Outros;
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -4795,6 +4829,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:enumeration value="4"/>
       <xs:enumeration value="5"/>
       <xs:enumeration value="6"/>
+      <xs:enumeration value="9"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSTribISSQN">
@@ -4879,9 +4914,33 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
         04 - Operação Tributável monofásica - Revenda a Alíquota Zero;
         05 - Operação Tributável por Substituição Tributária;
         06 - Operação Tributável a Alíquota Zero;
-        07 - Operação Tributável da Contribuição;
+        07 - Operação Isenta da Contribuição;
         08 - Operação sem Incidência da Contribuição;
         09 - Operação com Suspensão da Contribuição;
+        49 - Outras Operações de Saída;
+        50 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita Tributada no Mercado Interno;
+        51 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita Não-Tributada no Mercado Interno;
+        52 - Operação com Direito a Crédito – Vinculada Exclusivamente a Receita de Exportação;
+        53 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno;
+        54 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas no Mercado Interno e de Exportação;
+        55 - Operação com Direito a Crédito – Vinculada a Receitas Não Tributadas no Mercado Interno e de Exportação;
+        56 - Operação com Direito a Crédito – Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação;
+        60 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita Tributada no Mercado Interno;
+        61 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita Não-Tributada no Mercado Interno;
+        62 - Crédito Presumido – Operação de Aquisição Vinculada Exclusivamente a Receita de Exportação;
+        63 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno;
+        64 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas no Mercado Interno e de Exportação;
+        65 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Não-Tributadas no Mercado Interno e de Exportação;
+        66 - Crédito Presumido – Operação de Aquisição Vinculada a Receitas Tributadas e Não-Tributadas no Mercado Interno e de Exportação;
+        67 - Crédito Presumido – Outras Operações;
+        70 - Operação de Aquisição sem Direito a Crédito;
+        71 - Operação de Aquisição com Isenção;
+        72 - Operação de Aquisição com Suspensão;
+        73 - Operação de Aquisição a Alíquota Zero;
+        74 - Operação de Aquisição sem Incidência da Contribuição;
+        75 - Operação de Aquisição por Substituição Tributária;
+        98 - Outras Operações de Entrada;
+        99 - Outras Operações;
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -4896,6 +4955,30 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:enumeration value="07"/>
       <xs:enumeration value="08"/>
       <xs:enumeration value="09"/>
+      <xs:enumeration value="49"/>
+      <xs:enumeration value="50"/>
+      <xs:enumeration value="51"/>
+      <xs:enumeration value="52"/>
+      <xs:enumeration value="53"/>
+      <xs:enumeration value="54"/>
+      <xs:enumeration value="55"/>
+      <xs:enumeration value="56"/>
+      <xs:enumeration value="60"/>
+      <xs:enumeration value="61"/>
+      <xs:enumeration value="62"/>
+      <xs:enumeration value="63"/>
+      <xs:enumeration value="64"/>
+      <xs:enumeration value="65"/>
+      <xs:enumeration value="66"/>
+      <xs:enumeration value="67"/>
+      <xs:enumeration value="70"/>
+      <xs:enumeration value="71"/>
+      <xs:enumeration value="72"/>
+      <xs:enumeration value="73"/>
+      <xs:enumeration value="74"/>
+      <xs:enumeration value="75"/>
+      <xs:enumeration value="98"/>
+      <xs:enumeration value="99"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSOpConsumServ">
@@ -4916,14 +4999,30 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     <xs:annotation>
       <xs:documentation>
         Tipo de retencao do Pis/Cofins:
-        1 - Retido;
-        2 - Não Retido;
+	0 - PIS/COFINS/CSLL Não Retidos;
+	1 - PIS/COFINS Retidos;
+	2 - PIS/COFINS Não Retidos;
+	3 - PIS/COFINS/CSLL Retidos;
+	4 - PIS/COFINS Retidos, CSLL Não Retido;
+	5 - PIS Retido, COFINS/CSLL Não Retido;
+	6 - COFINS Retido, PIS/CSLL Não Retido;
+	7 - PIS Não Retido, COFINS/CSLL Retidos;
+	8 - PIS/COFINS Não Retidos, CSLL Retido;
+	9 - COFINS Não Retido, PIS/CSLL Retidos;
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
       <xs:whiteSpace value="preserve"/>
+      <xs:enumeration value="0"/>
       <xs:enumeration value="1"/>
       <xs:enumeration value="2"/>
+      <xs:enumeration value="3"/>
+      <xs:enumeration value="4"/>
+      <xs:enumeration value="5"/>
+      <xs:enumeration value="6"/>
+      <xs:enumeration value="7"/>
+      <xs:enumeration value="8"/>
+      <xs:enumeration value="9"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSTipoIndTotTrib">
@@ -4962,7 +5061,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:documentation>
         Situações possíveis:
         100 - NFS-e Gerada;
-        101 - NFS-e de Substituição Gerada;
         102 - NFS-e de Decisão Judicial;
         103 - NFS-e Avulsa;
         107 - NFS-e MEI;
@@ -4971,7 +5069,6 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
     <xs:restriction base="xs:string">
       <xs:whiteSpace value="preserve"/>
       <xs:enumeration value="100"/>
-      <xs:enumeration value="101"/>
       <xs:enumeration value="102"/>
       <xs:enumeration value="103"/>
       <xs:enumeration value="107"/>
@@ -5175,13 +5272,11 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:pattern value="[0-9]{15}"/>
     </xs:restriction>
   </xs:simpleType>
-  <xs:simpleType name="TSIdPedRefEvt">
+  <xs:simpleType name="TSIdPedRegEvt">
     <xs:annotation>
       <xs:documentation>
         O identificador do pedido de registro do evento é formado conforme a concatenação dos seguintes campos:
-        "PRE" + Chave de Acesso NFS-e (50) + Tipo do evento (6) = 59 chars.
-        Atualização Anexo II SEFIN_ADN v1.00-20251226 — nPedRegEvento removido
-        da composição (antes era 62 chars com PRE[0-9]{59}).
+        "PRE" + Chave de Acesso NFS-e + Tipo do evento + Número do Pedido de Registro do Evento (nPedRegEvento)
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -5193,7 +5288,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSIdEvento">
     <xs:annotation>
       <xs:documentation>
-		  Identificador do evento: "EVT" + Chave de acesso(50) Tipo do evento (6) + Pedido de Registro do Evento(3) (nPedRegEvento)
+	Identificador do evento: "EVT" + Chave de acesso(50) Tipo do evento (6) + Pedido de Registro do Evento(3) (nPedRegEvento)
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -5205,7 +5300,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSCodigoEventoNFSe">
     <xs:annotation>
       <xs:documentation>
-		  Código de evento da NFS-e
+	Código de evento da NFS-e
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -5214,14 +5309,12 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
       <xs:enumeration value="e105104"/>
       <xs:enumeration value="e105105"/>
       <xs:enumeration value="e305101"/>
-      <xs:enumeration value="e907202"/>
-      <xs:enumeration value="e967203"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:simpleType name="TSIdNumEvento">
     <xs:annotation>
       <xs:documentation>
-		  Referência ao Id "Manifestação de rejeição da NFS-e" que originou o presente evento de anulação.
+	Referência ao Id "Manifestação de rejeição da NFS-e" que originou o presente evento de anulação.
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -5232,7 +5325,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSNumDFe">
     <xs:annotation>
       <xs:documentation>
-		  Número sequencial do documento gerado por ambiente gerador de DFe do município.
+	Número sequencial do documento gerado por ambiente gerador de DFe do município.
       </xs:documentation>
     </xs:annotation>
     <xs:restriction base="xs:string">
@@ -5242,7 +5335,9 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   </xs:simpleType>
   <xs:simpleType name="TSSituacaoCadastroContribuinte">
     <xs:annotation>
-      <xs:documentation>Identificação da situação do cadastro do contribuinte</xs:documentation>
+      <xs:documentation>
+        Identificação da situação do cadastro do contribuinte
+      </xs:documentation>
     </xs:annotation>
     <xs:restriction base="TSString">
       <xs:minLength value="1"/>
@@ -5251,7 +5346,9 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   </xs:simpleType>
   <xs:simpleType name="TSMotivoSituacaoCadastroContribuinte">
     <xs:annotation>
-      <xs:documentation>Motivo pelo qual o contribuinte se enquadra na situação informada</xs:documentation>
+      <xs:documentation>
+        Motivo pelo qual o contribuinte se enquadra na situação informada
+      </xs:documentation>
     </xs:annotation>
     <xs:restriction base="TSString">
       <xs:minLength value="1"/>
@@ -5260,7 +5357,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSSituacaoEmissaoNFSE">
     <xs:annotation>
       <xs:documentation>
-		  Situação Emissão NFS-e:
+	Situação Emissão NFS-e:
         0 - Não Habilitado;
         1 - Habilitado;
       </xs:documentation>
@@ -5274,7 +5371,7 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   <xs:simpleType name="TSCategoriaServico">
     <xs:annotation>
       <xs:documentation>
-		  Categorias do serviço:
+	Categorias do serviço:
         1 - Locação;
         2 - Sublocação;
         3 - Arrendamento;
@@ -5315,7 +5412,9 @@ export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
   </xs:simpleType>
   <xs:simpleType name="TSExtensaoTotal">
     <xs:annotation>
-      <xs:documentation>Extensão total da ferrovia, rodovia, cabos, dutos ou condutos</xs:documentation>
+      <xs:documentation>
+        Extensão total da ferrovia, rodovia, cabos, dutos ou condutos
+      </xs:documentation>
     </xs:annotation>
     <xs:restriction base="TSString">
       <xs:minLength value="1"/>

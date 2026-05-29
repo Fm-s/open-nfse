@@ -11,7 +11,7 @@ Até 2025, cada um dos **~5.570 municípios** brasileiros operava seu próprio s
 - **Consulta** — NFS-e por chave de acesso, distribuição de DF-e por NSU.
 - **Emissão segura** — `emitir(params)` roda validações offline, consulta o `DpsCounter` só depois que tudo passa, e persiste falhas transientes (rede, timeout, 5xx, **429**) no `RetryStore` para replay idempotente via `replayPendingEvents`. Escape hatch `emitirDpsPronta(dps)` para pipelines manuais.
 - **Emissão em lote** — `emitirEmLote` paraleliza no cliente, com concorrência configurável.
-- **Cancelamento e substituição** — eventos 101101 e 105102, com máquina de 4 estados para compensação em falhas transitórias/permanentes.
+- **Cancelamento e substituição** — eventos 101101 e 105102, com máquina de 5 estados para compensação em falhas transitórias/permanentes.
 - **Rate-limit (429) pluggable** — `RetryPolicy` decide `notBefore` para cada erro transiente. Default respeita `Retry-After` (RFC 7231); customize para backoff exponencial / linear / com jitter usando `RetryContext.attempt`.
 - **Validações pré-envio** — XSD local (RTC v1.01 via libxml2 WASM), CPF/CNPJ check-digit, lookup de CEP (ViaCEP por default, pluggable).
 - **Parâmetros municipais** — seis métodos `consultar*` (alíquotas, benefícios, convênio, regimes especiais, retenções) com cache pluggable e TTLs sensatos.
@@ -37,7 +37,7 @@ Escopo deliberadamente limitado para manter a biblioteca focada e auditável:
 ├────────────────────────────────────────────────────────────┤
 │  Leitura        │  Emissão seg.     │  Eventos              │
 │  fetchByChave   │  emitir           │  cancelar             │
-│  fetchByNsu     │  emitirEmLote     │  substituir (4 estados)│
+│  fetchByNsu     │  emitirEmLote     │  substituir (5 estados)│
 │                 │  emitirDpsPronta  │  replayPendingEvents  │
 │                                                            │
 │  Retry pipeline: PendingEvent + RetryStore + RetryPolicy   │
@@ -60,7 +60,7 @@ Escopo deliberadamente limitado para manter a biblioteca focada e auditável:
 - [Começando](./getting-started) — instalar, configurar certificado, primeira chamada.
 - [Princípios de design](./principios) — o que a API promete e como ela se mantém compacta.
 - [Emissão](./emitir) — `emitir(params)` com `DpsCounter` + `RetryStore` end-to-end.
-- [Substituir e cancelar](./substituir-cancelar) — máquina de 4 estados + rollback automático.
+- [Substituir e cancelar](./substituir-cancelar) — máquina de 5 estados + rollback automático.
 - [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio, regimes, retenções.
 - [DANFSe (PDF)](./danfse) — fetch oficial com fallback para renderer local.
 - [Testando com o fake](./testing) — `NfseClientFake` + `NfseClientLike`.

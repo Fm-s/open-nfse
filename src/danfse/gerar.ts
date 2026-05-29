@@ -323,11 +323,11 @@ function renderValores(doc: Doc, nfse: NFSe): void {
     .font(FONT_BOLD)
     .text(`R$ ${currency(valores.vLiq)}`, x + 6, y + 54);
 
-  if (valores.xOutInf) {
+  if (inf.xOutInf) {
     doc
       .fillColor(COLOR_LABEL)
       .fontSize(7)
-      .text(valores.xOutInf, x + 200, y + 50, { width: w - 210 });
+      .text(inf.xOutInf, x + 200, y + 50, { width: w - 210 });
     doc.fillColor('black');
   }
 }

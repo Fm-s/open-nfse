@@ -51,8 +51,8 @@ describe('parametros-municipais fetch functions', () => {
     const a = r.aliquotas['250101']?.[0];
     expect(a?.incidencia).toBe('Local');
     expect(a?.aliquota).toBe(2.5);
-    expect(a?.dataInicio).toBeInstanceOf(Date);
-    expect(a?.dataFim).toBeUndefined();
+    expect(a?.dataInicioVigencia).toBeInstanceOf(Date);
+    expect(a?.dataFimVigencia).toBeUndefined();
   });
 
   it('fetchAliquota: accepts Date for competencia (formats as YYYY-MM-DD)', async () => {
@@ -127,7 +127,7 @@ describe('parametros-municipais fetch functions', () => {
 
     const r = await fetchHistoricoAliquotas(httpClient, '2111300', '250101');
     expect(r.aliquotas['250101']).toHaveLength(2);
-    expect(r.aliquotas['250101']?.[0]?.dataFim).toBeInstanceOf(Date);
+    expect(r.aliquotas['250101']?.[0]?.dataFimVigencia).toBeInstanceOf(Date);
   });
 
   // --------- beneficio ---------

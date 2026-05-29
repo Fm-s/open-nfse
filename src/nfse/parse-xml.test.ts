@@ -221,9 +221,7 @@ describe('parseNfseXml — phase 4 service variants (synthetic)', () => {
     const serv = parsed.infNFSe.DPS.infDPS.serv;
     expect(serv.comExt).toBeUndefined();
     expect(serv.obra).toBeUndefined();
-    expect(serv.lsadppu).toBeUndefined();
     expect(serv.atvEvento).toBeUndefined();
-    expect(serv.explRod).toBeUndefined();
     expect(serv.infoCompl).toBeUndefined();
   });
 });
@@ -303,10 +301,8 @@ describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', 
     '<locPrest><cPaisPrestacao>US</cPaisPrestacao></locPrest>' +
     '<cServ><cTribNac>100101</cTribNac><xDescServ>s</xDescServ></cServ>' +
     '<comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>USD</tpMoeda><vServMoeda>100</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><nDI>di1</nDI><nRE>re1</nRE><mdic>0</mdic></comExt>' +
-    '<lsadppu><categ>1</categ><objeto>2</objeto><extensao>100</extensao><nPostes>0</nPostes></lsadppu>' +
     '<obra><cCIB>99999</cCIB></obra>' +
     '<atvEvento><xNome>E</xNome><dtIni>2026-04-16</dtIni><dtFim>2026-04-17</dtFim><end><CEP>01000000</CEP><xLgr>L</xLgr><nro>1</nro><xBairro>B</xBairro></end></atvEvento>' +
-    '<explRod><categVeic>01</categVeic><nEixos>2</nEixos><rodagem>1</rodagem><sentido>1</sentido><placa>AAA0000</placa><codAcessoPed>1</codAcessoPed><codContrato>1</codContrato></explRod>' +
     '<infoCompl><idDocTec>art1</idDocTec><docRef>c1</docRef><xPed>P1</xPed><gItemPed><xItemPed>1</xItemPed></gItemPed><xInfComp>info</xInfComp></infoCompl>' +
     '</serv>' +
     '<valores>' +
@@ -341,13 +337,11 @@ describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', 
     expect(parsed.infNFSe.DPS.infDPS.serv.locPrest).toEqual({ cPaisPrestacao: 'US' });
   });
 
-  it('parses all service variants (comExt, lsadppu, obra, atvEvento, explRod, infoCompl)', () => {
+  it('parses service variants (comExt, obra, atvEvento, infoCompl)', () => {
     const s = parsed.infNFSe.DPS.infDPS.serv;
     expect(s.comExt?.nDI).toBe('di1');
-    expect(s.lsadppu?.extensao).toBe('100');
     expect(s.obra?.identificacao).toEqual({ cCIB: '99999' });
     expect(s.atvEvento?.identificacao).toHaveProperty('end');
-    expect(s.explRod?.placa).toBe('AAA0000');
     expect(s.infoCompl?.gItemPed?.xItemPed).toEqual(['1']);
   });
 

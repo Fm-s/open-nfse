@@ -30,7 +30,13 @@ export interface InfEvento {
   readonly ambGer: AmbienteGeradorEvento;
   readonly nSeqEvento: string;
   readonly dhProc: Date;
-  readonly nDFe: string;
+  /**
+   * Número do DF-e gerado pelo ambiente gerador. A SEFIN em produção emite este
+   * valor no elemento `<nDFSe>` (com S) — mesmo nome usado no documento NFS-e.
+   * O XSD bundled e versões ≤0.8.6 liam `<nDFe>` (sem S) e rejeitavam respostas
+   * de cancelamento já aceitas pela SEFIN. Ver `parseInfEvento`.
+   */
+  readonly nDFSe: string;
   readonly pedRegEvento: PedRegEvento;
 }
 
@@ -115,17 +121,12 @@ export type DetalheEvento =
   | { readonly e203202: { readonly xDesc: string } }
   | { readonly e204203: { readonly xDesc: string } }
   | { readonly e205204: { readonly xDesc: string } }
-  // Rejeições (P/T/I) — compartilham infRej
-  | { readonly e202205: { readonly xDesc: string; readonly infRej: InfoEventoRejeicao } }
-  | { readonly e203206: { readonly xDesc: string; readonly infRej: InfoEventoRejeicao } }
-  | { readonly e204207: { readonly xDesc: string; readonly infRej: InfoEventoRejeicao } }
-  // Anulação de rejeição
-  | {
-      readonly e205208: {
-        readonly xDesc: string;
-        readonly infAnRej: InfoEventoAnulacaoRejeicao;
-      };
-    }
+  // Rejeições (P/T/I) — cMotivo/xMotivo são filhos diretos (sem wrapper infRej)
+  | { readonly e202205: { readonly xDesc: string } & InfoEventoRejeicao }
+  | { readonly e203206: { readonly xDesc: string } & InfoEventoRejeicao }
+  | { readonly e204207: { readonly xDesc: string } & InfoEventoRejeicao }
+  // Anulação de rejeição — campos diretos (sem wrapper infAnRej)
+  | { readonly e205208: { readonly xDesc: string } & InfoEventoAnulacaoRejeicao }
   // Eventos por ofício (305xxx)
   | {
       readonly e305101: {
@@ -199,7 +200,7 @@ function parseInfEvento(node: XmlObject): InfEvento {
     ambGer: requireText(node, 'ambGer') as AmbienteGeradorEvento,
     nSeqEvento: requireText(node, 'nSeqEvento'),
     dhProc: coerceDate(requireText(node, 'dhProc')),
-    nDFe: requireText(node, 'nDFe'),
+    nDFSe: requireText(node, 'nDFSe'),
     pedRegEvento: parsePedRegEvento(requireChild(node, 'pedRegEvento')),
   };
 }
@@ -336,7 +337,7 @@ function parseDetalhe(node: XmlObject): {
       };
     }
   }
-  // Rejeições P/T/I — compartilham o shape xDesc + infRej.
+  // Rejeições P/T/I — xDesc, cMotivo, xMotivo? são filhos diretos (sem infRej).
   for (const [elem, codigo] of [
     ['e202205', '202205'],
     ['e203206', '203206'],
@@ -344,17 +345,14 @@ function parseDetalhe(node: XmlObject): {
   ] as const) {
     const child = optionalChild(node, elem);
     if (child) {
-      const infRej = requireChild(child, 'infRej');
-      const xMotivoInfRej = optionalText(infRej, 'xMotivo');
+      const xMotivo = optionalText(child, 'xMotivo');
       return {
         tipoEvento: codigo as TipoEventoNfse,
         detalhe: {
           [elem]: {
             xDesc: requireText(child, 'xDesc'),
-            infRej: {
-              cMotivo: requireText(infRej, 'cMotivo') as MotivoRejeicaoNfse,
-              ...(xMotivoInfRej !== undefined ? { xMotivo: xMotivoInfRej } : {}),
-            },
+            cMotivo: requireText(child, 'cMotivo') as MotivoRejeicaoNfse,
+            ...(xMotivo !== undefined ? { xMotivo } : {}),
           },
         } as DetalheEvento,
       };
@@ -362,17 +360,14 @@ function parseDetalhe(node: XmlObject): {
   }
   const e205208 = optionalChild(node, 'e205208');
   if (e205208) {
-    const infAnRej = requireChild(e205208, 'infAnRej');
     return {
       tipoEvento: '205208' as TipoEventoNfse,
       detalhe: {
         e205208: {
           xDesc: requireText(e205208, 'xDesc'),
-          infAnRej: {
-            CPFAgTrib: requireText(infAnRej, 'CPFAgTrib'),
-            idEvManifRej: requireText(infAnRej, 'idEvManifRej'),
-            xMotivo: requireText(infAnRej, 'xMotivo'),
-          },
+          CPFAgTrib: requireText(e205208, 'CPFAgTrib'),
+          idEvManifRej: requireText(e205208, 'idEvManifRej'),
+          xMotivo: requireText(e205208, 'xMotivo'),
         },
       },
     };

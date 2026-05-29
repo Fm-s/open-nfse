@@ -1,3 +1,5 @@
+import type { TipoBeneficioMunicipal } from '../nfse/enums.js';
+
 /** Convênio do município — 1 Pleno, 2 Simplificado. */
 export type TipoConvenio = '1' | '2';
 
@@ -28,8 +30,8 @@ export interface Aliquota {
   readonly incidencia?: string;
   /** Alíquota em % (ex: `2.5` = 2,5%). */
   readonly aliquota?: number;
-  readonly dataInicio: Date;
-  readonly dataFim?: Date;
+  readonly dataInicioVigencia: Date;
+  readonly dataFimVigencia?: Date;
 }
 
 /** Serviço vinculado a um benefício. */
@@ -53,8 +55,8 @@ export interface Beneficio {
   readonly descricao?: string;
   readonly dataInicioVigencia: Date;
   readonly dataFimVigencia?: Date;
-  /** Tipo do benefício (per enum existente `TipoBeneficioMunicipal`). */
-  readonly tipoBeneficio: string;
+  /** Tipo do benefício. */
+  readonly tipoBeneficio: TipoBeneficioMunicipal;
   readonly tipoReducaoBC?: TipoReducaoBaseDeCalculo;
   readonly reducaoPercentualBC?: number;
   readonly aliquotaDiferenciada?: number;
@@ -76,8 +78,8 @@ export interface ParametrosConvenio {
 /** Regime especial de tributação ativo em um município + serviço + competência. */
 export interface RegimeEspecial {
   readonly situacao: TipoConfiguracaoRegimeEspecial;
-  readonly dataInicio: Date;
-  readonly dataFim?: Date;
+  readonly dataInicioVigencia: Date;
+  readonly dataFimVigencia?: Date;
   readonly observacoes?: string;
 }
 

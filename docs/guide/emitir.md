@@ -152,7 +152,7 @@ Três regras que emergem dessa estrutura:
 
 ## 4. Cron de replay
 
-Tudo que cai em `retry_pending` (e em `rollback_pending` vindo de `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um; SEFIN deduplica no `infDPS.Id` (emissões) e em `(chave, tipoEvento, nPedRegEvento)` (eventos), então chamar N vezes é idempotente.
+Tudo que cai em `retry_pending` (e em `rollback_pending` vindo de `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um; SEFIN deduplica no `infDPS.Id` (emissões) e em `(chave, tipoEvento)` (eventos), então chamar N vezes é idempotente.
 
 Entradas com `notBefore` no futuro (caso clássico: 429 com `Retry-After: 120`) são puladas silenciosamente — não aparecem no resultado e ficam no store até `notBefore <= now`. A cada falha transiente no replay, `notBefore` é recalculado pela `RetryPolicy` e `attempts` incrementado. **`replayPendingEvents` é single-threaded** — dois processos chamando concorrentemente duplicariam o tráfego para o SEFIN. Garanta exclusão mútua no caller (cron single-instance ou lock distribuído).
 

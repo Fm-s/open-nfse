@@ -32,7 +32,7 @@ A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve auto
 | `emitir`, `emitirDpsPronta`, `emitirEmLote` | POST | `/nfse`                                                  | SEFIN                       |
 | `cancelar`, `substituir`, `replayPendingEvents` | POST | `/nfse/{chaveAcesso}/eventos`                        | SEFIN                       |
 | `fetchByNsu`                           | GET    | `/DFe/{NSU}`                                                  | ADN Contribuintes           |
-| `fetchDanfse`, `gerarDanfse` (online)  | GET    | `/{chaveAcesso}`                                              | ADN DANFSe                  |
+| `consultarDanfse`, `gerarDanfse` (online)  | GET    | `/{chaveAcesso}`                                              | ADN DANFSe                  |
 | `consultarAliquota`, `consultarHistoricoAliquotas` | GET | `/aliquotas/...`                                   | ADN Parâmetros Municipais   |
 | `consultarBeneficio`                   | GET    | `/beneficios/...`                                             | ADN Parâmetros Municipais   |
 | `consultarConvenio`                    | GET    | `/convenios/{codMunicipio}`                                   | ADN Parâmetros Municipais   |

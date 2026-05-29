@@ -91,7 +91,7 @@ describe('buildSubstituicaoXml', () => {
     });
     expect(xml).toContain(`<infPedReg Id="PRE${CHAVE}105102">`);
     expect(xml).toContain('<e105102>');
-    expect(xml).toContain('<xDesc>Cancelamento de NFS-e por Substituicao</xDesc>');
+    expect(xml).toContain('<xDesc>Cancelamento de NFS-e por Substituição</xDesc>');
     expect(xml).toContain(`<chSubstituta>${CHAVE_NOVA}</chSubstituta>`);
   });
 

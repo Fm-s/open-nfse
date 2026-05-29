@@ -57,7 +57,7 @@ export class InvalidChaveAcessoError extends ValidationError {
   }
 }
 
-export class InvalidIdDpsError extends ValidationError {
+export class InvalidDpsIdError extends ValidationError {
   constructor(
     public readonly value: string,
     options?: { cause?: unknown },

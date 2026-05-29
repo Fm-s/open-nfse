@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Reads schemas/rtc-v1.01/*.xsd and emits src/nfse/_rtc-schemas.generated.ts
+// Reads schemas/1.01/*.xsd (official current bundle) and emits src/nfse/_rtc-schemas.generated.ts
 // with the contents inlined as template literals. Run this whenever a new
 // Nota Técnica lands and the XSDs are updated:
 //
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..');
-const SCHEMA_DIR = join(REPO_ROOT, 'schemas', 'rtc-v1.01');
+const SCHEMA_DIR = join(REPO_ROOT, 'schemas', '1.01');
 const OUTPUT = join(REPO_ROOT, 'src', 'nfse', '_rtc-schemas.generated.ts');
 
 const files = readdirSync(SCHEMA_DIR)
@@ -29,7 +29,7 @@ const entries = files
   })
   .join('\n');
 
-const output = `// AUTO-GENERATED from schemas/rtc-v1.01/*.xsd by scripts/generate-schemas.mjs.
+const output = `// AUTO-GENERATED from schemas/1.01/*.xsd by scripts/generate-schemas.mjs.
 // Do not edit by hand. Regenerate when a new Nota Técnica updates the XSDs.
 
 export interface RtcSchemaFile {

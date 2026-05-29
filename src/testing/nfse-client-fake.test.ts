@@ -214,7 +214,9 @@ describe('NfseClientFake parametros municipais', () => {
     const fake = new NfseClientFake();
     fake.seed.aliquota('2111300', '250101', '2026-03-01', {
       aliquotas: {
-        '250101': [{ incidencia: 'Local', aliquota: 2.5, dataInicio: new Date('2026-01-01') }],
+        '250101': [
+          { incidencia: 'Local', aliquota: 2.5, dataInicioVigencia: new Date('2026-01-01') },
+        ],
       },
     });
 

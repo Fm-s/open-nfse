@@ -358,15 +358,19 @@ describe('NfseClient', () => {
     expect(c.chaveAcesso).toBe(CHAVE);
   });
 
-  it('fetchDanfse rejects chaves fora do pattern sem tocar a rede', async () => {
+  it('consultarDanfse rejects chaves fora do pattern sem tocar a rede', async () => {
     const client = new NfseClient({
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
     });
-    await expect(client.fetchDanfse('nao-e-chave')).rejects.toBeInstanceOf(InvalidChaveAcessoError);
+    await expect(client.consultarDanfse('nao-e-chave')).rejects.toBeInstanceOf(
+      InvalidChaveAcessoError,
+    );
     // encoded traversal attempt também é barrado
-    await expect(client.fetchDanfse('../admin')).rejects.toBeInstanceOf(InvalidChaveAcessoError);
+    await expect(client.consultarDanfse('../admin')).rejects.toBeInstanceOf(
+      InvalidChaveAcessoError,
+    );
   });
 
   it("gerarDanfse('auto') faz fallback para local em 5xx transiente", async () => {
@@ -767,7 +771,7 @@ describe('NfseClient', () => {
             versaoAplicativo: 'v',
             dataHoraProcessamento: '2026-05-12T10:00:00-03:00',
             eventoXmlGZipB64: gzipBase64Encode(
-              `<?xml version="1.0"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-05-12T10:00:00Z</dhProc><nDFe>1</nDFe><pedRegEvento versao="1.01"><infPedReg Id="PRE"><tpAmb>2</tpAmb><verAplic>v</verAplic><dhEvento>2026-05-12T10:00:00Z</dhEvento><CNPJAutor>00000000000000</CNPJAutor><chNFSe>${CHAVE}</chNFSe><e101101><xDesc>x</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101></infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>x</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature></evento>`,
+              `<?xml version="1.0"?><evento xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infEvento Id="EVT"><verAplic>v</verAplic><ambGer>2</ambGer><nSeqEvento>1</nSeqEvento><dhProc>2026-05-12T10:00:00Z</dhProc><nDFSe>1</nDFSe><pedRegEvento versao="1.01"><infPedReg Id="PRE"><tpAmb>2</tpAmb><verAplic>v</verAplic><dhEvento>2026-05-12T10:00:00Z</dhEvento><CNPJAutor>00000000000000</CNPJAutor><chNFSe>${CHAVE}</chNFSe><e101101><xDesc>x</xDesc><cMotivo>1</cMotivo><xMotivo>x</xMotivo></e101101></infPedReg></pedRegEvento></infEvento><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><Reference URI="#EVT"><DigestValue>x</DigestValue></Reference></SignedInfo><SignatureValue>x</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature></evento>`,
             ),
           },
         };

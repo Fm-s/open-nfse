@@ -41,7 +41,7 @@ export class HttpStatusError extends HttpError {
    * Strict RFC delta-seconds is non-negative integer only, but the
    * parser is intentionally lenient on one real-world deviation:
    * decimal seconds (`12.5`) — some servers send fractional values;
-   * we truncate to whole seconds via `Math.floor`.
+   * we round up to whole seconds via `Math.ceil` (`12.5` → `13s`).
    *
    * HTTP-date values in the past return `0` (ready immediately).
    *

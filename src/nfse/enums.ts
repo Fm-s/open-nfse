@@ -138,6 +138,12 @@ export enum TipoRetISSQN {
   RetidoPeloIntermediario = '3',
 }
 
+/**
+ * Código de Situação Tributária do PIS/COFINS (`TSTipoCST`). Domínio completo
+ * conforme NT SE/CGNFS-e nº 007 (em produção desde 2026-02-09) — antes a lib
+ * só cobria `00`–`09` e rotulava `07` como "Tributável da Contribuição"
+ * (errado: `07` é Isenta).
+ */
 export enum CST {
   Nenhum = '00',
   TributavelAliquotaBasica = '01',
@@ -146,14 +152,53 @@ export enum CST {
   TributavelMonofasicaRevendaAliquotaZero = '04',
   TributavelSubstituicaoTributaria = '05',
   TributavelAliquotaZero = '06',
-  TributavelDaContribuicao = '07',
+  IsentaDaContribuicao = '07',
   SemIncidenciaDaContribuicao = '08',
   SuspensaoDaContribuicao = '09',
+  OutrasOperacoesDeSaida = '49',
+  CreditoVinculadoExclusivamenteReceitaTributadaMI = '50',
+  CreditoVinculadoExclusivamenteReceitaNaoTributadaMI = '51',
+  CreditoVinculadoExclusivamenteReceitaExportacao = '52',
+  CreditoVinculadoReceitasTributadasNaoTributadasMI = '53',
+  CreditoVinculadoReceitasTributadasMIExportacao = '54',
+  CreditoVinculadoReceitasNaoTributadasMIExportacao = '55',
+  CreditoVinculadoReceitasTributadasNaoTributadasMIExportacao = '56',
+  CreditoPresumidoAquisicaoExclusivamenteReceitaTributadaMI = '60',
+  CreditoPresumidoAquisicaoExclusivamenteReceitaNaoTributadaMI = '61',
+  CreditoPresumidoAquisicaoExclusivamenteReceitaExportacao = '62',
+  CreditoPresumidoAquisicaoReceitasTributadasNaoTributadasMI = '63',
+  CreditoPresumidoAquisicaoReceitasTributadasMIExportacao = '64',
+  CreditoPresumidoAquisicaoReceitasNaoTributadasMIExportacao = '65',
+  CreditoPresumidoAquisicaoReceitasTributadasNaoTributadasMIExportacao = '66',
+  CreditoPresumidoOutrasOperacoes = '67',
+  AquisicaoSemDireitoCredito = '70',
+  AquisicaoComIsencao = '71',
+  AquisicaoComSuspensao = '72',
+  AquisicaoAliquotaZero = '73',
+  AquisicaoSemIncidenciaContribuicao = '74',
+  AquisicaoSubstituicaoTributaria = '75',
+  OutrasOperacoesDeEntrada = '98',
+  OutrasOperacoes = '99',
 }
 
+/**
+ * Tipo de retenção de PIS/COFINS e CSLL (`TSTipoRetPISCofins`). Domínio
+ * expandido pela NT SE/CGNFS-e nº 007 (em produção desde 2026-02-09): antes a
+ * lib (e o schema) só aceitavam `1`/`2`; agora `0` e `3`–`9` cobrem também a
+ * CSLL. Os códigos `1`/`2` serão suprimidos quando o grupo `IBSCBS` se tornar
+ * obrigatório — mantidos por ora para a transição.
+ */
 export enum TipoRetPisCofins {
-  Retido = '1',
-  NaoRetido = '2',
+  PisCofinsCsllNaoRetidos = '0',
+  PisCofinsRetidos = '1',
+  PisCofinsNaoRetidos = '2',
+  PisCofinsCsllRetidos = '3',
+  PisCofinsRetidosCsllNaoRetido = '4',
+  PisRetidoCofinsCsllNaoRetido = '5',
+  CofinsRetidoPisCsllNaoRetido = '6',
+  PisNaoRetidoCofinsCsllRetidos = '7',
+  PisCofinsNaoRetidosCsllRetido = '8',
+  CofinsNaoRetidoPisCsllRetidos = '9',
 }
 
 export enum IndicadorTotalTributos {
@@ -163,10 +208,13 @@ export enum IndicadorTotalTributos {
 export enum TipoDedRed {
   AlimentacaoBebidas = '1',
   Materiais = '2',
+  ProducaoExterna = '3',
+  ReembolsoDespesas = '4',
   RepasseConsorciado = '5',
   RepassePlanoSaude = '6',
   Servicos = '7',
   SubempreitadaMaoObra = '8',
+  ProfissionalParceiro = '9',
   Outras = '99',
 }
 
@@ -236,6 +284,7 @@ export enum VinculoPrestacao {
   Matriz = '4',
   FilialSucursal = '5',
   OutroVinculo = '6',
+  Desconhecido = '9',
 }
 
 export enum MovimentacaoTemporariaBens {
@@ -274,6 +323,31 @@ export enum TipoOperacao {
   FornecimentoComPagamentoJaRealizado = '3',
   RecebimentoPagamentoFornecimentoPosterior = '4',
   FornecimentoRecebimentoConcomitantes = '5',
+}
+
+/** Tipo de ente governamental (`TSRTCTpEnteGov`). */
+export enum TipoEnteGovernamental {
+  Uniao = '1',
+  Estado = '2',
+  DistritoFederal = '3',
+  Municipio = '4',
+}
+
+/** Tipo de reembolso/repasse/ressarcimento (`TSRTCTpReeRepRes`). */
+export enum TipoReembolsoRepasse {
+  RepasseIntermediacaoImoveis = '01',
+  RepasseFornecedorAgenciaTurismo = '02',
+  ReembolsoAgenciaPublicidadeProducaoExterna = '03',
+  ReembolsoAgenciaPublicidadeMidia = '04',
+  Outros = '99',
+}
+
+/** Tipo da chave do documento fiscal referenciado (`TSRTCTipoChaveDFe`). */
+export enum TipoChaveDFe {
+  Nfse = '1',
+  NFe = '2',
+  CTe = '3',
+  Outro = '9',
 }
 
 export enum UF {
