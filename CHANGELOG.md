@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Não lançado]
+
+Consolidação da documentação técnica oficial em `specs/ruleset/` (ruleset agent-friendly, rastreável à fonte) e auditoria de conformidade do `src/` contra ela. Correções derivadas:
+
+### Changed (breaking)
+
+- **`substituir()` agora emite apenas a DPS com `<subst>`.** O evento **105102 (Cancelamento por Substituição)** é gerado pelo **Sistema Nacional NFS-e** (`autor=MEmis`), de forma atômica com a emissão, ao receber a DPS substituta via `POST /nfse`. A lib **não** registra mais um pedRegEvento 105102 pelo contribuinte — era redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+  - `SubstituirResult` deixa de ser a união de 5 estados (`ok`/`retry_pending`/`rolled_back`/`rollback_pending`/`rollback_failed`) e passa a ser **`{ novaNfse: NfseEmitResult }`** — a chamada retorna a nota substituta ou lança (na falha da emissão, nada foi alterado no SEFIN).
+  - `SubstituirParams` perde `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore`/`isTransient` (não há mais evento, retry nem rollback) e ganha as opções de emissão (`skipValidation`/`skipCepValidation`/`skipCpfCnpjValidation`/`cepValidator`). A free function `substituir` perde o parâmetro `retryPolicy`.
+  - `buildSubstituicaoXml` marcado `@deprecated` — mantido como representação de baixo nível do evento (leitura/inspeção/XSD), não para envio pelo contribuinte.
+  - ⚠️ **Pendente de validação em Produção Restrita** antes do release.
+
+### Added — guardas fail-fast de emissão (`buildDps`)
+
+Pré-checagem local de regras de rejeição fechadas que o XSD não expressa (evita consumir `nDPS` num round-trip que a SEFIN rejeitaria): **E0595** (aliqIss > 5%), **E0600** (aliqIss para MEI), **E0162** (regApTribSN para Não Optante/MEI), **E0315** (cTribMun `'000'`), **E1402** (cTribNac 200101 + cLocPrestacao `'0000000'`), **E0602** (aliqIss com tribISSQN imune/exportação/não-incidência) e **E0580** (retenção de ISSQN com tribISSQN 2/3/4).
+
 ## [0.9.1] — 2026-05-29
 
 ### Segunda auditoria de conformidade contra `schemas/1.01/` (sem mudança de schema)

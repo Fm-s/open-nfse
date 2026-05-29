@@ -63,29 +63,15 @@ try {
 }
 ```
 
-## `substituir` — máquina de 5 estados
+## `substituir` — emite a nova DPS com `<subst>`
 
-Substituir é **emitir nova (com `<subst>` apontando para a original) + cancelar a original via 105102**. O XSD força essa ordem: `e105102` exige a `<chSubstituta>` da nova, que só existe após o emit.
+Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e original**. Você envia *uma* mensagem (`POST /nfse`); o **Sistema Nacional NFS-e** gera, de forma atômica com a emissão, o evento **105102 (Cancelamento por Substituição, `autor=MEmis`)** que cancela a original, e retorna a NFS-e substituta.
 
-::: warning Janela de inconsistência
-Entre emit e cancel há ~1-3 s em que **ambas as notas estão válidas**. A lib cobre a janela com rollback automático ou persistência para retry — um dos 5 estados abaixo.
+::: tip Por que não há "máquina de estados"
+O contribuinte **não** registra o evento 105102 — ele é gerado pelo servidor (`autor=05 MEmis`, assinado pelo município emissor). Como há um único write, não existe janela de inconsistência nem rollback: a chamada **retorna a nota substituta** (`{ novaNfse }`) ou **lança** — e nesse caso nada foi alterado no SEFIN. Postar um pedRegEvento 105102 como contribuinte é rejeitado: redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
 :::
 
-### 1. Fluxo
-
-```
-emit novaDps (com subst preenchido)
-├─ step 1 falha → throw (nada a reconciliar, retry limpo)
-└─ step 1 ok → cancelar original via 105102
-   ├─ ok            → 'ok'                 ← caminho feliz
-   ├─ transient     → 'retry_pending'      ← cron retoma depois
-   └─ permanente    → rollback nova via 101101
-      ├─ ok         → 'rolled_back'        ← audit trail fragmentado, mas consistente
-      ├─ transient  → 'rollback_pending'   ← persistido no store; cron retoma
-      └─ permanente → 'rollback_failed'    ← pior caso terminal, intervenção manual
-```
-
-### 2. Chamada básica
+### Chamada
 
 ```typescript
 import { JustificativaSubstituicao, buildDps } from 'open-nfse';
@@ -97,107 +83,37 @@ const novaDps = buildDps({
   servico: { /* corrigido */ },
   valores: { /* corrigido */ },
   tomador: { /* ... */ },
-  // subst é auto-preenchido pela lib com chaveOriginal
+  // infDPS.subst é auto-preenchido pela lib com chaveOriginal
 });
 
-const r = await cliente.substituir({
-  chaveOriginal: '21113002200574753000100000000000146726037032711025',
-  novaDps,
-  autor: { CNPJ: '00574753000100' },
-  cMotivo: JustificativaSubstituicao.Outros,
-  xMotivo: 'Correção de valor',
-});
-```
-
-### 3. Lidando com cada estado
-
-```typescript
 try {
-  const r = await cliente.substituir({ chaveOriginal, novaDps, autor, cMotivo, xMotivo });
+  const { novaNfse } = await cliente.substituir({
+    chaveOriginal: '21113002200574753000100000000000146726037032711025',
+    novaDps,
+    cMotivo: JustificativaSubstituicao.Outros,
+    xMotivo: 'Correção de valor',
+  });
 
-  switch (r.status) {
-    case 'ok':
-      // Caminho feliz: nova emitida e original cancelada.
-      await db.tx(async (tx) => {
-        await tx.insert('nfse_autorizadas', { /* a partir de r.novaNfse */ });
-        await tx.insert('nfse_eventos', {
-          chave_acesso: r.cancelamento.chaveNfse,
-          tipo_evento: '105102',
-          xml_evento: r.cancelamento.xmlEvento,
-          /* ... */
-        });
-      });
-      break;
-
-    case 'retry_pending':
-      // Nova autorizada; cancel falhou transitoriamente, persistido no store.
-      // A original ainda está válida até o cron do replay fechar o ciclo.
-      await db.insert('nfse_autorizadas', { /* a partir de r.novaNfse */ });
-      logger.warn('substituir cancel pendente', { id: r.pending.id });
-      break;
-
-    case 'rolled_back':
-      // Cancel permanente falhou (p.ex. prazo expirado). Lib cancelou a nova
-      // via 101101 para não deixar duas notas válidas. A original permanece.
-      // Audit trail: salva ambas para ter o histórico completo.
-      await db.tx(async (tx) => {
-        await tx.insert('nfse_autorizadas', { /* r.novaNfse */ });
-        await tx.insert('nfse_eventos', { /* r.rollback, tipo 101101 */ });
-      });
-      logger.error('substituir abortada', { err: r.cancelamentoError.message });
-      alerts.send('Substituição não foi possível — revisar manualmente', { chaveOriginal });
-      break;
-
-    case 'rollback_pending':
-      // Nova válida, original válida, rollback transiente falhou.
-      // Requer atenção humana eventualmente; cron retoma o rollback.
-      logger.error('substituir inconsistente', {
-        cancel: r.cancelamentoError.message,
-        rollback: r.rollbackError.message,
-        pendente: r.pendingRollback.id,
-      });
-      alerts.send('Substituição pendente de rollback — duas notas válidas temporariamente', {
-        chaveOriginal,
-        chaveNova: r.novaNfse.chaveAcesso,
-      });
-      break;
-
-    case 'rollback_failed':
-      // Pior caso terminal: rollback falhou PERMANENTEMENTE. Nada foi
-      // persistido (RetryStore só guarda transientes) — não há replay que
-      // resolva. Nova válida + original válida → intervenção manual imediata.
-      logger.error('substituir rollback definitivamente falhou', {
-        cancel: r.cancelamentoError.message,
-        rollback: r.rollbackError.message,
-      });
-      alerts.send('Substituição requer intervenção manual — duas notas válidas e rollback rejeitado', {
-        chaveOriginal,
-        chaveNova: r.novaNfse.chaveAcesso,
-      });
-      break;
-  }
+  // Sucesso: a nova foi autorizada e a original cancelada pelo sistema (105102).
+  await db.insert('nfse_autorizadas', { /* a partir de novaNfse */ });
 } catch (err) {
-  // Só cai aqui se o step 1 (emit da nova) falhou. Nada foi alterado no SEFIN.
-  // Retry limpo (com novo idDps) é seguro.
+  // Cai aqui se a emissão da nova falhar — nada foi alterado no SEFIN, retry
+  // limpo (com novo nDPS) é seguro.
   if (err instanceof ReceitaRejectionError) {
-    logger.error('substituir emit falhou', { codigo: err.codigo });
+    logger.error('substituir falhou', { codigo: err.codigo });
   }
 }
 ```
 
-### Regras de decisão
+`substituir` aceita as mesmas opções de validação de `emitirDpsPronta` (`skipValidation`, `skipCepValidation`, `skipCpfCnpjValidation`, `cepValidator`). Não há `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore` — o contribuinte não registra evento.
 
-| Estado              | Duas notas válidas? | Ação imediata                                         |
-|---------------------|---------------------|-------------------------------------------------------|
-| `ok`                | Não                 | Persistir; done                                       |
-| `retry_pending`     | Sim (~minutos)      | Log; cron fecha                                       |
-| `rolled_back`       | Não (nova cancelada)| Persistir pair; revisar motivo — original intocada    |
-| `rollback_pending`  | Sim (indeterminado) | Alerta humano; cron tenta o rollback transiente       |
-| `rollback_failed`   | Sim (terminal)      | Intervenção manual — rollback rejeitado em definitivo, nada persistido |
+### Observar o evento 105102
+
+O 105102 é gravado pela Receita na NFS-e **original**. Para auditá-lo, leia os eventos da chave original (distribuição por NSU, ou a consulta de eventos da NFS-e) — a `substituir` não "retorna" um evento porque o contribuinte não o emitiu.
 
 ## Cron de replay
 
-Mesma função que cobre `emitir(params)` transientes cobre `cancelar` e `substituir` — `replayPendingEvents` distingue pelos `kind` das entries no store:
+A mesma função que cobre `emitir(params)` transientes cobre `cancelar` — `replayPendingEvents` distingue pelos `kind` das entries no store. (`substituir` é um único write — a DPS com `<subst>` — e **não** persiste pendentes: não há segundo POST a retentar.)
 
 ```typescript
 // a cada 1-5 min, um worker só
@@ -211,7 +127,7 @@ for (const item of items) {
       break;
 
     case 'success':
-      // Veio de cancelar/substituir/rollback transiente
+      // Veio de cancelar() transiente (ou de dados legados de substituição)
       await db.insert('nfse_eventos', { /* ... */ });
       break;
 
@@ -251,8 +167,8 @@ type PendingEvent = PendingEmission | PendingEventoCancelamento;
 
 // kind: 'emission'                       ← emitir(params) transiente
 // kind: 'cancelamento_simples'           ← cancelar() transiente
-// kind: 'cancelamento_por_substituicao'  ← substituir() cancel transiente
-// kind: 'rollback_cancelamento'          ← substituir() rollback transiente
+// kind: 'cancelamento_por_substituicao'  ← legado (substituir não gera mais; mantido p/ replay de dados antigos)
+// kind: 'rollback_cancelamento'          ← legado (idem)
 ```
 
 Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de cada variante. `createInMemoryRetryStore()` serve para testes e demos; produção precisa persistir durável — impl Postgres completa em [Integração em serviços](./integracao#1-8-nfse-pending-events-backing-store-para-retrystore).

@@ -7,7 +7,7 @@ import { Ambiente } from '../ambiente.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import { HttpClient } from '../http/client.js';
-import { gzipBase64Encode } from '../http/encoding.js';
+import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { DPS, InfDPS } from '../nfse/domain.js';
 import {
@@ -263,7 +263,7 @@ describe('cancelar', () => {
   });
 });
 
-describe('substituir — 5-state machine', () => {
+describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', () => {
   let mockAgent: MockAgent;
   let httpClient: HttpClient;
   let cert: A1Certificate;
@@ -278,196 +278,12 @@ describe('substituir — 5-state machine', () => {
     await mockAgent.close();
   });
 
-  function mockEmitSuccess() {
-    mockAgent
-      .get('https://sefin.example.test')
-      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
-      .reply(201, {
-        tipoAmbiente: 2,
-        versaoAplicativo: 'v',
-        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
-        idDps: 'DPS211130010057475300010000001000000000000002',
-        chaveAcesso: CHAVE_NOVA,
-        nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML),
-      });
-  }
-
-  function mockCancelamentoEvento(tipoEvento: '101101' | '105102', chave: string) {
-    mockAgent
-      .get('https://sefin.example.test')
-      .intercept({ path: `/SefinNacional/nfse/${chave}/eventos`, method: 'POST' })
-      .reply(201, mockEventoSuccessBody(chave, tipoEvento));
-  }
-
-  function mockEventoFail(chave: string, statusCode: number, body: object | string) {
-    mockAgent
-      .get('https://sefin.example.test')
-      .intercept({ path: `/SefinNacional/nfse/${chave}/eventos`, method: 'POST' })
-      .reply(statusCode, body);
-  }
-
-  const baseSubstParams = {
-    chaveOriginal: CHAVE_ORIGINAL,
-    autor: { CNPJ: '00574753000100' } as const,
-    cMotivo: JustificativaSubstituicao.Outros,
-    xMotivo: 'Correção de valor',
-    skipValidation: true as const,
-    skipCepValidation: true as const,
-    skipCpfCnpjValidation: true as const,
-  };
-
-  it("status='ok' when both emit and cancelamento succeed", async () => {
-    mockEmitSuccess();
-    mockCancelamentoEvento('105102', CHAVE_ORIGINAL);
-
-    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: minimalNovaDps(),
-    });
-
-    expect(r.status).toBe('ok');
-    if (r.status === 'ok') {
-      expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
-      expect(r.cancelamento.evento.infEvento.pedRegEvento.infPedReg.tipoEvento).toBe('105102');
-    }
-  });
-
-  it("status='retry_pending' when cancelamento fails with 5xx (transient) and stores the pendente", async () => {
-    mockEmitSuccess();
-    mockEventoFail(CHAVE_ORIGINAL, 500, 'Internal Server Error');
-
-    const retryStore = createInMemoryRetryStore();
-    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: minimalNovaDps(),
-      retryStore,
-    });
-
-    expect(r.status).toBe('retry_pending');
-    if (r.status === 'retry_pending') {
-      expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
-      expect(r.pending.kind).toBe('cancelamento_por_substituicao');
-      if (r.pending.kind === 'cancelamento_por_substituicao') {
-        expect(r.pending.chaveNfse).toBe(CHAVE_ORIGINAL);
-      }
-      expect(r.pending.lastError.transient).toBe(true);
-      // Regression guard: persisted xmlAssinado must be XMLDSig-signed.
-      expect(r.pending.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
-    }
-    const stored = await retryStore.list();
-    expect(stored).toHaveLength(1);
-    const first = stored[0];
-    expect(first?.kind).toBe('cancelamento_por_substituicao');
-    if (first?.kind === 'cancelamento_por_substituicao') {
-      expect(first.chaveNfse).toBe(CHAVE_ORIGINAL);
-    }
-    expect(first?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
-  });
-
-  it("status='rolled_back' when cancelamento fails permanently (prazo) and rollback succeeds", async () => {
-    mockEmitSuccess();
-    // First eventos POST (to original) — permanent failure
-    mockEventoFail(CHAVE_ORIGINAL, 400, {
-      tipoAmbiente: 2,
-      versaoAplicativo: 'v',
-      dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
-      erro: { codigo: 'E8001', descricao: 'Prazo de cancelamento expirado' },
-    });
-    // Second eventos POST (to nova, for rollback) — success
-    mockCancelamentoEvento('101101', CHAVE_NOVA);
-
-    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: minimalNovaDps(),
-    });
-
-    expect(r.status).toBe('rolled_back');
-    if (r.status === 'rolled_back') {
-      expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
-      expect(r.cancelamentoError).toBeInstanceOf(ReceitaRejectionError);
-      expect(r.rollback.evento.infEvento.pedRegEvento.infPedReg.chNFSe).toBe(CHAVE_NOVA);
-      expect(r.rollback.evento.infEvento.pedRegEvento.infPedReg.tipoEvento).toBe('101101');
-    }
-  });
-
-  it("status='rollback_pending' when cancelamento permanent AND rollback transient → saved", async () => {
-    mockEmitSuccess();
-    mockEventoFail(CHAVE_ORIGINAL, 400, {
-      erro: { codigo: 'E8001', descricao: 'prazo' },
-    });
-    mockEventoFail(CHAVE_NOVA, 500, 'Internal Server Error');
-
-    const retryStore = createInMemoryRetryStore();
-    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: minimalNovaDps(),
-      retryStore,
-    });
-
-    expect(r.status).toBe('rollback_pending');
-    if (r.status === 'rollback_pending') {
-      expect(r.pendingRollback.kind).toBe('rollback_cancelamento');
-      if (r.pendingRollback.kind === 'rollback_cancelamento') {
-        expect(r.pendingRollback.chaveNfse).toBe(CHAVE_NOVA);
-        expect(r.pendingRollback.tipoEvento).toBe('101101');
-      }
-      // Regression guard: rollback's persisted xmlAssinado must be signed.
-      expect(r.pendingRollback.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
-    }
-    const stored = await retryStore.list();
-    expect(stored).toHaveLength(1);
-    expect(stored[0]?.kind).toBe('rollback_cancelamento');
-    expect(stored[0]?.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
-  });
-
-  it("status='rollback_failed' when cancelamento permanent AND rollback permanent → nothing persisted", async () => {
-    mockEmitSuccess();
-    // Cancel of original — permanent rejection.
-    mockEventoFail(CHAVE_ORIGINAL, 400, {
-      erro: { codigo: 'E8001', descricao: 'prazo' },
-    });
-    // Rollback of nova — also permanent rejection.
-    mockEventoFail(CHAVE_NOVA, 400, {
-      erro: { codigo: 'E0050', descricao: 'rollback rejeitado' },
-    });
-
-    const retryStore = createInMemoryRetryStore();
-    const r = await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: minimalNovaDps(),
-      retryStore,
-    });
-
-    expect(r.status).toBe('rollback_failed');
-    if (r.status === 'rollback_failed') {
-      expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
-      expect(r.cancelamentoError).toBeInstanceOf(ReceitaRejectionError);
-      expect(r.rollbackError).toBeInstanceOf(ReceitaRejectionError);
-    }
-    // Terminal state — RetryStore stays empty (transient-only model).
-    const stored = await retryStore.list();
-    expect(stored).toHaveLength(0);
-  });
-
-  it('throws MissingRetryStoreError when a transient cancel would need persistence but no store is configured', async () => {
-    mockEmitSuccess();
-    mockEventoFail(CHAVE_ORIGINAL, 500, 'boom');
-
-    await expect(
-      substituir(httpClient, cert, createDefaultRetryPolicy(), {
-        ...baseSubstParams,
-        novaDps: minimalNovaDps(),
-      }),
-    ).rejects.toBeInstanceOf(MissingRetryStoreError);
-  });
-
-  it('auto-populates infDPS.subst on novaDps when absent', async () => {
-    let capturedDpsPayload: string | undefined;
+  function mockEmitSuccess(capture?: (body: string) => void) {
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
       .reply((opts) => {
-        capturedDpsPayload = opts.body as string;
+        capture?.(opts.body as string);
         return {
           statusCode: 201,
           data: {
@@ -480,34 +296,72 @@ describe('substituir — 5-state machine', () => {
           },
         };
       });
-    mockCancelamentoEvento('105102', CHAVE_ORIGINAL);
+  }
+
+  const baseSubstParams = {
+    chaveOriginal: CHAVE_ORIGINAL,
+    cMotivo: JustificativaSubstituicao.Outros,
+    xMotivo: 'Correção de valor do serviço',
+    skipValidation: true as const,
+    skipCepValidation: true as const,
+    skipCpfCnpjValidation: true as const,
+  };
+
+  // A substituição é dirigida pela DPS (Manual Contribuintes API v1.2 §1.3.2):
+  // o contribuinte envia a nova DPS com <subst> para POST /nfse e o SISTEMA gera
+  // o evento 105102 (autor=MEmis) cancelando a original. A lib NÃO posta um
+  // pedRegEvento 105102 — fazê-lo era redundante (E0845) e com autor/assinante
+  // errados (E0813/E2032).
+  it('emits the <subst> DPS via POST /nfse and returns the substitute NFS-e (no event POST)', async () => {
+    // Só POST /nfse é interceptado. Se substituir tentar POST .../eventos, o
+    // MockAgent (disableNetConnect) lança — guard de regressão contra o 105102.
+    mockEmitSuccess();
+
+    const r = await substituir(httpClient, cert, {
+      ...baseSubstParams,
+      novaDps: minimalNovaDps(),
+    });
+
+    expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
+  });
+
+  it('auto-populates infDPS.subst (chSubstda = chave original) on novaDps when absent', async () => {
+    let captured: string | undefined;
+    mockEmitSuccess((b) => {
+      captured = b;
+    });
 
     const dpsSemSubst = minimalNovaDps();
     expect(dpsSemSubst.infDPS.subst).toBeUndefined();
 
-    await substituir(httpClient, cert, createDefaultRetryPolicy(), {
-      ...baseSubstParams,
-      novaDps: dpsSemSubst,
-    });
+    await substituir(httpClient, cert, { ...baseSubstParams, novaDps: dpsSemSubst });
 
-    // inspect the POST body for a <subst> element referencing the original chave
-    expect(capturedDpsPayload).toBeDefined();
-    // payload is gzip+base64 — for this integration test we just assert something
-    // was posted. Full roundtrip is covered by other tests.
-    const body = JSON.parse(capturedDpsPayload as string) as { dpsXmlGZipB64: string };
-    expect(body.dpsXmlGZipB64).toMatch(/^[A-Za-z0-9+/]+=*$/);
+    expect(captured).toBeDefined();
+    const body = JSON.parse(captured as string) as { dpsXmlGZipB64: string };
+    const xml = gzipBase64DecodeToText(body.dpsXmlGZipB64);
+    expect(xml).toContain('<subst>');
+    expect(xml).toContain(`<chSubstda>${CHAVE_ORIGINAL}</chSubstda>`);
   });
 
-  it('rejeita cMotivo=99 sem xMotivo (rule E0078) antes de emitir a nova', async () => {
+  it('rejects cMotivo=99 without xMotivo (rule E0078) before touching the network', async () => {
     await expect(
-      substituir(httpClient, cert, createDefaultRetryPolicy(), {
+      substituir(httpClient, cert, {
         chaveOriginal: CHAVE_ORIGINAL,
         novaDps: minimalNovaDps(),
-        autor: { CNPJ: '00574753000100' },
         cMotivo: JustificativaSubstituicao.Outros,
-        // xMotivo ausente → deve lançar RuleViolationError antes do emit
+        // xMotivo ausente → RuleViolationError antes de qualquer chamada de rede
       }),
     ).rejects.toMatchObject({ rule: 'E0078' });
+  });
+
+  it('rejects xMotivo shorter than 15 chars (TSMotivo) before touching the network', async () => {
+    await expect(
+      substituir(httpClient, cert, {
+        ...baseSubstParams,
+        xMotivo: 'curto',
+        novaDps: minimalNovaDps(),
+      }),
+    ).rejects.toThrow();
   });
 });
 

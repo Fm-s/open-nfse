@@ -31,7 +31,7 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 | Método                | Assinatura                                          | Comportamento                                                  |
 |-----------------------|-----------------------------------------------------|----------------------------------------------------------------|
 | `cancelar`            | `(params: CancelarParams) → CancelarResult`         | Evento 101101; discriminated `ok` / `retry_pending`            |
-| `substituir`          | `(params: SubstituirParams) → SubstituirResult`     | Emit+cancel 105102; 5 estados + rollback automático            |
+| `substituir`          | `(params: SubstituirParams) → SubstituirResult`     | Emite nova DPS com `<subst>`; o sistema gera o 105102. Retorna `{ novaNfse }` |
 | `replayPendingEvents` | `(override?: RetryStore) → ReplayItem[]`            | Cron-friendly; SEFIN dedupa → idempotente                      |
 
 #### Parâmetros municipais
@@ -105,7 +105,7 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 | `signPedRegEventoXml`      | `(xml: string, cert: A1Certificate) → string`                                       | XMLDSig para eventos                                     |
 | `postEvento`               | `(httpClient, cert, chave, xml, options) → EventoResult`                            | POST /nfse/{chave}/eventos raw                           |
 | `cancelar`                 | `(httpClient, cert, retryPolicy: RetryPolicy, params: CancelarParams) → CancelarResult`     | Impl pura; use `cliente.cancelar` em app code (passe `createDefaultRetryPolicy()`) |
-| `substituir`               | `(httpClient, cert, retryPolicy: RetryPolicy, params: SubstituirParams) → SubstituirResult` | Impl pura; use `cliente.substituir` em app code (passe `createDefaultRetryPolicy()`) |
+| `substituir`               | `(httpClient, cert, params: SubstituirParams) → SubstituirResult`                   | Impl pura; use `cliente.substituir` em app code                          |
 | `providerFromFile`         | `(path: string, password: string) → CertificateProvider`                            | Provider que lê .pfx do disco                            |
 | `collectCepsFromDps`       | `(dps: DPS) → readonly CollectedCep[]`                                              | Extrai todos CEPs (debug, dashboards)                    |
 | `collectIdentifiersFromDps`| `(dps: DPS) → readonly CollectedIdentifier[]`                                       | Extrai CNPJs/CPFs (debug, dashboards)                    |
@@ -233,7 +233,7 @@ Todos os DTOs de domínio (RTC v1.01) em `src/nfse/domain.ts` são reexportados.
 | `DpsDryRunResult`             | `{ dryRun: true, xmlDpsAssinado, xmlDpsGZipB64 }`                                                   |
 | `EmitLoteResult`              | `{ items: EmitLoteItem[], successCount, failureCount, skippedCount }`                               |
 | `CancelarResult` (discriminated) | `'ok'` \| `'retry_pending'`                                                                     |
-| `SubstituirResult` (discriminated) | `'ok'` \| `'retry_pending'` \| `'rolled_back'` \| `'rollback_pending'` \| `'rollback_failed'`  |
+| `SubstituirResult`            | `{ novaNfse: NfseEmitResult }` — o sistema gera o 105102; sem retry/rollback                        |
 | `ReplayItem`                  | `'success'` \| `'success_emission'` \| `'still_pending'` \| `'failed_permanent'`                   |
 | `PendingEvent` (discriminated)| `kind: 'emission' \| 'cancelamento_simples' \| 'cancelamento_por_substituicao' \| 'rollback_cancelamento'` |
 | `ConsultaAliquotasResult`, `ConsultaBeneficioResult`, `ConsultaConvenioResult`, `ConsultaRegimesEspeciaisResult`, `ConsultaRetencoesResult` | parâmetros municipais normalizados |

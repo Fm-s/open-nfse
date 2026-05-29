@@ -403,32 +403,23 @@ export class NfseClient {
   }
 
   /**
-   * Substitui uma NFS-e: emite a nova (com `subst` auto-preenchido se
-   * ausente) e cancela a original via evento 105102. Retorna um resultado
-   * discriminado sobre `status`:
+   * Substitui uma NFS-e: emite a nova DPS com `infDPS/subst` apontando para a
+   * `chaveOriginal` (auto-preenchido se ausente) via `POST /nfse`. O **Sistema
+   * Nacional NFS-e** gera, de forma atômica com a emissão, o evento 105102
+   * (Cancelamento por Substituição, autor=MEmis) que cancela a original, e
+   * retorna a NFS-e substituta em `{ novaNfse }`.
    *
-   *  - `'ok'` — ambas as etapas completaram.
-   *  - `'retry_pending'` — emit ok, cancel falhou transitoriamente; gravamos
-   *    o pendente em `retryStore` para replay posterior.
-   *  - `'rolled_back'` — emit ok, cancel falhou permanentemente; rollback
-   *    cancelou a nova via evento 101101. Nota: audit trail fica fragmentado.
-   *  - `'rollback_pending'` — rollback também falhou **transitoriamente**; o
-   *    pendente de rollback é salvo em `retryStore` para replay.
-   *  - `'rollback_failed'` — pior caso: rollback falhou **permanentemente**.
-   *    Estado terminal, nada é persistido (RetryStore = só transientes);
-   *    a nova ficou emitida e a original não-cancelada — intervenção manual.
+   * O contribuinte **não** registra um pedRegEvento 105102 (autor=MEmis,
+   * assinado pelo município emissor); fazê-lo seria redundante (evento único →
+   * E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos
+   * Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
    *
-   * Lança direto apenas quando a emissão (step 1) falha — nesse caso nada
-   * foi alterado no SEFIN e o caller pode retentar limpo.
+   * Lança em qualquer falha da emissão — como nada foi alterado no SEFIN, o
+   * caller pode retentar limpo. Não há retry/rollback (não há segundo write).
    */
   async substituir(params: SubstituirParams): Promise<SubstituirResult> {
     const state = await this.ensureState();
-    const retryStore = params.retryStore ?? this.retryStore;
-    const merged: SubstituirParams = {
-      ...params,
-      ...(retryStore ? { retryStore } : {}),
-    };
-    return substituirInternal(state.sefin, state.certificate, this.retryPolicy, merged);
+    return substituirInternal(state.sefin, state.certificate, params);
   }
 
   /**

@@ -80,8 +80,13 @@ export function buildCancelamentoXml(
 }
 
 /**
- * Constrói o XML de pedido de registro do evento de **cancelamento por substituição** (105102).
- * Requer a chave da NFS-e substituta, que já deve ter sido emitida.
+ * Constrói o XML de um pedRegEvento de **cancelamento por substituição** (105102).
+ *
+ * @deprecated O contribuinte **não** registra o evento 105102: ele é gerado
+ * pelo Sistema Nacional NFS-e (autor=MEmis) ao receber a nova DPS com
+ * `infDPS/subst` via `POST /nfse` — use `substituir()`. Este builder permanece
+ * como representação de baixo nível do evento (útil para leitura/inspeção e
+ * testes de XSD), mas enviá-lo como contribuinte é rejeitado (E0845/E0813/E2032).
  */
 export function buildSubstituicaoXml(
   params: BuildSubstituicaoXmlParams,

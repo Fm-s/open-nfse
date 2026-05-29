@@ -2,7 +2,7 @@ import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 import type { DPS } from '../nfse/domain.js';
-import { type NfseEmitResult, emitDpsPronta } from '../nfse/emit.js';
+import { type EmitOptions, type NfseEmitResult, emitDpsPronta } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
@@ -17,7 +17,7 @@ import {
   pendingEventId,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
-import { type AutorEvento, buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
+import { type AutorEvento, buildCancelamentoXml } from './build-event-xml.js';
 import { type EventoResult, postEvento } from './post-evento.js';
 import { signPedRegEventoXml } from './sign-event.js';
 
@@ -108,78 +108,44 @@ export async function cancelar(
 }
 
 // -----------------------------------------------------------------------------
-// substituir — emite nova DPS com <subst>, cancela a original via 105102
+// substituir — emite a nova DPS com <subst>; o sistema gera o 105102 server-side
 // -----------------------------------------------------------------------------
 
-export interface SubstituirParams {
+/**
+ * Parâmetros da substituição. A substituição é dirigida 100% pela DPS: não há
+ * `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore` porque o contribuinte não
+ * registra um evento — apenas emite a nova DPS. As opções de emissão
+ * (`skip*Validation`, `cepValidator`) são repassadas ao `emitDpsPronta`.
+ */
+export interface SubstituirParams extends Omit<EmitOptions, 'dryRun'> {
   /** Chave da NFS-e a ser substituída (a antiga). */
   readonly chaveOriginal: string;
-  /** Nova DPS a ser emitida. Se não tiver `subst` preenchido, será auto-completado. */
+  /**
+   * Nova DPS (substituta). Se `infDPS.subst` não estiver preenchido, é
+   * auto-completado com `chaveOriginal` + `cMotivo`/`xMotivo`.
+   */
   readonly novaDps: DPS;
-  readonly autor: AutorEvento;
   readonly cMotivo: JustificativaSubstituicao;
   readonly xMotivo?: string;
-  readonly tpAmb?: TipoAmbienteDps;
-  readonly verAplic?: string;
-  readonly dhEvento?: Date;
-  /**
-   * Store para persistir eventos pendentes quando cancelamento transitório
-   * falhar. Se omitido e um erro transiente ocorrer, lança
-   * `MissingRetryStoreError` para forçar o consumidor a decidir conscientemente.
-   */
-  readonly retryStore?: RetryStore;
-  /** Classificador custom. Default: `defaultIsTransient`. */
-  readonly isTransient?: (err: unknown) => boolean;
 }
 
-/** Estado do resultado da substituição — discriminated union sobre `status`. */
-export type SubstituirResult =
-  | {
-      readonly status: 'ok';
-      readonly novaNfse: NfseEmitResult;
-      readonly cancelamento: EventoResult;
-    }
-  | {
-      readonly status: 'retry_pending';
-      readonly novaNfse: NfseEmitResult;
-      readonly pending: PendingEvent;
-      readonly cancelamentoError: Error;
-    }
-  | {
-      readonly status: 'rolled_back';
-      readonly novaNfse: NfseEmitResult;
-      readonly cancelamentoError: Error;
-      readonly rollback: EventoResult;
-    }
-  | {
-      readonly status: 'rollback_pending';
-      readonly novaNfse: NfseEmitResult;
-      readonly cancelamentoError: Error;
-      readonly rollbackError: Error;
-      readonly pendingRollback: PendingEvent;
-    }
-  | {
-      /**
-       * Rollback falhou **permanentemente** (erro não-transiente). Não há o
-       * que retentar, então nada é persistido no `RetryStore` (mantém o modelo
-       * "RetryStore = transientes"). Estado terminal que exige intervenção
-       * manual: a NFS-e nova foi emitida, a original **não** foi cancelada, e o
-       * cancelamento da nova também foi rejeitado em definitivo.
-       */
-      readonly status: 'rollback_failed';
-      readonly novaNfse: NfseEmitResult;
-      readonly cancelamentoError: Error;
-      readonly rollbackError: Error;
-    };
+/**
+ * Resultado da substituição: a NFS-e substituta. Enviar a nova DPS com
+ * `infDPS/subst` para `POST /nfse` faz o **sistema** gerar o evento 105102
+ * (autor=MEmis) cancelando a original — não há segundo write do contribuinte,
+ * portanto não há estados de retry/rollback.
+ */
+export interface SubstituirResult {
+  readonly novaNfse: NfseEmitResult;
+}
 
 export async function substituir(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  retryPolicy: RetryPolicy,
   params: SubstituirParams,
 ): Promise<SubstituirResult> {
-  // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para
-  // evitar round-trip + queima de nDPS num emit que seria rejeitado.
+  // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
+  // round-trip + queima de nDPS num emit que seria rejeitado.
   if (params.cMotivo === JustificativaSubstituicao.Outros && !params.xMotivo?.trim()) {
     throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
   }
@@ -188,9 +154,7 @@ export async function substituir(
     validarTSMotivo(params.xMotivo);
   }
 
-  const isTransient = params.isTransient ?? defaultIsTransient;
-
-  // Auto-preenche subst na nova DPS se não estiver presente.
+  // Auto-preenche infDPS.subst (chSubstda = chave original) se ausente.
   const dpsComSubst = ensureSubstPopulated(
     params.novaDps,
     params.chaveOriginal,
@@ -198,126 +162,24 @@ export async function substituir(
     params.xMotivo,
   );
 
-  // Step 1 — emit new. Se falhar, throw (nada a reconciliar).
-  const novaNfse = await emitDpsPronta(httpClient, certificate, dpsComSubst);
-
-  // Step 2 — cancelar por substituição (105102) sobre a chave original.
-  const xmlCancel = buildSubstituicaoXml({
-    chaveOriginal: params.chaveOriginal,
-    chaveSubstituta: novaNfse.chaveAcesso,
-    autor: params.autor,
-    cMotivo: params.cMotivo,
-    ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
-    ...(params.tpAmb ? { tpAmb: params.tpAmb } : {}),
-    ...(params.verAplic ? { verAplic: params.verAplic } : {}),
-    ...(params.dhEvento ? { dhEvento: params.dhEvento } : {}),
-  });
-  // Sign up-front — replay relies on the persisted XML being already signed.
-  const xmlCancelAssinado = signPedRegEventoXml(xmlCancel, certificate);
-
-  let cancelamentoErr: Error | undefined;
-  try {
-    const r = await postEvento(httpClient, certificate, params.chaveOriginal, xmlCancelAssinado, {
-      xmlJaAssinado: true,
-    });
-    return { status: 'ok', novaNfse, cancelamento: dropInternal(r) };
-  } catch (err) {
-    cancelamentoErr = toError(err);
-  }
-
-  // Step 2 falhou.
-  if (isTransient(cancelamentoErr)) {
-    // Persistir para retry.
-    const now = new Date();
-    const notBefore = retryPolicy.computeNotBefore(cancelamentoErr, now, {
-      attempt: 1,
-      firstAttemptAt: now,
-    });
-    const pending = buildPendingEvent({
-      kind: 'cancelamento_por_substituicao',
-      chaveNfse: params.chaveOriginal,
-      chaveSubstituta: novaNfse.chaveAcesso,
-      tipoEvento: '105102',
-      cMotivo: params.cMotivo,
-      ...(params.xMotivo ? { xMotivo: params.xMotivo } : {}),
-      xmlAssinado: xmlCancelAssinado,
-      error: cancelamentoErr,
-      transient: true,
-      now,
-      ...(notBefore ? { notBefore } : {}),
-    });
-    await savePending(params.retryStore, pending);
-    return { status: 'retry_pending', novaNfse, pending, cancelamentoError: cancelamentoErr };
-  }
-
-  // Step 2 permanentemente falhou → rollback da nova via 101101.
-  const xmlRollback = buildCancelamentoXml({
-    chaveAcesso: novaNfse.chaveAcesso,
-    autor: params.autor,
-    cMotivo: JustificativaCancelamento.ErroEmissao,
-    xMotivo:
-      `Rollback automático — cancelamento por substituição da chave ${params.chaveOriginal} falhou permanentemente: ${cancelamentoErr.message}`.slice(
-        0,
-        255,
-      ),
-    ...(params.tpAmb ? { tpAmb: params.tpAmb } : {}),
-    ...(params.verAplic ? { verAplic: params.verAplic } : {}),
-  });
-
-  // Sign up-front — see note on cancelar() above.
-  const xmlRollbackAssinado = signPedRegEventoXml(xmlRollback, certificate);
-
-  let rollbackErr: Error | undefined;
-  try {
-    const r = await postEvento(httpClient, certificate, novaNfse.chaveAcesso, xmlRollbackAssinado, {
-      xmlJaAssinado: true,
-    });
-    return {
-      status: 'rolled_back',
-      novaNfse,
-      cancelamentoError: cancelamentoErr,
-      rollback: dropInternal(r),
-    };
-  } catch (err) {
-    rollbackErr = toError(err);
-  }
-
-  // Rollback permanentemente rejeitado → estado terminal, não persiste.
-  // Gating idêntico aos demais write paths (RetryStore = só transientes).
-  if (!isTransient(rollbackErr)) {
-    return {
-      status: 'rollback_failed',
-      novaNfse,
-      cancelamentoError: cancelamentoErr,
-      rollbackError: rollbackErr,
-    };
-  }
-
-  const nowRollback = new Date();
-  const notBeforeRollback = retryPolicy.computeNotBefore(rollbackErr, nowRollback, {
-    attempt: 1,
-    firstAttemptAt: nowRollback,
-  });
-  const pendingRollback = buildPendingEvent({
-    kind: 'rollback_cancelamento',
-    chaveNfse: novaNfse.chaveAcesso,
-    tipoEvento: '101101',
-    cMotivo: JustificativaCancelamento.ErroEmissao,
-    xMotivo: `Rollback de substituição — chave original ${params.chaveOriginal}`,
-    xmlAssinado: xmlRollbackAssinado,
-    error: rollbackErr,
-    transient: true,
-    now: nowRollback,
-    ...(notBeforeRollback ? { notBefore: notBeforeRollback } : {}),
-  });
-  await savePending(params.retryStore, pendingRollback);
-  return {
-    status: 'rollback_pending',
-    novaNfse,
-    cancelamentoError: cancelamentoErr,
-    rollbackError: rollbackErr,
-    pendingRollback,
+  // Único write do contribuinte: a DPS com <subst> via POST /nfse. O Sistema
+  // Nacional NFS-e gera, de forma atômica com a emissão, o evento 105102
+  // (autor=MEmis) que cancela a NFS-e original, e retorna a substituta. O
+  // contribuinte NÃO registra um pedRegEvento 105102 — ver doc do método.
+  // Falha aqui → throw (nada foi alterado no SEFIN; caller retenta limpo).
+  const emitOptions: Omit<EmitOptions, 'dryRun'> = {
+    ...(params.skipValidation !== undefined ? { skipValidation: params.skipValidation } : {}),
+    ...(params.skipCepValidation !== undefined
+      ? { skipCepValidation: params.skipCepValidation }
+      : {}),
+    ...(params.skipCpfCnpjValidation !== undefined
+      ? { skipCpfCnpjValidation: params.skipCpfCnpjValidation }
+      : {}),
+    ...(params.cepValidator ? { cepValidator: params.cepValidator } : {}),
   };
+
+  const novaNfse = await emitDpsPronta(httpClient, certificate, dpsComSubst, emitOptions);
+  return { novaNfse };
 }
 
 // -----------------------------------------------------------------------------

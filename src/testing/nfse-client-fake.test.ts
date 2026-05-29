@@ -5,7 +5,11 @@ import { NotFoundError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { EmitirParams } from '../nfse/emit.js';
-import { OpcaoSimplesNacional, RegimeEspecialTributacao } from '../nfse/enums.js';
+import {
+  JustificativaSubstituicao,
+  OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
+} from '../nfse/enums.js';
 import { NfseClientFake } from './nfse-client-fake.js';
 
 function baseEmitirParams(): EmitirParams {
@@ -193,11 +197,11 @@ describe('NfseClientFake.substituir', () => {
     const r = await fake.substituir({
       chaveOriginal: original.nfse.chaveAcesso,
       novaDps,
-      autor: { CNPJ: '00574753000100' },
-      cMotivo: '99' as never,
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Correção de valor do serviço',
     });
 
-    expect(r.status).toBe('ok');
+    expect(r.novaNfse.chaveAcesso).toBeDefined();
     expect(fake.cancelledChaves).toContain(original.nfse.chaveAcesso);
     expect(fake.substituidas.get(original.nfse.chaveAcesso)).toBeDefined();
   });

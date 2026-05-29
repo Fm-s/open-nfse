@@ -344,10 +344,11 @@ export class NfseClientFake {
   async substituir(params: SubstituirParams): Promise<SubstituirResult> {
     const novaNfse = await this.emitirDpsPronta(params.novaDps);
     this.state.substituted.set(params.chaveOriginal, novaNfse.chaveAcesso);
+    // Modela o sistema gerando o evento 105102 (autor=MEmis) que cancela a
+    // original — o contribuinte não posta esse evento.
     this.state.cancelled.add(params.chaveOriginal);
-    const cancelamento = this.synthEventoResult(params.chaveOriginal, '105102');
-    this.state.eventos.push(cancelamento);
-    return { status: 'ok', novaNfse, cancelamento };
+    this.state.eventos.push(this.synthEventoResult(params.chaveOriginal, '105102'));
+    return { novaNfse };
   }
 
   async replayPendingEvents(_override?: RetryStore): Promise<ReplayItem[]> {
