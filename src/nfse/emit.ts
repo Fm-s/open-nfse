@@ -154,6 +154,81 @@ export async function emitDpsPronta(
   return parsePostResponseOrThrow(body);
 }
 
+/**
+ * Como `emitDpsPronta`, mas com resiliência a transientes: em vez de lançar
+ * num erro transiente (rede/timeout/5xx/429), persiste uma `PendingEmission`
+ * no `retryStore` e retorna `retry_pending` (replay via `replayPendingEvents`).
+ * Rejeição permanente continua lançando. É o caminho usado por `substituir`
+ * (a DPS já vem pronta, com `nDPS` explícito — não há counter envolvido).
+ */
+export async function emitDpsProntaSeguro(
+  httpClient: HttpClient,
+  certificate: A1Certificate,
+  dps: DPS,
+  deps: {
+    readonly retryStore: RetryStore | undefined;
+    readonly retryPolicy: RetryPolicy;
+    readonly isTransient?: (err: unknown) => boolean;
+  },
+  options?: Omit<EmitOptions, 'dryRun'>,
+): Promise<EmitirResult> {
+  const isTransient = deps.isTransient ?? defaultIsTransient;
+
+  if (!options?.skipCpfCnpjValidation) {
+    runIdentifierValidation(dps);
+  }
+  const xmlUnsigned = buildDpsXml(dps);
+  if (!options?.skipValidation) {
+    await validateDpsXml(xmlUnsigned);
+  }
+  if (!options?.skipCepValidation) {
+    await runCepValidation(dps, options?.cepValidator);
+  }
+  const xmlSigned = signDpsXml(xmlUnsigned, certificate);
+  const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
+
+  try {
+    const body = await httpClient.post<SefinPostBody>(
+      '/nfse',
+      { dpsXmlGZipB64 },
+      { acceptedStatuses: [400] },
+    );
+    return { status: 'ok', nfse: parsePostResponseOrThrow(body) };
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    if (isTransient(error)) {
+      if (!deps.retryStore) throw new MissingRetryStoreError();
+      const now = new Date();
+      const notBefore = deps.retryPolicy.computeNotBefore(error, now, {
+        attempt: 1,
+        firstAttemptAt: now,
+      });
+      const ident = dps.infDPS.prest.identificador;
+      const pending: PendingEmission = {
+        id: pendingEmissionId(dps.infDPS.Id),
+        kind: 'emission',
+        idDps: dps.infDPS.Id,
+        emitenteCnpj: 'CNPJ' in ident ? ident.CNPJ : '',
+        serie: dps.infDPS.serie,
+        nDPS: dps.infDPS.nDPS,
+        xmlAssinado: xmlSigned,
+        firstAttemptAt: now,
+        lastAttemptAt: now,
+        attempts: 1,
+        ...(notBefore ? { notBefore } : {}),
+        lastError: {
+          message: error.message,
+          errorName: error.name,
+          transient: true,
+        },
+      };
+      await deps.retryStore.save(pending);
+      return { status: 'retry_pending', pending, error };
+    }
+    throw error;
+  }
+}
+
 function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
   return (
     typeof (body as SefinPostSuccessBody).chaveAcesso === 'string' &&

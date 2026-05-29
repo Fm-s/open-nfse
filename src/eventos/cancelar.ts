@@ -2,7 +2,7 @@ import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 import type { DPS } from '../nfse/domain.js';
-import { type EmitOptions, type NfseEmitResult, emitDpsPronta } from '../nfse/emit.js';
+import { type EmitOptions, type NfseEmitResult, emitDpsProntaSeguro } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
@@ -11,6 +11,7 @@ import {
 import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
+  type PendingEmission,
   type PendingEvent,
   type PendingEventKind,
   type RetryStore,
@@ -113,9 +114,10 @@ export async function cancelar(
 
 /**
  * Parâmetros da substituição. A substituição é dirigida 100% pela DPS: não há
- * `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore` porque o contribuinte não
- * registra um evento — apenas emite a nova DPS. As opções de emissão
- * (`skip*Validation`, `cepValidator`) são repassadas ao `emitDpsPronta`.
+ * `autor`/`tpAmb`/`verAplic`/`dhEvento` porque o contribuinte não registra um
+ * evento — apenas emite a nova DPS. As opções de emissão (`skip*Validation`,
+ * `cepValidator`) são repassadas ao emit; `retryStore`/`isTransient` controlam
+ * a resiliência a falhas transientes (idêntico a `emitir`).
  */
 export interface SubstituirParams extends Omit<EmitOptions, 'dryRun'> {
   /** Chave da NFS-e a ser substituída (a antiga). */
@@ -127,21 +129,42 @@ export interface SubstituirParams extends Omit<EmitOptions, 'dryRun'> {
   readonly novaDps: DPS;
   readonly cMotivo: JustificativaSubstituicao;
   readonly xMotivo?: string;
+  /**
+   * Store para persistir a emissão pendente se o `POST /nfse` falhar
+   * transitoriamente. Se omitido e o caminho transiente for acionado, lança
+   * `MissingRetryStoreError` para forçar decisão consciente.
+   */
+  readonly retryStore?: RetryStore;
+  /** Classificador custom de transiência. Default: `defaultIsTransient`. */
+  readonly isTransient?: (err: unknown) => boolean;
 }
 
 /**
- * Resultado da substituição: a NFS-e substituta. Enviar a nova DPS com
- * `infDPS/subst` para `POST /nfse` faz o **sistema** gerar o evento 105102
- * (autor=MEmis) cancelando a original — não há segundo write do contribuinte,
- * portanto não há estados de retry/rollback.
+ * Resultado da substituição — discriminated union sobre `status`, idêntico em
+ * forma ao `EmitirResult`. Enviar a nova DPS com `infDPS/subst` para
+ * `POST /nfse` faz o **sistema** gerar o evento 105102 (autor=MEmis) cancelando
+ * a original (atômico). Como há um único write:
+ *
+ * - `'ok'` — nota substituta autorizada (`novaNfse`); a original foi cancelada
+ *   server-side pelo 105102.
+ * - `'retry_pending'` — falha **transiente** no `POST /nfse`; a emissão foi
+ *   persistida no `retryStore` para replay idempotente via `replayPendingEvents`
+ *   (dedup por `infDPS.Id`). Nada foi alterado no SEFIN ainda.
+ *
+ * Rejeição **permanente** (regra fiscal / validação local) **lança** exceção.
  */
-export interface SubstituirResult {
-  readonly novaNfse: NfseEmitResult;
-}
+export type SubstituirResult =
+  | { readonly status: 'ok'; readonly novaNfse: NfseEmitResult }
+  | {
+      readonly status: 'retry_pending';
+      readonly pending: PendingEmission;
+      readonly error: Error;
+    };
 
 export async function substituir(
   httpClient: HttpClient,
   certificate: A1Certificate,
+  retryPolicy: RetryPolicy,
   params: SubstituirParams,
 ): Promise<SubstituirResult> {
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
@@ -166,7 +189,7 @@ export async function substituir(
   // Nacional NFS-e gera, de forma atômica com a emissão, o evento 105102
   // (autor=MEmis) que cancela a NFS-e original, e retorna a substituta. O
   // contribuinte NÃO registra um pedRegEvento 105102 — ver doc do método.
-  // Falha aqui → throw (nada foi alterado no SEFIN; caller retenta limpo).
+  // Transiente → retry_pending (persistido). Permanente → throw.
   const emitOptions: Omit<EmitOptions, 'dryRun'> = {
     ...(params.skipValidation !== undefined ? { skipValidation: params.skipValidation } : {}),
     ...(params.skipCepValidation !== undefined
@@ -178,8 +201,21 @@ export async function substituir(
     ...(params.cepValidator ? { cepValidator: params.cepValidator } : {}),
   };
 
-  const novaNfse = await emitDpsPronta(httpClient, certificate, dpsComSubst, emitOptions);
-  return { novaNfse };
+  const r = await emitDpsProntaSeguro(
+    httpClient,
+    certificate,
+    dpsComSubst,
+    {
+      retryStore: params.retryStore,
+      retryPolicy,
+      ...(params.isTransient ? { isTransient: params.isTransient } : {}),
+    },
+    emitOptions,
+  );
+
+  return r.status === 'ok'
+    ? { status: 'ok', novaNfse: r.nfse }
+    : { status: 'retry_pending', pending: r.pending, error: r.error };
 }
 
 // -----------------------------------------------------------------------------

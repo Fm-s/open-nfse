@@ -414,12 +414,19 @@ export class NfseClient {
    * E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos
    * Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
    *
-   * Lança em qualquer falha da emissão — como nada foi alterado no SEFIN, o
-   * caller pode retentar limpo. Não há retry/rollback (não há segundo write).
+   * Resultado discriminado (igual a `emitir`): `'ok'` (`novaNfse`) ou
+   * `'retry_pending'` — falha transiente no `POST /nfse` persistida no
+   * `retryStore` para replay via `replayPendingEvents` (dedup por `infDPS.Id`).
+   * Rejeição **permanente** (regra fiscal) lança exceção.
    */
   async substituir(params: SubstituirParams): Promise<SubstituirResult> {
     const state = await this.ensureState();
-    return substituirInternal(state.sefin, state.certificate, params);
+    const retryStore = params.retryStore ?? this.retryStore;
+    const merged: SubstituirParams = {
+      ...params,
+      ...(retryStore ? { retryStore } : {}),
+    };
+    return substituirInternal(state.sefin, state.certificate, this.retryPolicy, merged);
   }
 
   /**

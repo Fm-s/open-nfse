@@ -298,6 +298,13 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
       });
   }
 
+  function mockEmitFail(statusCode: number, body: object | string) {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(statusCode, body);
+  }
+
   const baseSubstParams = {
     chaveOriginal: CHAVE_ORIGINAL,
     cMotivo: JustificativaSubstituicao.Outros,
@@ -307,22 +314,25 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     skipCpfCnpjValidation: true as const,
   };
 
+  const policy = createDefaultRetryPolicy();
+
   // A substituição é dirigida pela DPS (Manual Contribuintes API v1.2 §1.3.2):
   // o contribuinte envia a nova DPS com <subst> para POST /nfse e o SISTEMA gera
   // o evento 105102 (autor=MEmis) cancelando a original. A lib NÃO posta um
   // pedRegEvento 105102 — fazê-lo era redundante (E0845) e com autor/assinante
   // errados (E0813/E2032).
-  it('emits the <subst> DPS via POST /nfse and returns the substitute NFS-e (no event POST)', async () => {
+  it("status='ok': emits the <subst> DPS via POST /nfse and returns the substitute NFS-e (no event POST)", async () => {
     // Só POST /nfse é interceptado. Se substituir tentar POST .../eventos, o
     // MockAgent (disableNetConnect) lança — guard de regressão contra o 105102.
     mockEmitSuccess();
 
-    const r = await substituir(httpClient, cert, {
+    const r = await substituir(httpClient, cert, policy, {
       ...baseSubstParams,
       novaDps: minimalNovaDps(),
     });
 
-    expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
   });
 
   it('auto-populates infDPS.subst (chSubstda = chave original) on novaDps when absent', async () => {
@@ -334,7 +344,7 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     const dpsSemSubst = minimalNovaDps();
     expect(dpsSemSubst.infDPS.subst).toBeUndefined();
 
-    await substituir(httpClient, cert, { ...baseSubstParams, novaDps: dpsSemSubst });
+    await substituir(httpClient, cert, policy, { ...baseSubstParams, novaDps: dpsSemSubst });
 
     expect(captured).toBeDefined();
     const body = JSON.parse(captured as string) as { dpsXmlGZipB64: string };
@@ -343,9 +353,50 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     expect(xml).toContain(`<chSubstda>${CHAVE_ORIGINAL}</chSubstda>`);
   });
 
+  it("status='retry_pending' on transient (5xx) emit failure — persists the emission", async () => {
+    mockEmitFail(500, 'Internal Server Error');
+    const retryStore = createInMemoryRetryStore();
+
+    const r = await substituir(httpClient, cert, policy, {
+      ...baseSubstParams,
+      novaDps: minimalNovaDps(),
+      retryStore,
+    });
+
+    expect(r.status).toBe('retry_pending');
+    if (r.status === 'retry_pending') {
+      expect(r.pending.kind).toBe('emission');
+      expect(r.pending.lastError.transient).toBe(true);
+      // a emissão persistida carrega XML assinado para replay idempotente.
+      expect(r.pending.xmlAssinado).toMatch(/<Signature[\s>][\s\S]*<\/Signature>/);
+    }
+    const stored = await retryStore.list();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.kind).toBe('emission');
+  });
+
+  it('throws MissingRetryStoreError on a transient emit failure without a store', async () => {
+    mockEmitFail(500, 'boom');
+    await expect(
+      substituir(httpClient, cert, policy, { ...baseSubstParams, novaDps: minimalNovaDps() }),
+    ).rejects.toBeInstanceOf(MissingRetryStoreError);
+  });
+
+  it('throws ReceitaRejectionError on a permanent (400) rejection', async () => {
+    mockEmitFail(400, {
+      tipoAmbiente: 2,
+      versaoAplicativo: 'v',
+      dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+      erros: [{ codigo: 'E0050', descricao: 'Substituição rejeitada — prazo' }],
+    });
+    await expect(
+      substituir(httpClient, cert, policy, { ...baseSubstParams, novaDps: minimalNovaDps() }),
+    ).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
   it('rejects cMotivo=99 without xMotivo (rule E0078) before touching the network', async () => {
     await expect(
-      substituir(httpClient, cert, {
+      substituir(httpClient, cert, policy, {
         chaveOriginal: CHAVE_ORIGINAL,
         novaDps: minimalNovaDps(),
         cMotivo: JustificativaSubstituicao.Outros,
@@ -356,7 +407,7 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
 
   it('rejects xMotivo shorter than 15 chars (TSMotivo) before touching the network', async () => {
     await expect(
-      substituir(httpClient, cert, {
+      substituir(httpClient, cert, policy, {
         ...baseSubstParams,
         xMotivo: 'curto',
         novaDps: minimalNovaDps(),

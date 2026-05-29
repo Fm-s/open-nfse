@@ -348,7 +348,7 @@ export class NfseClientFake {
     // original — o contribuinte não posta esse evento.
     this.state.cancelled.add(params.chaveOriginal);
     this.state.eventos.push(this.synthEventoResult(params.chaveOriginal, '105102'));
-    return { novaNfse };
+    return { status: 'ok', novaNfse };
   }
 
   async replayPendingEvents(_override?: RetryStore): Promise<ReplayItem[]> {

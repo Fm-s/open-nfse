@@ -67,8 +67,8 @@ try {
 
 Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e original**. Você envia *uma* mensagem (`POST /nfse`); o **Sistema Nacional NFS-e** gera, de forma atômica com a emissão, o evento **105102 (Cancelamento por Substituição, `autor=MEmis`)** que cancela a original, e retorna a NFS-e substituta.
 
-::: tip Por que não há "máquina de estados"
-O contribuinte **não** registra o evento 105102 — ele é gerado pelo servidor (`autor=05 MEmis`, assinado pelo município emissor). Como há um único write, não existe janela de inconsistência nem rollback: a chamada **retorna a nota substituta** (`{ novaNfse }`) ou **lança** — e nesse caso nada foi alterado no SEFIN. Postar um pedRegEvento 105102 como contribuinte é rejeitado: redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+::: tip Por que não há "máquina de 5 estados" / rollback
+O contribuinte **não** registra o evento 105102 — ele é gerado pelo servidor (`autor=05 MEmis`, assinado pelo município emissor). Como há um **único write** (a DPS), não existe janela de inconsistência nem rollback. O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. Postar um pedRegEvento 105102 como contribuinte é rejeitado: redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
 :::
 
 ### Chamada
@@ -87,25 +87,31 @@ const novaDps = buildDps({
 });
 
 try {
-  const { novaNfse } = await cliente.substituir({
+  const r = await cliente.substituir({
     chaveOriginal: '21113002200574753000100000000000146726037032711025',
     novaDps,
     cMotivo: JustificativaSubstituicao.Outros,
     xMotivo: 'Correção de valor',
   });
 
-  // Sucesso: a nova foi autorizada e a original cancelada pelo sistema (105102).
-  await db.insert('nfse_autorizadas', { /* a partir de novaNfse */ });
+  if (r.status === 'ok') {
+    // A nova foi autorizada e a original cancelada pelo sistema (105102).
+    await db.insert('nfse_autorizadas', { /* a partir de r.novaNfse */ });
+  } else {
+    // Transiente: a emissão foi persistida no retryStore; o cron de
+    // replayPendingEvents reenvia (idempotente por infDPS.Id). Nada no SEFIN ainda.
+    logger.warn('substituir pendente', { id: r.pending.id });
+  }
 } catch (err) {
-  // Cai aqui se a emissão da nova falhar — nada foi alterado no SEFIN, retry
-  // limpo (com novo nDPS) é seguro.
+  // Rejeição PERMANENTE da emissão (ex.: prazo, original já cancelada) — nada
+  // foi alterado no SEFIN; retry limpo só faz sentido após corrigir a causa.
   if (err instanceof ReceitaRejectionError) {
     logger.error('substituir falhou', { codigo: err.codigo });
   }
 }
 ```
 
-`substituir` aceita as mesmas opções de validação de `emitirDpsPronta` (`skipValidation`, `skipCepValidation`, `skipCpfCnpjValidation`, `cepValidator`). Não há `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore` — o contribuinte não registra evento.
+`substituir` aceita as mesmas opções de validação de `emitir` (`skipValidation`, `skipCepValidation`, `skipCpfCnpjValidation`, `cepValidator`) e a mesma resiliência a transientes (`retryStore`/`isTransient`). Não há `autor`/`tpAmb`/`verAplic`/`dhEvento` — o contribuinte não registra evento.
 
 ### Observar o evento 105102
 
@@ -113,7 +119,7 @@ O 105102 é gravado pela Receita na NFS-e **original**. Para auditá-lo, leia os
 
 ## Cron de replay
 
-A mesma função que cobre `emitir(params)` transientes cobre `cancelar` — `replayPendingEvents` distingue pelos `kind` das entries no store. (`substituir` é um único write — a DPS com `<subst>` — e **não** persiste pendentes: não há segundo POST a retentar.)
+A mesma função cobre os transientes de `emitir(params)`, `cancelar` **e** `substituir` — `replayPendingEvents` distingue pelos `kind` das entries no store. A pendência da `substituir` é uma **emissão** (`kind: 'emission'`, a DPS com `<subst>`), então replaya como `success_emission` — igual a `emitir`.
 
 ```typescript
 // a cada 1-5 min, um worker só
@@ -122,7 +128,7 @@ const items = await cliente.replayPendingEvents();
 for (const item of items) {
   switch (item.status) {
     case 'success_emission':
-      // Veio de emitir(params) transiente
+      // Veio de emitir(params) OU substituir() transiente (kind 'emission')
       await db.insert('nfse_autorizadas', { /* ... */ });
       break;
 

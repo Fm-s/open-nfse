@@ -12,8 +12,9 @@ Consolidação da documentação técnica oficial em `specs/ruleset/` (ruleset a
 ### Changed (breaking)
 
 - **`substituir()` agora emite apenas a DPS com `<subst>`.** O evento **105102 (Cancelamento por Substituição)** é gerado pelo **Sistema Nacional NFS-e** (`autor=MEmis`), de forma atômica com a emissão, ao receber a DPS substituta via `POST /nfse`. A lib **não** registra mais um pedRegEvento 105102 pelo contribuinte — era redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
-  - `SubstituirResult` deixa de ser a união de 5 estados (`ok`/`retry_pending`/`rolled_back`/`rollback_pending`/`rollback_failed`) e passa a ser **`{ novaNfse: NfseEmitResult }`** — a chamada retorna a nota substituta ou lança (na falha da emissão, nada foi alterado no SEFIN).
-  - `SubstituirParams` perde `autor`/`tpAmb`/`verAplic`/`dhEvento`/`retryStore`/`isTransient` (não há mais evento, retry nem rollback) e ganha as opções de emissão (`skipValidation`/`skipCepValidation`/`skipCpfCnpjValidation`/`cepValidator`). A free function `substituir` perde o parâmetro `retryPolicy`.
+  - `SubstituirResult` deixa de ser a união de 5 estados (`ok`/`retry_pending`/`rolled_back`/`rollback_pending`/`rollback_failed`) e passa a ter a **mesma forma de `EmitirResult`**: `{ status:'ok', novaNfse }` ou `{ status:'retry_pending', pending, error }` (falha transiente no `POST /nfse` persistida no `retryStore` para replay via `replayPendingEvents`, dedup por `infDPS.Id`). Rejeição **permanente** lança. Sem rollback (há um único write).
+  - `SubstituirParams` perde `autor`/`tpAmb`/`verAplic`/`dhEvento` (não há mais evento nem rollback); **mantém** `retryStore`/`isTransient` (resiliência a transientes) e ganha as opções de emissão (`skipValidation`/`skipCepValidation`/`skipCpfCnpjValidation`/`cepValidator`). A free function `substituir` mantém o parâmetro `retryPolicy`.
+  - Novo helper interno `emitDpsProntaSeguro` (emite uma DPS já pronta com persistência de transiente no `RetryStore`) — usado por `substituir`.
   - `buildSubstituicaoXml` marcado `@deprecated` — mantido como representação de baixo nível do evento (leitura/inspeção/XSD), não para envio pelo contribuinte.
   - ⚠️ **Pendente de validação em Produção Restrita** antes do release.
 

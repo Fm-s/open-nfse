@@ -201,7 +201,8 @@ describe('NfseClientFake.substituir', () => {
       xMotivo: 'Correção de valor do serviço',
     });
 
-    expect(r.novaNfse.chaveAcesso).toBeDefined();
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') expect(r.novaNfse.chaveAcesso).toBeDefined();
     expect(fake.cancelledChaves).toContain(original.nfse.chaveAcesso);
     expect(fake.substituidas.get(original.nfse.chaveAcesso)).toBeDefined();
   });
