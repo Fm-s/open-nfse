@@ -181,7 +181,7 @@ Eventos emitidos: `http.request`, `http.response` com `method`, `url`, `status`,
 
 - [Consultar NFS-e](./consultar) — fetch por chave + distribuição por NSU
 - [Emitir NFS-e](./emitir) — `emitir(params)` com counter + retry store
-- [Substituir e cancelar](./substituir-cancelar) — eventos com máquina de 5 estados
+- [Substituir e cancelar](./substituir-cancelar) — cancelar (101101) e substituir (DPS com `<subst>`)
 - [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio etc.
 - [DANFSe (PDF)](./danfse) — online com fallback local
 - [Testando com o fake](./testing) — `NfseClientFake`

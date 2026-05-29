@@ -325,7 +325,7 @@ Nunca disparam em operação normal. Se dispararem, investigue a infra entre seu
 
 1. Cert de Produção Restrita habilitado para o CNPJ.
 2. `examples/emit-nfse/` como smoke test.
-3. Cenários: emissão normal, rejeição por CNPJ inválido, timeout simulado, NSU com paginação real, `substituir` cobrindo os 5 estados.
+3. Cenários: emissão normal, rejeição por CNPJ inválido, timeout simulado, NSU com paginação real, `substituir` (`ok` e `retry_pending` transiente).
 4. Só vá para `Ambiente.Producao` depois do ciclo completo em homologação — cada nota em produção é documento fiscal oficial.
 
 Signatures e parâmetros exatos: [API cheat sheet](../api-cheatsheet) · [API completa (TypeDoc)](../api/).

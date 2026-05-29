@@ -113,7 +113,7 @@ class InvalidCepError extends ValidationError {
 - **`fetchByNsu` nunca lança `NotFoundError`** — 404 carrega body e vira `status: 'NENHUM_DOCUMENTO_LOCALIZADO'`. Lança apenas erros de transporte/certificado.
 - **`emitir(params)` não lança em transiente** — retorna `{ status: 'retry_pending', pending, error }`. Lança em permanente (rejeição) ou validação local.
 - **`emitirDpsPronta(dps)` lança em tudo** — escape hatch, sem `retryStore`.
-- **`substituir` só lança no step 1** — falhas pós-emit são observáveis via `result.status` (`retry_pending` / `rolled_back` / `rollback_pending` / `rollback_failed`).
+- **`substituir`** — um único write (a DPS com `<subst>`); retorna `{ status: 'ok' | 'retry_pending' }` (transiente persistido) ou lança em rejeição permanente. Sem rollback.
 - **`MissingDpsCounterError`** — `emitir(params)` sem `params.nDPS` e sem `dpsCounter` configurado.
 - **`MissingRetryStoreError`** — transiente em `emitir`/`cancelar`/`substituir` sem `retryStore`.
 - **`ClientClosedError`** — qualquer método após `cliente.close()`. Single-shot por design; para reconectar, instancie um novo cliente.

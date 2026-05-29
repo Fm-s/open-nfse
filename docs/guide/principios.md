@@ -15,7 +15,7 @@ Callers não veem XML, GZip, Base64, mTLS, XMLDSig — tudo entra e sai tipado. 
 Sem banco, cache global ou singleton. Mas a lib oferece:
 
 - **`emitirEmLote`** — worker pool client-side (SEFIN não tem endpoint batch).
-- **`substituir`** — máquina de 5 estados com rollback automático no cancel pós-emit.
+- **`substituir`** — um único write: emite a DPS com `<subst>` e o sistema gera o 105102; retorna `ok`/`retry_pending`, sem rollback.
 - **`RetryStore` + `replayPendingEvents`** — interface plugável para transientes + método cron-friendly. SEFIN deduplica via `infDPS.Id` / `(chave, tipoEvento)`, então replay é idempotente.
 - **`DpsCounter`** — provider atômico de `nDPS`, consultado só depois das validações offline.
 
