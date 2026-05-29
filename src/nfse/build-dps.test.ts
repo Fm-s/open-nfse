@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { RuleViolationError } from '../errors/validation.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
-import { OpcaoSimplesNacional, RegimeEspecialTributacao, TipoAmbienteDps } from './enums.js';
+import {
+  OpcaoSimplesNacional,
+  RegimeApuracaoSimplesNacional,
+  RegimeEspecialTributacao,
+  TipoAmbienteDps,
+  TipoRetISSQN,
+  TipoTribISSQN,
+} from './enums.js';
 import { validateDpsXml } from './validate-xml.js';
 
 function baseParams(): BuildDpsParams {
@@ -244,5 +251,92 @@ describe('buildDps', () => {
       }),
     );
     await expect(validateDpsXml(xml)).resolves.toBeUndefined();
+  });
+
+  // --- Guardas de conformidade fail-fast (auditoria 2026-05-29) ---
+  // Regras de rejeição fechadas, checáveis offline: evitam queimar nDPS num
+  // round-trip que a SEFIN rejeitaria. Cada teste cita o codErro da regra.
+
+  it('throws RuleViolationError (E0595) when aliqIss exceeds the 5% ISSQN ceiling', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 6 } })).toThrow(
+      RuleViolationError,
+    );
+  });
+
+  it('throws RuleViolationError (E0600) when a MEI emitter informs aliqIss', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: {
+          ...baseParams().emitente,
+          regime: {
+            opSimpNac: OpcaoSimplesNacional.Mei,
+            regEspTrib: RegimeEspecialTributacao.Nenhum,
+          },
+        },
+        valores: { vServ: 100, aliqIss: 2.5 },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('throws RuleViolationError (E0162) when regApTribSN is set for a Não Optante', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: {
+          ...baseParams().emitente,
+          regime: {
+            opSimpNac: OpcaoSimplesNacional.NaoOptante,
+            regEspTrib: RegimeEspecialTributacao.Nenhum,
+            regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
+          },
+        },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it("throws RuleViolationError (E0315) when cTribMun is '000'", () => {
+    expect(() =>
+      buildDps({ ...baseParams(), servico: { ...baseParams().servico, cTribMun: '000' } }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it("throws RuleViolationError (E1402) when cTribNac=200101 and cLocPrestacao='0000000'", () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        servico: {
+          ...baseParams().servico,
+          cTribNac: '200101',
+          codMunicipioPrestacao: '0000000',
+        },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('throws RuleViolationError (E0602) when aliqIss is informed with tribISSQN imune/exportação/não-incidência', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        valores: { vServ: 100, aliqIss: 2.5, tribISSQN: TipoTribISSQN.Imunidade },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('throws RuleViolationError (E0580) when tpRetISSQN is retido with tribISSQN imune/exportação/não-incidência', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        valores: {
+          vServ: 100,
+          tribISSQN: TipoTribISSQN.ExportacaoServico,
+          tpRetISSQN: TipoRetISSQN.RetidoPeloTomador,
+        },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('accepts a tributável line at the 5% ceiling without tripping the new guards', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 5 } })).not.toThrow();
   });
 });

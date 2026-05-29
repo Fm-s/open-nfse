@@ -14,14 +14,12 @@ import type {
   VServPrest,
 } from './domain.js';
 import { buildDpsId } from './dps-id.js';
-import { OpcaoSimplesNacional } from './enums.js';
+import { OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
 import type {
   IndicadorTotalTributos,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
-  TipoRetISSQN,
-  TipoTribISSQN,
 } from './enums.js';
 
 /** Regime tributário do emitente. Casa com os grupos do `TCRegTrib`. */
@@ -160,6 +158,7 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
 export function buildDps(params: BuildDpsParams): DPS {
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
+  assertValoresConsistency(params.valores, params.emitente.regime);
 
   const dhEmi = params.dhEmi ?? new Date();
   const dCompet = params.dCompet ?? new Date();
@@ -244,8 +243,23 @@ function toEndereco(e: EnderecoBr): Endereco {
 }
 
 function buildServ(serv: ServicoInput, cMunDefault: string): Serv {
+  const cLocPrestacao = serv.codMunicipioPrestacao ?? cMunDefault;
+  // E0315 — '000' não é código de tributação municipal válido (passa no XSD).
+  if (serv.cTribMun === '000') {
+    throw new RuleViolationError(
+      "cTribMun não pode ser '000' — informe o código de tributação municipal real — per E0315",
+      'E0315',
+    );
+  }
+  // E1402 — subitem 200101 não admite cLocPrestacao '0000000' (Águas Marítimas).
+  if (serv.cTribNac === '200101' && cLocPrestacao === '0000000') {
+    throw new RuleViolationError(
+      "cTribNac=200101 não admite cLocPrestacao='0000000' (Águas Marítimas) — per E1402",
+      'E1402',
+    );
+  }
   return {
-    locPrest: { cLocPrestacao: serv.codMunicipioPrestacao ?? cMunDefault },
+    locPrest: { cLocPrestacao },
     cServ: {
       cTribNac: serv.cTribNac,
       ...(serv.cTribMun ? { cTribMun: serv.cTribMun } : {}),
@@ -284,8 +298,57 @@ function buildInfoValores(v: ValoresInput) {
 function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
   if (regime.opSimpNac === OpcaoSimplesNacional.MeEpp && regime.regApTribSN === undefined) {
     throw new RuleViolationError(
-      `regApTribSN é obrigatório quando opSimpNac=MeEpp ('3') — per TCRegTrib do RTC v1.01`,
-      'TCRegTrib',
+      `regApTribSN é obrigatório quando opSimpNac=MeEpp ('3') — per TCRegTrib do RTC v1.01 (E0166)`,
+      'E0166',
+    );
+  }
+  // E0162 — regApTribSN só se aplica a ME/EPP; Não Optante e MEI não podem informá-lo.
+  if (
+    regime.regApTribSN !== undefined &&
+    (regime.opSimpNac === OpcaoSimplesNacional.NaoOptante ||
+      regime.opSimpNac === OpcaoSimplesNacional.Mei)
+  ) {
+    throw new RuleViolationError(
+      `regApTribSN não pode ser informado quando opSimpNac=${regime.opSimpNac} (Não Optante/MEI) — per E0162`,
+      'E0162',
+    );
+  }
+}
+
+/**
+ * Consistência intra-DPS entre regime, alíquota e tributação do ISSQN — regras
+ * de rejeição fechadas (sem consulta externa), checáveis no build:
+ * - E0600: MEI (opSimpNac=2) não pode informar `aliqIss`.
+ * - E0602: `aliqIss` não pode ser informada com `tribISSQN` 2/3/4 (imune/exportação/não-incidência).
+ * - E0580: não pode haver retenção (`tpRetISSQN` 2/3) com `tribISSQN` 2/3/4.
+ */
+function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario): void {
+  const tribISSQN = v.tribISSQN ?? DEFAULT_TRIB_ISSQN;
+  const tpRet = v.tpRetISSQN ?? DEFAULT_TP_RET_ISSQN;
+  const naoTributavel =
+    tribISSQN === TipoTribISSQN.Imunidade ||
+    tribISSQN === TipoTribISSQN.ExportacaoServico ||
+    tribISSQN === TipoTribISSQN.NaoIncidencia;
+
+  if (regime.opSimpNac === OpcaoSimplesNacional.Mei && v.aliqIss !== undefined) {
+    throw new RuleViolationError(
+      'aliqIss não pode ser informada quando o prestador é MEI (opSimpNac=2) — per E0600',
+      'E0600',
+    );
+  }
+  if (naoTributavel && v.aliqIss !== undefined) {
+    throw new RuleViolationError(
+      `aliqIss não pode ser informada quando tribISSQN=${tribISSQN} (imune/exportação/não-incidência) — per E0602`,
+      'E0602',
+    );
+  }
+  if (
+    naoTributavel &&
+    (tpRet === TipoRetISSQN.RetidoPeloTomador || tpRet === TipoRetISSQN.RetidoPeloIntermediario)
+  ) {
+    throw new RuleViolationError(
+      `tpRetISSQN não pode indicar retenção (2/3) quando tribISSQN=${tribISSQN} (imune/exportação/não-incidência) — per E0580`,
+      'E0580',
     );
   }
 }
@@ -304,6 +367,13 @@ function assertAliqIssRange(aliqIss: number | undefined): void {
     throw new RuleViolationError(
       `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPS manualmente.`,
       'aliqIss',
+    );
+  }
+  // E0595 — teto constitucional do ISSQN é 5%; acima disso a SEFIN rejeita.
+  if (aliqIss > 5) {
+    throw new RuleViolationError(
+      `aliqIss=${aliqIss}% excede o teto de 5% do ISSQN — per E0595`,
+      'E0595',
     );
   }
 }
