@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RuleViolationError } from '../errors/validation.js';
+import { InvalidCnpjError, RuleViolationError } from '../errors/validation.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import {
@@ -338,5 +338,34 @@ describe('buildDps', () => {
 
   it('accepts a tributável line at the 5% ceiling without tripping the new guards', () => {
     expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 5 } })).not.toThrow();
+  });
+
+  // E0424 — buildDps sempre usa tpEmit=1 (prestador é o emitente); vReceb só é
+  // válido com tpEmit=3 (intermediário). Informá-lo aqui é rejeição garantida.
+  it('throws RuleViolationError (E0424) when vReceb is set (buildDps is always tpEmit=1)', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, vReceb: 50 } })).toThrow(
+      RuleViolationError,
+    );
+  });
+
+  // E0080/E0096/E0188/E0206 — DV de CPF/CNPJ. O path offline buildDps+buildDpsXml
+  // (dry-run/preview) também deve rejeitar DV inválido, não só o emitSeguro.
+  it('throws InvalidCnpjError when the emitente CNPJ has an invalid check digit', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: { ...baseParams().emitente, cnpj: '00574753000199' },
+      }),
+    ).toThrow(InvalidCnpjError);
+  });
+
+  it('skips CPF/CNPJ DV validation when skipCpfCnpjValidation is set', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        skipCpfCnpjValidation: true,
+        emitente: { ...baseParams().emitente, cnpj: '00574753000199' },
+      }),
+    ).not.toThrow();
   });
 });

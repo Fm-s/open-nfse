@@ -1,4 +1,5 @@
 import { RuleViolationError } from '../errors/validation.js';
+import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import { DEFAULT_VER_APLIC } from '../version.js';
 import type {
   DPS,
@@ -91,6 +92,12 @@ export interface ServicoInput {
 /** Valores e tributação do serviço. */
 export interface ValoresInput {
   readonly vServ: number;
+  /**
+   * **Não use com `buildDps`.** `buildDps` sempre emite `tpEmit=1` (prestador é o
+   * emitente), e `vReceb` só é válido com `tpEmit=3` (intermediário) — informá-lo
+   * lança `RuleViolationError` (E0424). Para o cenário de intermediário, construa
+   * `InfDPS` manualmente.
+   */
   readonly vReceb?: number;
   /**
    * Alíquota ISS em **percentual** (ex: `2.5` = 2,5%, NÃO `0.025`). Preenche
@@ -140,6 +147,12 @@ export interface BuildDpsParams {
   readonly servico: ServicoInput;
   readonly valores: ValoresInput;
   readonly tomador?: TomadorInput;
+  /**
+   * Pula a validação de dígito verificador de CPF/CNPJ (emitente + tomador).
+   * Default `false`. `emitir` repassa esta opção para cá, então o escape hatch
+   * documentado continua funcionando no caminho seguro.
+   */
+  readonly skipCpfCnpjValidation?: boolean;
 }
 const DEFAULT_TP_AMB: TipoAmbienteDps = '2' as TipoAmbienteDps;
 const TP_EMIT_PRESTADOR = '1' as InfDPS['tpEmit'];
@@ -159,6 +172,9 @@ export function buildDps(params: BuildDpsParams): DPS {
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
   assertValoresConsistency(params.valores, params.emitente.regime);
+  if (!params.skipCpfCnpjValidation) {
+    assertIdentifiersDv(params);
+  }
 
   const dhEmi = params.dhEmi ?? new Date();
   const dCompet = params.dCompet ?? new Date();
@@ -271,8 +287,9 @@ function buildServ(serv: ServicoInput, cMunDefault: string): Serv {
 }
 
 function buildInfoValores(v: ValoresInput) {
+  // vReceb não é serializado: assertValoresConsistency já rejeita vReceb !== undefined
+  // (E0424 — buildDps usa tpEmit=1).
   const vServPrest: VServPrest = {
-    ...(v.vReceb !== undefined ? { vReceb: v.vReceb } : {}),
     vServ: v.vServ,
   };
   const tribMun: TribMunicipal = {
@@ -295,6 +312,21 @@ function buildInfoValores(v: ValoresInput) {
  * RTC v1.01 — XSD não enforça, então a SEFIN rejeita após round-trip. Fail-fast
  * local para virar erro de tempo de build em vez de rejeição.
  */
+/**
+ * Valida o DV de CPF/CNPJ do emitente e do tomador (E0080/E0096/E0188/E0206) no
+ * próprio builder, para que o caminho offline `buildDps` + `buildDpsXml`
+ * (dry-run/preview, design principle #5) também rejeite DV inválido — não só o
+ * `emitSeguro`. O XSD valida apenas a contagem de dígitos, não o DV.
+ */
+function assertIdentifiersDv(params: BuildDpsParams): void {
+  validateCnpj(params.emitente.cnpj);
+  if (params.tomador) {
+    const doc = params.tomador.documento;
+    if ('CNPJ' in doc) validateCnpj(doc.CNPJ);
+    else validateCpf(doc.CPF);
+  }
+}
+
 function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
   if (regime.opSimpNac === OpcaoSimplesNacional.MeEpp && regime.regApTribSN === undefined) {
     throw new RuleViolationError(
@@ -323,6 +355,14 @@ function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
  * - E0580: não pode haver retenção (`tpRetISSQN` 2/3) com `tribISSQN` 2/3/4.
  */
 function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario): void {
+  // E0424 — vReceb só é válido com tpEmit=3 (intermediário); buildDps sempre usa
+  // tpEmit=1 (prestador é o emitente), então vReceb aqui é rejeição garantida.
+  if (v.vReceb !== undefined) {
+    throw new RuleViolationError(
+      'vReceb não pode ser informado: buildDps usa tpEmit=1 (prestador é o emitente). vReceb só vale com tpEmit=3 (intermediário) — para esse cenário construa InfDPS manualmente — per E0424',
+      'E0424',
+    );
+  }
   const tribISSQN = v.tribISSQN ?? DEFAULT_TRIB_ISSQN;
   const tpRet = v.tpRetISSQN ?? DEFAULT_TP_RET_ISSQN;
   const naoTributavel =

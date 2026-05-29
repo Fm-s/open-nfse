@@ -223,7 +223,7 @@ function parseInfDPS(node: XmlObject): InfDPS {
     verAplic: requireText(node, 'verAplic'),
     serie: requireText(node, 'serie'),
     nDPS: requireText(node, 'nDPS'),
-    dCompet: coerceDate(requireText(node, 'dCompet')),
+    dCompet: coerceDateOnly(requireText(node, 'dCompet')),
     tpEmit: requireText(node, 'tpEmit') as TipoEmitenteDps,
     ...optionalAssign(
       'cMotivoEmisTI',
@@ -327,8 +327,8 @@ function parseRtcListaDoc(node: XmlObject): RtcListaDoc {
       'fornec',
       mapIfPresent(optionalChild(node, 'fornec'), parseRtcListaDocFornec),
     ),
-    dtEmiDoc: coerceDate(requireText(node, 'dtEmiDoc')),
-    dtCompDoc: coerceDate(requireText(node, 'dtCompDoc')),
+    dtEmiDoc: coerceDateOnly(requireText(node, 'dtEmiDoc')),
+    dtCompDoc: coerceDateOnly(requireText(node, 'dtCompDoc')),
     tpReeRepRes: requireText(node, 'tpReeRepRes') as TipoReembolsoRepasse,
     ...optionalAssign('xTpReeRepRes', optionalText(node, 'xTpReeRepRes')),
     vlrReeRepRes: coerceNumber(requireText(node, 'vlrReeRepRes')),
@@ -500,8 +500,8 @@ function parseComExterior(node: XmlObject): ComExterior {
 function parseAtvEvento(node: XmlObject): AtvEvento {
   return {
     xNome: requireText(node, 'xNome'),
-    dtIni: coerceDate(requireText(node, 'dtIni')),
-    dtFim: coerceDate(requireText(node, 'dtFim')),
+    dtIni: coerceDateOnly(requireText(node, 'dtIni')),
+    dtFim: coerceDateOnly(requireText(node, 'dtFim')),
     identificacao: parseAtvEventoIdentificacao(node),
   };
 }
@@ -657,7 +657,7 @@ function parseDocDedRed(node: XmlObject): DocDedRed {
     referencia: parseReferenciaDocDedRed(node),
     tpDedRed: requireText(node, 'tpDedRed') as TipoDedRed,
     ...optionalAssign('xDescOutDed', optionalText(node, 'xDescOutDed')),
-    dtEmiDoc: coerceDate(requireText(node, 'dtEmiDoc')),
+    dtEmiDoc: coerceDateOnly(requireText(node, 'dtEmiDoc')),
     vDedutivelRedutivel: coerceNumber(requireText(node, 'vDedutivelRedutivel')),
     vDeducaoReducao: coerceNumber(requireText(node, 'vDeducaoReducao')),
     ...optionalAssign('fornec', mapIfPresent(optionalChild(node, 'fornec'), parseInfoPessoa)),
@@ -1018,6 +1018,28 @@ function coerceNumber(value: string): number {
 
 function coerceDate(value: string): Date {
   const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    throw new InvalidXmlError(`valor não é data válida: "${value}"`);
+  }
+  return d;
+}
+
+/**
+ * Campos **date-only** (`TSData`, `YYYY-MM-DD`: `dCompet`, `dtEmiDoc`, `dtCompDoc`,
+ * `dtIni`, `dtFim`) são ancorados na meia-noite de **Brasília (-03:00)**,
+ * espelhando a escrita (`build-xml` aplica `toBrt` antes de fatiar a data). Sem
+ * isso, `new Date('2026-03-03')` cairia na meia-noite **UTC** e, lido com
+ * acessores locais em fuso BR (UTC-3), retornaria o **dia anterior** (off-by-one)
+ * — e o round-trip build→parse não seria estável. Não usar para datetime
+ * (`dhEmi`/`dhProc`), que já carregam offset explícito → `coerceDate`.
+ */
+function coerceDateOnly(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!m) {
+    // Não é date-only puro (datetime/edge) — delega ao parser geral.
+    return coerceDate(value);
+  }
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00-03:00`);
   if (Number.isNaN(d.getTime())) {
     throw new InvalidXmlError(`valor não é data válida: "${value}"`);
   }

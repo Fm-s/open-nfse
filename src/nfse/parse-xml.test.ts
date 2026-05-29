@@ -333,6 +333,12 @@ describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', 
     expect(parsed.infNFSe.DPS.infDPS.interm?.identificador).toEqual({ CPF: '00000000000' });
   });
 
+  it('parses date-only fields (dCompet) anchored at Brazil-local midnight, no off-by-one', () => {
+    // <dCompet>2026-04-16</dCompet> → meia-noite de Brasília (-03:00) = 03:00Z.
+    // `new Date('2026-04-16')` cairia em 00:00Z e, lido em fuso BR, voltaria dia 15.
+    expect(parsed.infNFSe.DPS.infDPS.dCompet.toISOString()).toBe('2026-04-16T03:00:00.000Z');
+  });
+
   it('parses locPrest as país (cPaisPrestacao)', () => {
     expect(parsed.infNFSe.DPS.infDPS.serv.locPrest).toEqual({ cPaisPrestacao: 'US' });
   });
