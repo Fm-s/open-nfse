@@ -59,9 +59,14 @@ export async function cancelar(
   retryPolicy: RetryPolicy,
   params: CancelarParams,
 ): Promise<CancelarResult> {
-  // Rule E0078 — cMotivo=99 exige xMotivo populado.
+  // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
+  // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
+  // deste evento — o campo aqui é evento/.../e101101/xMotivo.)
   if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
-    throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
+    throw new RuleViolationError(
+      'cMotivo=9 (Outros) exige xMotivo não-vazio (evento 101101)',
+      'e101101/xMotivo',
+    );
   }
   // TSMotivo (tiposSimples_v1.01.xsd:355) — minLength 15, maxLength 255.
   // xMotivo é required em CancelarParams, então sempre checa.

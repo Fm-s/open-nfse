@@ -458,3 +458,26 @@ describe('buildDps — totTrib conforme regime (B1, auditoria 2026-05-29)', () =
     ).toThrow(RuleViolationError);
   });
 });
+
+// E0532 — o serviço 99.01.01 (sem incidência de ISSQN) exige tribISSQN=4.
+describe('buildDps — incidência por serviço (E0532)', () => {
+  it('lança quando cTribNac=990101 e tribISSQN ≠ 4 (não-incidência)', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        servico: { ...baseParams().servico, cTribNac: '990101' },
+        // tribISSQN default = '1' (tributável) → inválido para 99.01.01.
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('aceita cTribNac=990101 com tribISSQN=4 (não-incidência)', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        servico: { ...baseParams().servico, cTribNac: '990101' },
+        valores: { ...baseParams().valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
+      }),
+    ).not.toThrow();
+  });
+});

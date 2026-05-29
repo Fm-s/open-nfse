@@ -4,8 +4,8 @@ import { InvalidDpsIdError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 
 /**
- * Pattern do `infDPS.Id` — `DPS` + 42 dígitos (cLocEmi 7 + AAMM 4 + tpInsc 1 +
- * inscFederal 14 + serie 5 + nDPS 15 + tpEmis 1). Total 45 chars.
+ * Pattern do `infDPS.Id` — `DPS` + 42 dígitos (cLocEmi 7 + tpInsc 1 +
+ * inscFederal 14 + serie 5 + nDPS 15 = 42). Total 45 chars (TSIdDPS).
  */
 const REGEX_DPS_ID = /^DPS\d{42}$/;
 

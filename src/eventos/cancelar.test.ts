@@ -241,7 +241,7 @@ describe('cancelar', () => {
     ).rejects.toBeInstanceOf(MissingRetryStoreError);
   });
 
-  it('rejects cMotivo=99 com xMotivo vazio (rule E0078) sem tocar a rede', async () => {
+  it('rejects cMotivo=9 (Outros) com xMotivo vazio no 101101 sem tocar a rede', async () => {
     await expect(
       cancelar(httpClient, cert, createDefaultRetryPolicy(), {
         chaveAcesso: CHAVE_ORIGINAL,
@@ -249,7 +249,7 @@ describe('cancelar', () => {
         cMotivo: JustificativaCancelamento.Outros,
         xMotivo: '   ', // whitespace-only conta como vazio
       }),
-    ).rejects.toMatchObject({ rule: 'E0078' });
+    ).rejects.toMatchObject({ rule: 'e101101/xMotivo' });
   });
 
   it('rejects xMotivo com menos de 15 caracteres (TSMotivo) sem tocar a rede', async () => {

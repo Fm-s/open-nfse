@@ -199,6 +199,16 @@ export function buildDps(params: BuildDpsParams): DPS {
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
   assertValoresConsistency(params.valores, params.emitente.regime);
+  // E0532 — o serviço 99.01.01 não tem incidência de ISSQN: exige tribISSQN=4.
+  if (
+    params.servico.cTribNac === '990101' &&
+    (params.valores.tribISSQN ?? DEFAULT_TRIB_ISSQN) !== TipoTribISSQN.NaoIncidencia
+  ) {
+    throw new RuleViolationError(
+      "o serviço 99.01.01 não tem incidência de ISSQN: tribISSQN deve ser '4' (Não Incidência) — per E0532",
+      'E0532',
+    );
+  }
   if (!params.skipCpfCnpjValidation) {
     assertIdentifiersDv(params);
   }
