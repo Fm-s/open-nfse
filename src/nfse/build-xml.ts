@@ -587,6 +587,9 @@ function formatDateTime(d: Date): string {
 }
 
 function formatDate(d: Date): string {
+  // Campos date-only (TSData): a data no fuso de Brasília (-03:00), como o resto
+  // da lib (datetimes saem com offset -03:00). O parser ancora date-only em
+  // meia-noite BR (coerceDateOnly), então o round-trip é estável.
   const iso = toBrt(d).toISOString();
   return iso.slice(0, 10);
 }
