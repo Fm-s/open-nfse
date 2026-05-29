@@ -3,6 +3,7 @@ import { InvalidCnpjError, RuleViolationError } from '../errors/validation.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import {
+  IndicadorTotalTributos,
   OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
@@ -29,7 +30,8 @@ function baseParams(): BuildDpsParams {
       cNBS: '123456789',
       descricao: 'Serviço de teste',
     },
-    valores: { vServ: 100 },
+    // Não Optante exige vTotTrib/pTotTrib no choice totTrib (E0713).
+    valores: { vServ: 100, pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
   };
 }
 
@@ -125,28 +127,21 @@ describe('buildDps', () => {
     expect(dps.infDPS.toma?.identificador).toEqual({ CPF: '01075595363' });
   });
 
-  it('applies defaults for tribISSQN, tpRetISSQN, indTotTrib when not provided', () => {
+  it('applies defaults for tribISSQN, tpRetISSQN when not provided', () => {
     const dps = buildDps(baseParams());
     const trib = dps.infDPS.valores.trib;
     expect(trib.tribMun.tribISSQN).toBe('1');
     expect(trib.tribMun.tpRetISSQN).toBe('1');
-    expect('indTotTrib' in trib.totTrib && trib.totTrib.indTotTrib).toBe('0');
     expect(trib.tribMun.pAliq).toBeUndefined();
   });
 
-  it('uses pTotTribSN when provided instead of indTotTrib', () => {
-    const dps = buildDps({
-      ...baseParams(),
-      valores: { vServ: 100, pTotTribSN: 6 },
-    });
-    const tot = dps.infDPS.valores.trib.totTrib;
-    expect('pTotTribSN' in tot && tot.pTotTribSN).toBe(6);
-  });
+  // (a seleção de totTrib por regime — indTotTrib/pTotTribSN/vTotTrib/pTotTrib —
+  // é coberta no describe "totTrib conforme regime" abaixo.)
 
   it('includes pAliq only when aliqIss is supplied', () => {
     const dps = buildDps({
       ...baseParams(),
-      valores: { vServ: 100, aliqIss: 2.5 },
+      valores: { ...baseParams().valores, aliqIss: 2.5 },
     });
     expect(dps.infDPS.valores.trib.tribMun.pAliq).toBe(2.5);
   });
@@ -199,11 +194,10 @@ describe('buildDps', () => {
   });
 
   it('accepts aliqIss=0 (alíquota zero legítima) and típicas (2.5, 5)', () => {
-    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 0 } })).not.toThrow();
-    expect(() =>
-      buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 2.5 } }),
-    ).not.toThrow();
-    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 5 } })).not.toThrow();
+    const v = baseParams().valores;
+    expect(() => buildDps({ ...baseParams(), valores: { ...v, aliqIss: 0 } })).not.toThrow();
+    expect(() => buildDps({ ...baseParams(), valores: { ...v, aliqIss: 2.5 } })).not.toThrow();
+    expect(() => buildDps({ ...baseParams(), valores: { ...v, aliqIss: 5 } })).not.toThrow();
   });
 
   it('passes XSD validation for a minimal-valid DPS', async () => {
@@ -247,7 +241,7 @@ describe('buildDps', () => {
             bairro: 'Vila Conceição',
           },
         },
-        valores: { vServ: 51.6, aliqIss: 5 },
+        valores: { ...baseParams().valores, vServ: 51.6, aliqIss: 5 },
       }),
     );
     await expect(validateDpsXml(xml)).resolves.toBeUndefined();
@@ -337,7 +331,9 @@ describe('buildDps', () => {
   });
 
   it('accepts a tributável line at the 5% ceiling without tripping the new guards', () => {
-    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, aliqIss: 5 } })).not.toThrow();
+    expect(() =>
+      buildDps({ ...baseParams(), valores: { ...baseParams().valores, aliqIss: 5 } }),
+    ).not.toThrow();
   });
 
   // E0424 — buildDps sempre usa tpEmit=1 (prestador é o emitente); vReceb só é
@@ -367,5 +363,98 @@ describe('buildDps', () => {
         emitente: { ...baseParams().emitente, cnpj: '00574753000199' },
       }),
     ).not.toThrow();
+  });
+});
+
+// B1 — o membro válido do choice totTrib depende da situação do emitente perante
+// o Simples Nacional (E0710 MEI≠pTotTribSN, E0712 ME/EPP≠indTotTrib, E0713 Não
+// Optante≠indTotTrib/pTotTribSN → deve usar vTotTrib/pTotTrib).
+describe('buildDps — totTrib conforme regime (B1, auditoria 2026-05-29)', () => {
+  const meiEmitente = () => ({
+    ...baseParams().emitente,
+    regime: {
+      opSimpNac: OpcaoSimplesNacional.Mei,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
+    },
+  });
+  const meEppEmitente = () => ({
+    ...baseParams().emitente,
+    regime: {
+      opSimpNac: OpcaoSimplesNacional.MeEpp,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
+      regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
+    },
+  });
+
+  it('Não Optante sem totTrib lança (E0713) — exige vTotTrib/pTotTrib', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100 } })).toThrow(
+      RuleViolationError,
+    );
+  });
+
+  it('Não Optante com pTotTribSN lança (E0713)', () => {
+    expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, pTotTribSN: 6 } })).toThrow(
+      RuleViolationError,
+    );
+  });
+
+  it('Não Optante com pTotTrib é aceito', () => {
+    const dps = buildDps({
+      ...baseParams(),
+      valores: { vServ: 100, pTotTrib: { pTotTribFed: 1, pTotTribEst: 0, pTotTribMun: 2 } },
+    });
+    const tot = dps.infDPS.valores.trib.totTrib;
+    expect('pTotTrib' in tot && tot.pTotTrib.pTotTribFed).toBe(1);
+  });
+
+  it('Não Optante com vTotTrib é aceito', () => {
+    const dps = buildDps({
+      ...baseParams(),
+      valores: { vServ: 100, vTotTrib: { vTotTribFed: 1, vTotTribEst: 0, vTotTribMun: 2 } },
+    });
+    const tot = dps.infDPS.valores.trib.totTrib;
+    expect('vTotTrib' in tot && tot.vTotTrib.vTotTribFed).toBe(1);
+  });
+
+  it('MEI sem totTrib usa indTotTrib=0 (default válido para MEI)', () => {
+    const dps = buildDps({ ...baseParams(), emitente: meiEmitente(), valores: { vServ: 100 } });
+    const tot = dps.infDPS.valores.trib.totTrib;
+    expect('indTotTrib' in tot && tot.indTotTrib).toBe('0');
+  });
+
+  it('MEI com pTotTribSN lança (E0710)', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: meiEmitente(),
+        valores: { vServ: 100, pTotTribSN: 6 },
+      }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('ME/EPP com pTotTribSN é aceito', () => {
+    const dps = buildDps({
+      ...baseParams(),
+      emitente: meEppEmitente(),
+      valores: { vServ: 100, pTotTribSN: 6 },
+    });
+    const tot = dps.infDPS.valores.trib.totTrib;
+    expect('pTotTribSN' in tot && tot.pTotTribSN).toBe(6);
+  });
+
+  it('ME/EPP sem totTrib lança (E0712) — exige pTotTribSN/vTotTrib/pTotTrib', () => {
+    expect(() =>
+      buildDps({ ...baseParams(), emitente: meEppEmitente(), valores: { vServ: 100 } }),
+    ).toThrow(RuleViolationError);
+  });
+
+  it('ME/EPP com indTotTrib lança (E0712)', () => {
+    expect(() =>
+      buildDps({
+        ...baseParams(),
+        emitente: meEppEmitente(),
+        valores: { vServ: 100, indTotTrib: IndicadorTotalTributos.Nao },
+      }),
+    ).toThrow(RuleViolationError);
   });
 });

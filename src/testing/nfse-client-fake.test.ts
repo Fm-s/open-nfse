@@ -24,7 +24,8 @@ function baseEmitirParams(): EmitirParams {
     },
     serie: '1',
     servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Teste' },
-    valores: { vServ: 100 },
+    // Não Optante exige vTotTrib/pTotTrib no choice totTrib (E0713).
+    valores: { vServ: 100, pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
   };
 }
 

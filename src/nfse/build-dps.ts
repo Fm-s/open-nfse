@@ -115,10 +115,37 @@ export interface ValoresInput {
   readonly tribISSQN?: TipoTribISSQN;
   /** Default `'1'` (sem retenção). */
   readonly tpRetISSQN?: TipoRetISSQN;
-  /** Default `'0'` (não informado). Ignorado se `pTotTribSN` for fornecido. */
+  /**
+   * Indicador de "sem total de tributos" (`'0'`) do choice `totTrib`. **Válido
+   * apenas para MEI** (`opSimpNac=2`): Não Optante e ME/EPP não podem informá-lo
+   * (E0713/E0712). Para MEI sem nenhum membro de `totTrib`, este é o default.
+   */
   readonly indTotTrib?: IndicadorTotalTributos;
-  /** Alíquota aproximada do Simples Nacional (%). Quando fornecido, prevalece sobre `indTotTrib`. */
+  /**
+   * Alíquota aproximada do Simples Nacional (%) — choice `totTrib`. **Válido
+   * apenas para ME/EPP** (`opSimpNac=3`): MEI (E0710) e Não Optante (E0713) não
+   * podem informá-lo.
+   */
   readonly pTotTribSN?: number;
+  /**
+   * Total aproximado de tributos em **valor** (Lei da Transparência / IBPT) —
+   * choice `totTrib`. Válido para qualquer regime; é o membro a usar para **Não
+   * Optante** (junto de `pTotTrib`), que não pode usar `indTotTrib`/`pTotTribSN`.
+   */
+  readonly vTotTrib?: {
+    readonly vTotTribFed: number;
+    readonly vTotTribEst: number;
+    readonly vTotTribMun: number;
+  };
+  /**
+   * Total aproximado de tributos em **percentual** — choice `totTrib`. Válido
+   * para qualquer regime (alternativa a `vTotTrib` para Não Optante).
+   */
+  readonly pTotTrib?: {
+    readonly pTotTribFed: number;
+    readonly pTotTribEst: number;
+    readonly pTotTribMun: number;
+  };
 }
 
 export interface BuildDpsParams {
@@ -190,7 +217,7 @@ export function buildDps(params: BuildDpsParams): DPS {
 
   const prest = buildInfoPrestador(params.emitente);
   const serv = buildServ(params.servico, params.emitente.codMunicipio);
-  const valores = buildInfoValores(params.valores);
+  const valores = buildInfoValores(params.valores, params.emitente.regime.opSimpNac);
 
   const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
   assertVerAplic(verAplic);
@@ -286,7 +313,7 @@ function buildServ(serv: ServicoInput, cMunDefault: string): Serv {
   };
 }
 
-function buildInfoValores(v: ValoresInput) {
+function buildInfoValores(v: ValoresInput, opSimpNac: OpcaoSimplesNacional) {
   // vReceb não é serializado: assertValoresConsistency já rejeita vReceb !== undefined
   // (E0424 — buildDps usa tpEmit=1).
   const vServPrest: VServPrest = {
@@ -297,14 +324,67 @@ function buildInfoValores(v: ValoresInput) {
     tpRetISSQN: v.tpRetISSQN ?? DEFAULT_TP_RET_ISSQN,
     ...(v.aliqIss !== undefined ? { pAliq: v.aliqIss } : {}),
   };
-  const totTrib: TribTotal =
-    v.pTotTribSN !== undefined
-      ? { pTotTribSN: v.pTotTribSN }
-      : { indTotTrib: v.indTotTrib ?? DEFAULT_IND_TOT_TRIB };
   return {
     vServPrest,
-    trib: { tribMun, totTrib },
+    trib: { tribMun, totTrib: buildTotTrib(v, opSimpNac) },
   };
+}
+
+/**
+ * Seleciona o membro do choice `totTrib` conforme a situação do emitente perante
+ * o Simples Nacional (`opSimpNac`), aplicando E0710/E0712/E0713. `vTotTrib` e
+ * `pTotTrib` (Lei da Transparência / IBPT) valem para qualquer regime; o
+ * default — quando nada é informado — só existe para MEI (`indTotTrib='0'`).
+ * Não Optante e ME/EPP exigem um membro explícito, senão lança fail-fast em vez
+ * de produzir uma DPS que a SEFIN rejeitaria.
+ */
+function buildTotTrib(v: ValoresInput, opSimpNac: OpcaoSimplesNacional): TribTotal {
+  if (v.vTotTrib) return { vTotTrib: v.vTotTrib };
+  if (v.pTotTrib) return { pTotTrib: v.pTotTrib };
+  if (v.pTotTribSN !== undefined) {
+    if (opSimpNac === OpcaoSimplesNacional.Mei) {
+      throw new RuleViolationError(
+        'pTotTribSN não pode ser informado para MEI — per E0710',
+        'E0710',
+      );
+    }
+    if (opSimpNac === OpcaoSimplesNacional.NaoOptante) {
+      throw new RuleViolationError(
+        'pTotTribSN não pode ser informado para Não Optante (use vTotTrib/pTotTrib) — per E0713',
+        'E0713',
+      );
+    }
+    return { pTotTribSN: v.pTotTribSN };
+  }
+  if (v.indTotTrib !== undefined) {
+    if (opSimpNac === OpcaoSimplesNacional.MeEpp) {
+      throw new RuleViolationError(
+        'indTotTrib não pode ser informado para ME/EPP (use pTotTribSN) — per E0712',
+        'E0712',
+      );
+    }
+    if (opSimpNac === OpcaoSimplesNacional.NaoOptante) {
+      throw new RuleViolationError(
+        'indTotTrib não pode ser informado para Não Optante (use vTotTrib/pTotTrib) — per E0713',
+        'E0713',
+      );
+    }
+    return { indTotTrib: v.indTotTrib };
+  }
+  // Nenhum membro informado → default por regime.
+  if (opSimpNac === OpcaoSimplesNacional.Mei) {
+    return { indTotTrib: DEFAULT_IND_TOT_TRIB };
+  }
+  if (opSimpNac === OpcaoSimplesNacional.MeEpp) {
+    throw new RuleViolationError(
+      'ME/EPP exige um total de tributos: informe pTotTribSN (ou vTotTrib/pTotTrib) — per E0712',
+      'E0712',
+    );
+  }
+  throw new RuleViolationError(
+    'Não Optante exige um total de tributos: informe vTotTrib ou pTotTrib — per E0713',
+    'E0713',
+  );
 }
 
 /**

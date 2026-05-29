@@ -18,9 +18,22 @@ Consolidação da documentação técnica oficial em `specs/ruleset/` (ruleset a
   - `buildSubstituicaoXml` marcado `@deprecated` — mantido como representação de baixo nível do evento (leitura/inspeção/XSD), não para envio pelo contribuinte.
   - ⚠️ **Pendente de validação em Produção Restrita** antes do release.
 
+- **`buildDps`: o choice `totTrib` agora é selecionado conforme o regime** (`opSimpNac`), aplicando E0710/E0712/E0713. Antes o builder fixava `indTotTrib='0'` para todos — válido só para MEI; Não Optante e ME/EPP (os casos mais comuns) recebiam DPS rejeitada (E0713/E0712) e queimavam `nDPS`.
+  - `ValoresInput` ganha **`vTotTrib`** e **`pTotTrib`** (`{ ...Fed, ...Est, ...Mun }`, Lei da Transparência / IBPT) — os membros válidos para **Não Optante**.
+  - Seleção: MEI → `indTotTrib='0'` (default); ME/EPP → `pTotTribSN`; Não Optante → `vTotTrib`/`pTotTrib`. Combinação inválida regime×membro lança `RuleViolationError` em vez de gerar DPS rejeitável. **Breaking:** Não Optante/ME/EPP sem um membro de `totTrib` agora lançam (antes saíam com `indTotTrib='0'`).
+
 ### Added — guardas fail-fast de emissão (`buildDps`)
 
-Pré-checagem local de regras de rejeição fechadas que o XSD não expressa (evita consumir `nDPS` num round-trip que a SEFIN rejeitaria): **E0595** (aliqIss > 5%), **E0600** (aliqIss para MEI), **E0162** (regApTribSN para Não Optante/MEI), **E0315** (cTribMun `'000'`), **E1402** (cTribNac 200101 + cLocPrestacao `'0000000'`), **E0602** (aliqIss com tribISSQN imune/exportação/não-incidência) e **E0580** (retenção de ISSQN com tribISSQN 2/3/4).
+Pré-checagem local de regras de rejeição fechadas que o XSD não expressa (evita consumir `nDPS` num round-trip que a SEFIN rejeitaria):
+
+- **Alíquota/tributação ISSQN:** **E0595** (aliqIss > 5%), **E0600** (aliqIss para MEI), **E0602** (aliqIss com tribISSQN imune/exportação/não-incidência), **E0580** (retenção de ISSQN com tribISSQN 2/3/4).
+- **Regime/serviço:** **E0162** (regApTribSN para Não Optante/MEI), **E0315** (cTribMun `'000'`), **E1402** (cTribNac 200101 + cLocPrestacao `'0000000'`).
+- **B2 — E0424:** `vReceb` rejeitado (buildDps usa `tpEmit=1`; vReceb só vale com `tpEmit=3`).
+- **DV (E0080/E0096/E0188/E0206):** `buildDps` valida o dígito verificador de CPF/CNPJ do emitente e do tomador (novo `skipCpfCnpjValidation` em `BuildDpsParams`; `emitir` repassa a flag). Fecha o gap do caminho offline `buildDps`+`buildDpsXml`.
+
+### Fixed
+
+- **B3 — fuso de campos date-only:** `dCompet`, `dtEmiDoc`, `dtCompDoc`, `dtIni`, `dtFim` (`TSData`) passam a ser ancorados na meia-noite de **Brasília (-03:00)** na leitura (`coerceDateOnly`), não na meia-noite UTC. Eliminava um off-by-one (dia anterior) ao ler a data com acessores locais em fuso BR e tornava o round-trip build→parse instável. `dhEmi`/`dhProc` (datetime com offset) não mudam.
 
 ## [0.9.1] — 2026-05-29
 
