@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-05-29
+
+### Segunda auditoria de conformidade contra `schemas/1.01/` (sem mudança de schema)
+
+O bundle oficial não mudou desde a v0.9.0 (`nfse-esquemas_xsd-v1-01-20260209`, idêntico byte-a-byte ao que já está em `schemas/1.01/`, salvo a deviation documentada do `TSSerieDPS`). Esta release é uma varredura multi-agente campo-a-campo que **confirmou a lib conformante** — sem nenhum desvio que gere XML inválido ou rejeição da SEFIN — e corrigiu os desvios remanescentes de precisão de tipo e da documentação. Cada achado foi verificado contra o XSD **e** o código.
+
+### Added
+
+- **`RegimeEspecialTributacao.Outros = '9'`** — valor de `TSRegEspTrib` (0–6 mais 9) que faltava no enum. Como `regEspTrib` é obrigatório no prestador da DPS, um contribuinte sob regime "Outros" não conseguia informar o valor válido pela API tipada. (única correção com impacto de emissão.)
+- **Novos enums para campos antes `string`:** `SituacaoNfse` (`InfNFSe.cStat`, `TStat`: 100/102/103/107), `IndicadorDestinatario` (`indDest`, `TSRTCIndDest`: 0/1), `MecanismoApoioComExPrestador` (`mecAFComexP`, `TSMecAFComExPrest`: 00–08) e `MecanismoApoioComExTomador` (`mecAFComexT`, `TSMecAFComExToma`: 00–26). Membros e valores derivados das `<xs:documentation>` oficiais. Exportados na raiz.
+- **`IdentificadorEmitente`** (`{ CNPJ } | { CPF }`) — `TCEmitente` admite apenas CNPJ/CPF, ao contrário de `IdentificadorPessoa` (4 variantes, com `NIF`/`cNaoNIF`). Exportado.
+- **`enums-conformance.test.ts`** — trava os valores de fio dos enums acima contra `tiposSimples_v1.01.xsd`.
+
+### Changed
+
+- **`Emitente.identificador`: `IdentificadorPessoa` → `IdentificadorEmitente`** — afina o tipo (caminho de leitura) ao `<xs:choice>` de `TCEmitente`. Parser dedicado `parseIdentificadorEmitente` (rejeita `NIF`/`cNaoNIF` sob `<emit>`).
+- **`InfNFSe.cStat`, `RtcInfoIbsCbs.indDest`, `ComExterior.mecAFComexP`/`mecAFComexT`: `string` → enums** correspondentes. Tightening de tipo, runtime-compatível (os enums são string); quem **monta** `indDest`/`mecAFComex*` com string crua passa a usar o membro do enum.
+- **`InfEvento.verAplic` agora obrigatório** — `TCInfEvento` exige `verAplic` (sem `minOccurs`); o parser passa a usar `requireText`, consistente com o `InfPedRegEvento.verAplic` interno que já era obrigatório.
+- **Ordem dos campos de `e305102`** (`DetalheEvento`) alinhada à sequência `TE305102` (`codEvento` antes de `xMotivo`). Cosmético — o parse é por nome de elemento.
+
+### Fixed (documentação — `api-cheatsheet.md`)
+
+- **`TipoAmbiente`** estava listado com `Producao='1'`/`Homologacao='2'` (que pertencem a `TipoAmbienteDps`); os valores reais são `'PRODUCAO'`/`'HOMOLOGACAO'`.
+- **`cancelar`/`substituir` (funções livres)** documentadas sem o 3º argumento `retryPolicy: RetryPolicy` — seguir a assinatura antiga passaria o `params` onde se espera a policy.
+- **`StatusDistribuicao`** citava o membro `DocumentosLocalizados`; o nome real é `DocumentosEncontrados` (valor `'DOCUMENTOS_LOCALIZADOS'`).
+- **`SubstituirResult`** listava 4 estados; são 5 (faltava `'rollback_failed'`); nota do método ajustada de "4 estados" para "5 estados".
+- **`fetchDpsStatus`/`existsDpsStatus`** ausentes da tabela de Leitura, apesar de públicos no cliente, no fake e como funções livres.
+
 ## [0.9.0] — 2026-05-28
 
 ### Auditoria campo-a-campo contra o XSD oficial `schemas/1.01/`

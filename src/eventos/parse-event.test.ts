@@ -7,6 +7,7 @@ function wrap(inner: string, tipoEventoId = '24052023103000000000000000000000000
   return `<?xml version="1.0" encoding="UTF-8"?>
 <evento versao="1.01">
   <infEvento Id="ID${tipoEventoId}">
+    <verAplic>1.0.0</verAplic>
     <ambGer>2</ambGer>
     <nSeqEvento>1</nSeqEvento>
     <dhProc>2026-04-17T10:00:00-03:00</dhProc>

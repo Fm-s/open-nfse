@@ -14,6 +14,17 @@ export enum ProcessoEmissao {
   App = '3',
 }
 
+/**
+ * Situação da NFS-e (`TStat`), campo `InfNFSe/cStat`. Valor gerado pela Sefin —
+ * presente apenas no documento autorizado (caminho de leitura), nunca emitido.
+ */
+export enum SituacaoNfse {
+  Gerada = '100',
+  DecisaoJudicial = '102',
+  Avulsa = '103',
+  Mei = '107',
+}
+
 export enum TipoAmbienteDps {
   Producao = '1',
   Homologacao = '2',
@@ -88,6 +99,7 @@ export enum RegimeApuracaoSimplesNacional {
   FederalEMunicipalFora = '3',
 }
 
+/** Regime especial de tributação (`TSRegEspTrib`). */
 export enum RegimeEspecialTributacao {
   Nenhum = '0',
   AtoCooperado = '1',
@@ -96,6 +108,7 @@ export enum RegimeEspecialTributacao {
   NotarioRegistrador = '4',
   ProfissionalAutonomo = '5',
   SociedadeProfissionais = '6',
+  Outros = '9',
 }
 
 export enum CodigoNaoNif {
@@ -299,6 +312,59 @@ export enum EnvioMDIC {
   Enviar = '1',
 }
 
+/**
+ * Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo **prestador**
+ * (`TSMecAFComExPrest`), campo `comExt/mecAFComexP`.
+ */
+export enum MecanismoApoioComExPrestador {
+  Desconhecido = '00',
+  Nenhum = '01',
+  /** ACC — Adiantamento sobre Contrato de Câmbio. */
+  Acc = '02',
+  /** ACE — Adiantamento sobre Cambiais Entregues. */
+  Ace = '03',
+  BndesEximPosEmbarque = '04',
+  BndesEximPreEmbarque = '05',
+  /** FGE — Fundo de Garantia à Exportação. */
+  Fge = '06',
+  ProexEqualizacao = '07',
+  ProexFinanciamento = '08',
+}
+
+/**
+ * Mecanismo de apoio/fomento ao Comércio Exterior utilizado pelo **tomador**
+ * (`TSMecAFComExToma`), campo `comExt/mecAFComexT`.
+ */
+export enum MecanismoApoioComExTomador {
+  Desconhecido = '00',
+  Nenhum = '01',
+  AdmPublicaReprInternacional = '02',
+  AlugueisArrendMercantilMaquinas = '03',
+  ArrendamentoMercantilAeronaveTransporteAereo = '04',
+  ComissaoAgentesExternosExportacao = '05',
+  DespesasArmazenagemTransporteCargaExterior = '06',
+  EventosFifaSubsidiaria = '07',
+  EventosFifa = '08',
+  FretesArrendamentosEmbarcacoesAeronaves = '09',
+  MaterialAeronautico = '10',
+  PromocaoBensExterior = '11',
+  PromocaoDestinosTuristicosBrasileiros = '12',
+  PromocaoBrasilExterior = '13',
+  PromocaoServicosExterior = '14',
+  Recine = '15',
+  Recopa = '16',
+  RegistroManutencaoMarcasPatentes = '17',
+  Reicomp = '18',
+  Reidi = '19',
+  Repenec = '20',
+  Repes = '21',
+  Retaero = '22',
+  Retid = '23',
+  RoyaltiesAssistenciaTecnicaCientifica = '24',
+  ServicosAvaliacaoConformidadeOMC = '25',
+  Zpe = '26',
+}
+
 export enum ObjetoLocacao {
   Ferrovia = '1',
   Rodovia = '2',
@@ -315,6 +381,17 @@ export enum FinalidadeNFSe {
 export enum IndicadorFinal {
   Nao = '0',
   Sim = '1',
+}
+
+/**
+ * Indicador do destinatário dos serviços (`TSRTCIndDest`), campo
+ * `IBSCBS/.../indDest`.
+ */
+export enum IndicadorDestinatario {
+  /** O destinatário é o próprio tomador/adquirente (tomador = adquirente = destinatário). */
+  TomadorEhDestinatario = '0',
+  /** O destinatário não é o próprio adquirente (tomador = adquirente ≠ destinatário). */
+  DestinatarioDistinto = '1',
 }
 
 export enum TipoOperacao {

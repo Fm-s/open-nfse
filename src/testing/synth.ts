@@ -1,6 +1,14 @@
 import type { TipoAmbiente } from '../ambiente.js';
-import type { DPS, Emitente, NFSe, Signature, ValoresNFSe } from '../nfse/domain.js';
-import { AmbienteGerador, TipoEmissao } from '../nfse/enums.js';
+import type {
+  DPS,
+  Emitente,
+  IdentificadorEmitente,
+  InfoPrestador,
+  NFSe,
+  Signature,
+  ValoresNFSe,
+} from '../nfse/domain.js';
+import { AmbienteGerador, SituacaoNfse, TipoEmissao } from '../nfse/enums.js';
 
 /** Chave de acesso sintética de 50 dígitos. Deterministicamente única por sequential. */
 export function synthChaveAcesso(sequential: number, cnpj: string): string {
@@ -31,7 +39,7 @@ export function synthNfse(dps: DPS, chaveAcesso: string, ambiente: TipoAmbiente)
       verAplic: 'NfseClientFake/0.6',
       ambGer: AmbienteGerador.SefinNacional,
       tpEmis: TipoEmissao.Normal,
-      cStat: '100',
+      cStat: SituacaoNfse.Gerada,
       dhProc: new Date(),
       nDFSe: String(Date.now()),
       emit: synthEmit(dps),
@@ -42,9 +50,20 @@ export function synthNfse(dps: DPS, chaveAcesso: string, ambiente: TipoAmbiente)
   };
 }
 
+/**
+ * O emitente só admite CNPJ/CPF (`TCEmitente`); o prestador pode ter NIF/cNaoNIF.
+ * Reaproveita o identificador nacional do prestador e cai num CNPJ fake caso ele
+ * seja estrangeiro.
+ */
+function synthEmitIdentificador(prest: InfoPrestador): IdentificadorEmitente {
+  if ('CNPJ' in prest.identificador) return { CNPJ: prest.identificador.CNPJ };
+  if ('CPF' in prest.identificador) return { CPF: prest.identificador.CPF };
+  return { CNPJ: '00000000000000' };
+}
+
 function synthEmit(dps: DPS): Emitente {
   return {
-    identificador: dps.infDPS.prest.identificador,
+    identificador: synthEmitIdentificador(dps.infDPS.prest),
     xNome: dps.infDPS.prest.xNome ?? 'Emitente Fake',
     enderNac: {
       xLgr: dps.infDPS.prest.end?.xLgr ?? 'Rua Fake',

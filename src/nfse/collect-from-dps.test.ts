@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, InfDPS } from './domain.js';
+import { IndicadorDestinatario } from './enums.js';
 
 function base(): DPS {
   const infDPS: InfDPS = {
@@ -107,7 +108,7 @@ describe('collectCepsFromDps', () => {
           finNFSe: '1' as never,
           indFinal: '1' as never,
           cIndOp: '01',
-          indDest: '1',
+          indDest: IndicadorDestinatario.DestinatarioDistinto,
           dest: {
             identificador: { CPF: '01075595363' },
             xNome: 'Dest',
@@ -176,7 +177,7 @@ describe('collectIdentifiersFromDps', () => {
           finNFSe: '1' as never,
           indFinal: '1' as never,
           cIndOp: '01',
-          indDest: '1',
+          indDest: IndicadorDestinatario.DestinatarioDistinto,
           dest: { identificador: { CNPJ: '33000167000101' }, xNome: 'D' },
           valores: { trib: { gIBSCBS: { CST: '000', cClassTrib: '000001' } } },
         },

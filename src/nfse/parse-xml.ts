@@ -19,6 +19,7 @@ import type {
   EnderecoSimples,
   EnderecoSimplesLocalidade,
   ExigSuspensa,
+  IdentificadorEmitente,
   IdentificadorPessoa,
   ImovelIdentificacao,
   InfDPS,
@@ -86,9 +87,12 @@ import type {
   CodigoNaoNif,
   EnvioMDIC,
   FinalidadeNFSe,
+  IndicadorDestinatario,
   IndicadorFinal,
   IndicadorTotalTributos,
   JustificativaSubstituicao,
+  MecanismoApoioComExPrestador,
+  MecanismoApoioComExTomador,
   ModoPrestacao,
   MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
@@ -96,6 +100,7 @@ import type {
   ProcessoEmissao,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
+  SituacaoNfse,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
   TipoChaveDFe,
@@ -153,7 +158,7 @@ function parseInfNFSe(node: XmlObject): InfNFSe {
     ambGer: requireText(node, 'ambGer') as AmbienteGerador,
     tpEmis: requireText(node, 'tpEmis') as TipoEmissao,
     ...optionalAssign('procEmi', optionalText(node, 'procEmi') as ProcessoEmissao | undefined),
-    cStat: requireText(node, 'cStat'),
+    cStat: requireText(node, 'cStat') as SituacaoNfse,
     dhProc: coerceDate(requireText(node, 'dhProc')),
     nDFSe: requireText(node, 'nDFSe'),
     emit: parseEmitente(requireChild(node, 'emit')),
@@ -166,7 +171,7 @@ function parseInfNFSe(node: XmlObject): InfNFSe {
 
 function parseEmitente(node: XmlObject): Emitente {
   return {
-    identificador: parseIdentificador(node),
+    identificador: parseIdentificadorEmitente(node),
     ...optionalAssign('IM', optionalText(node, 'IM')),
     xNome: requireText(node, 'xNome'),
     ...optionalAssign('xFant', optionalText(node, 'xFant')),
@@ -255,7 +260,7 @@ function parseRtcInfoIbsCbs(node: XmlObject): RtcInfoIbsCbs {
       'tpEnteGov',
       optionalText(node, 'tpEnteGov') as TipoEnteGovernamental | undefined,
     ),
-    indDest: requireText(node, 'indDest'),
+    indDest: requireText(node, 'indDest') as IndicadorDestinatario,
     ...optionalAssign('dest', mapIfPresent(optionalChild(node, 'dest'), parseRtcInfoDest)),
     ...optionalAssign('imovel', mapIfPresent(optionalChild(node, 'imovel'), parseRtcInfoImovel)),
     valores: parseRtcInfoValoresIbsCbs(requireChild(node, 'valores')),
@@ -483,8 +488,8 @@ function parseComExterior(node: XmlObject): ComExterior {
     vincPrest: requireText(node, 'vincPrest') as VinculoPrestacao,
     tpMoeda: requireText(node, 'tpMoeda'),
     vServMoeda: coerceNumber(requireText(node, 'vServMoeda')),
-    mecAFComexP: requireText(node, 'mecAFComexP'),
-    mecAFComexT: requireText(node, 'mecAFComexT'),
+    mecAFComexP: requireText(node, 'mecAFComexP') as MecanismoApoioComExPrestador,
+    mecAFComexT: requireText(node, 'mecAFComexT') as MecanismoApoioComExTomador,
     movTempBens: requireText(node, 'movTempBens') as MovimentacaoTemporariaBens,
     ...optionalAssign('nDI', optionalText(node, 'nDI')),
     ...optionalAssign('nRE', optionalText(node, 'nRE')),
@@ -946,6 +951,18 @@ function parseIdentificador(node: XmlObject): IdentificadorPessoa {
   const cNaoNIF = optionalText(node, 'cNaoNIF');
   if (cNaoNIF !== undefined) return { cNaoNIF: cNaoNIF as CodigoNaoNif };
   throw new InvalidXmlError('identificador ausente (CNPJ/CPF/NIF/cNaoNIF)');
+}
+
+/**
+ * Identificação do emitente: `TCEmitente` admite apenas `CNPJ` ou `CPF`
+ * (sem `NIF`/`cNaoNIF`), por isso não reutiliza {@link parseIdentificador}.
+ */
+function parseIdentificadorEmitente(node: XmlObject): IdentificadorEmitente {
+  const cnpj = optionalText(node, 'CNPJ');
+  if (cnpj !== undefined) return { CNPJ: cnpj };
+  const cpf = optionalText(node, 'CPF');
+  if (cpf !== undefined) return { CPF: cpf };
+  throw new InvalidXmlError('identificador do emitente ausente (CNPJ/CPF)');
 }
 
 function isObject(value: unknown): value is XmlObject {

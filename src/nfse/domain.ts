@@ -4,9 +4,12 @@ import type {
   CodigoNaoNif,
   EnvioMDIC,
   FinalidadeNFSe,
+  IndicadorDestinatario,
   IndicadorFinal,
   IndicadorTotalTributos,
   JustificativaSubstituicao,
+  MecanismoApoioComExPrestador,
+  MecanismoApoioComExTomador,
   ModoPrestacao,
   MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
@@ -14,6 +17,7 @@ import type {
   ProcessoEmissao,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
+  SituacaoNfse,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
   TipoChaveDFe,
@@ -37,6 +41,13 @@ export type IdentificadorPessoa =
   | { readonly CPF: string }
   | { readonly NIF: string }
   | { readonly cNaoNIF: CodigoNaoNif };
+
+/**
+ * Identificação do emitente do documento. `TCEmitente` restringe a escolha a
+ * `CNPJ` ou `CPF` apenas — diferente de {@link IdentificadorPessoa}, que também
+ * admite `NIF`/`cNaoNIF` para prestador/tomador/intermediário.
+ */
+export type IdentificadorEmitente = { readonly CNPJ: string } | { readonly CPF: string };
 
 export interface EnderecoNacional {
   readonly cMun: string;
@@ -73,7 +84,7 @@ export interface EnderecoEmitente {
 }
 
 export interface Emitente {
-  readonly identificador: IdentificadorPessoa;
+  readonly identificador: IdentificadorEmitente;
   readonly IM?: string;
   readonly xNome: string;
   readonly xFant?: string;
@@ -152,8 +163,8 @@ export interface ComExterior {
   readonly vincPrest: VinculoPrestacao;
   readonly tpMoeda: string;
   readonly vServMoeda: number;
-  readonly mecAFComexP: string;
-  readonly mecAFComexT: string;
+  readonly mecAFComexP: MecanismoApoioComExPrestador;
+  readonly mecAFComexT: MecanismoApoioComExTomador;
   readonly movTempBens: MovimentacaoTemporariaBens;
   readonly nDI?: string;
   readonly nRE?: string;
@@ -535,7 +546,7 @@ export interface RtcInfoIbsCbs {
   readonly tpOper?: TipoOperacao;
   readonly gRefNFSe?: InfoRefNFSe;
   readonly tpEnteGov?: TipoEnteGovernamental;
-  readonly indDest: string;
+  readonly indDest: IndicadorDestinatario;
   readonly dest?: RtcInfoDest;
   readonly imovel?: RtcInfoImovel;
   readonly valores: RtcInfoValoresIbsCbs;
@@ -601,7 +612,7 @@ export interface InfNFSe {
   readonly ambGer: AmbienteGerador;
   readonly tpEmis: TipoEmissao;
   readonly procEmi?: ProcessoEmissao;
-  readonly cStat: string;
+  readonly cStat: SituacaoNfse;
   readonly dhProc: Date;
   readonly nDFSe: string;
   readonly emit: Emitente;

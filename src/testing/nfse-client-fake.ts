@@ -488,6 +488,7 @@ export class NfseClientFake {
         versao: '1.01',
         infEvento: {
           Id: `EVT${chaveAcesso}${tipoEvento}001`,
+          verAplic: 'NfseClientFake/0.9',
           ambGer: '2' as never,
           nSeqEvento: '1',
           dhProc: new Date(),

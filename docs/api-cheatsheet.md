@@ -17,6 +17,8 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 |-----------------------|-----------------------------------------------------|---------------------------------------------------------------|
 | `fetchByChave`        | `(chaveAcesso: string) → NfseQueryResult`           | `InvalidChaveAcessoError`, `NotFoundError`, `HttpError*`       |
 | `fetchByNsu`          | `(params: FetchByNsuParams) → NsuQueryResult`       | `HttpError*` (404/400 **não** lançam — viram `status`)         |
+| `fetchDpsStatus`      | `(idDps: string) → DpsStatusResult`                 | `InvalidDpsIdError`, `NotFoundError` (sem NFS-e gerada), `HttpError*` |
+| `existsDpsStatus`     | `(idDps: string) → boolean`                         | `InvalidDpsIdError`, `HttpError*` (HEAD; 404 → `false`)        |
 
 #### Emissão
 | Método                | Assinatura                                                                                         | Comportamento                                                  |
@@ -29,7 +31,7 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 | Método                | Assinatura                                          | Comportamento                                                  |
 |-----------------------|-----------------------------------------------------|----------------------------------------------------------------|
 | `cancelar`            | `(params: CancelarParams) → CancelarResult`         | Evento 101101; discriminated `ok` / `retry_pending`            |
-| `substituir`          | `(params: SubstituirParams) → SubstituirResult`     | Emit+cancel 105102; 4 estados + rollback automático            |
+| `substituir`          | `(params: SubstituirParams) → SubstituirResult`     | Emit+cancel 105102; 5 estados + rollback automático            |
 | `replayPendingEvents` | `(override?: RetryStore) → ReplayItem[]`            | Cron-friendly; SEFIN dedupa → idempotente                      |
 
 #### Parâmetros municipais
@@ -102,8 +104,8 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 | `buildEventoPedidoId`      | `(params: BuildEventoPedidoIdParams) → string`                                      | `infPedReg.Id` canônico                                  |
 | `signPedRegEventoXml`      | `(xml: string, cert: A1Certificate) → string`                                       | XMLDSig para eventos                                     |
 | `postEvento`               | `(httpClient, cert, chave, xml, options) → EventoResult`                            | POST /nfse/{chave}/eventos raw                           |
-| `cancelar`                 | `(httpClient, cert, params: CancelarParams) → CancelarResult`                       | Impl pura; use `cliente.cancelar` em app code            |
-| `substituir`               | `(httpClient, cert, params: SubstituirParams) → SubstituirResult`                   | Impl pura; use `cliente.substituir` em app code          |
+| `cancelar`                 | `(httpClient, cert, retryPolicy: RetryPolicy, params: CancelarParams) → CancelarResult`     | Impl pura; use `cliente.cancelar` em app code (passe `createDefaultRetryPolicy()`) |
+| `substituir`               | `(httpClient, cert, retryPolicy: RetryPolicy, params: SubstituirParams) → SubstituirResult` | Impl pura; use `cliente.substituir` em app code (passe `createDefaultRetryPolicy()`) |
 | `providerFromFile`         | `(path: string, password: string) → CertificateProvider`                            | Provider que lê .pfx do disco                            |
 | `collectCepsFromDps`       | `(dps: DPS) → readonly CollectedCep[]`                                              | Extrai todos CEPs (debug, dashboards)                    |
 | `collectIdentifiersFromDps`| `(dps: DPS) → readonly CollectedIdentifier[]`                                       | Extrai CNPJs/CPFs (debug, dashboards)                    |
@@ -173,9 +175,9 @@ Exportados da raiz. Usados como tipos nos DTOs e como valor quando se monta para
 | Enum                              | Valores (amostra)                                                                                   |
 |-----------------------------------|------------------------------------------------------------------------------------------------------|
 | `Ambiente`                        | `Producao`, `ProducaoRestrita`                                                                       |
-| `TipoAmbiente`                    | `Producao='1'`, `Homologacao='2'`                                                                    |
+| `TipoAmbiente`                    | `Producao='PRODUCAO'`, `Homologacao='HOMOLOGACAO'` (≠ `TipoAmbienteDps`, que é `'1'`/`'2'`)          |
 | `OpcaoSimplesNacional`            | `Nao`, `MeEpp`, `Mei`, ...                                                                            |
-| `RegimeEspecialTributacao`        | `Nenhum`, `Microempresa`, ...                                                                         |
+| `RegimeEspecialTributacao`        | `Nenhum='0'`, ..., `SociedadeProfissionais='6'`, `Outros='9'`                                         |
 | `TipoEmitenteDps`                 | `Prestador='1'`, `Tomador='2'`, `Intermediario='3'`                                                  |
 | `TipoAmbienteDps`                 | `Producao='1'`, `Homologacao='2'`                                                                    |
 | `CST` (PIS/COFINS)                | `'00'`...`'09'`                                                                                       |
@@ -183,7 +185,7 @@ Exportados da raiz. Usados como tipos nos DTOs e como valor quando se monta para
 | `JustificativaCancelamento`       | `ErroEmissao='1'`, `ServicoNaoPrestado='2'`, `Outros='9'`                                            |
 | `JustificativaSubstituicao`       | `DesenquadramentoSN='01'`, `EnquadramentoSN='02'`, ...                                                |
 | `TipoEventoNfse`                  | `Cancelamento='101101'`, `Substituicao='105102'`, ...                                                |
-| `StatusDistribuicao`              | `DocumentosLocalizados`, `NenhumDocumento`, `Rejeicao`                                                |
+| `StatusDistribuicao`              | `DocumentosEncontrados`, `NenhumDocumento`, `Rejeicao`                                                |
 | `TipoDocumento`, `TipoEvento`     | enums de distribuição NSU                                                                             |
 
 Lista completa no código-fonte: [`src/nfse/enums.ts`](https://github.com/fm-s/open-nfse/blob/main/src/nfse/enums.ts) + [`src/dfe/types.ts`](https://github.com/fm-s/open-nfse/blob/main/src/dfe/types.ts).
@@ -231,7 +233,7 @@ Todos os DTOs de domínio (RTC v1.01) em `src/nfse/domain.ts` são reexportados.
 | `DpsDryRunResult`             | `{ dryRun: true, xmlDpsAssinado, xmlDpsGZipB64 }`                                                   |
 | `EmitLoteResult`              | `{ items: EmitLoteItem[], successCount, failureCount, skippedCount }`                               |
 | `CancelarResult` (discriminated) | `'ok'` \| `'retry_pending'`                                                                     |
-| `SubstituirResult` (discriminated) | `'ok'` \| `'retry_pending'` \| `'rolled_back'` \| `'rollback_pending'`                        |
+| `SubstituirResult` (discriminated) | `'ok'` \| `'retry_pending'` \| `'rolled_back'` \| `'rollback_pending'` \| `'rollback_failed'`  |
 | `ReplayItem`                  | `'success'` \| `'success_emission'` \| `'still_pending'` \| `'failed_permanent'`                   |
 | `PendingEvent` (discriminated)| `kind: 'emission' \| 'cancelamento_simples' \| 'cancelamento_por_substituicao' \| 'rollback_cancelamento'` |
 | `ConsultaAliquotasResult`, `ConsultaBeneficioResult`, `ConsultaConvenioResult`, `ConsultaRegimesEspeciaisResult`, `ConsultaRetencoesResult` | parâmetros municipais normalizados |

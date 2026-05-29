@@ -14,6 +14,8 @@ Cliente TypeScript/Node.js para o **Padrão Nacional de NFS-e** (nfse.gov.br) �
 
 **Novidades em v0.9** — o validador passou a ser gerado dos schemas oficiais `schemas/1.01/` e a lib foi auditada **campo a campo** contra eles: domínio completo do `CST` PIS/COFINS e `TipoRetPisCofins` (NT-007, em produção desde 2026-02-09), `cNBS` opcional, remoção de elementos inexistentes no RTC v1.01 (`lsadppu`/`explRod`), correção do parsing de eventos de rejeição/anulação e de campos `minOccurs="0"` lidos como obrigatórios. Inclui **breaking renames** pré-1.0 (`fetchDanfse`→`consultarDanfse`, `EmitManyOptions`→`EmitLoteOptions`, `InvalidIdDpsError`→`InvalidDpsIdError`, enums de PIS/COFINS, `xOutInf` movido para `InfNFSe`). Veja [CHANGELOG](./CHANGELOG.md) para a lista completa.
 
+**v0.9.1** — segunda auditoria de conformidade (o bundle oficial não mudou): confirmada conformante, com o valor faltante `RegimeEspecialTributacao.Outros` (`'9'`) e novos enums para campos antes `string` (`SituacaoNfse`/`cStat`, `IndicadorDestinatario`/`indDest`, `MecanismoApoioComExPrestador`/`Tomador`/`mecAFComex*`), `verAplic` de evento obrigatório, e cinco correções no cheat sheet da API.
+
 Foco até 1.0 é estabilização; a API pública pode receber ajustes, sem breaking changes sem aviso em CHANGELOG.
 
 ## Instalar

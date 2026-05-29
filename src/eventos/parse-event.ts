@@ -26,7 +26,7 @@ export interface EventoProcessado {
 
 export interface InfEvento {
   readonly Id: string;
-  readonly verAplic?: string;
+  readonly verAplic: string;
   readonly ambGer: AmbienteGeradorEvento;
   readonly nSeqEvento: string;
   readonly dhProc: Date;
@@ -140,8 +140,8 @@ export type DetalheEvento =
       readonly e305102: {
         readonly xDesc: string;
         readonly CPFAgTrib: string;
-        readonly xMotivo: string;
         readonly codEvento: string;
+        readonly xMotivo: string;
       };
     }
   | {
@@ -196,7 +196,7 @@ function parseEvento(node: XmlObject): EventoProcessado {
 function parseInfEvento(node: XmlObject): InfEvento {
   return {
     Id: requireAttr(node, 'Id'),
-    ...optionalAssign('verAplic', optionalText(node, 'verAplic')),
+    verAplic: requireText(node, 'verAplic'),
     ambGer: requireText(node, 'ambGer') as AmbienteGeradorEvento,
     nSeqEvento: requireText(node, 'nSeqEvento'),
     dhProc: coerceDate(requireText(node, 'dhProc')),
@@ -394,8 +394,8 @@ function parseDetalhe(node: XmlObject): {
         e305102: {
           xDesc: requireText(e305102, 'xDesc'),
           CPFAgTrib: requireText(e305102, 'CPFAgTrib'),
-          xMotivo: requireText(e305102, 'xMotivo'),
           codEvento: requireText(e305102, 'codEvento'),
+          xMotivo: requireText(e305102, 'xMotivo'),
         },
       },
     };
