@@ -98,7 +98,7 @@ Watermark **HOMOLOGAÇÃO** em vermelho translúcido quando `ambiente: Ambiente.
 
 ## Trade-offs conhecidos
 
-- **Template ainda não segue o leiaute nacional único da NT 008/2026** (multi-tributo, regras visuais/tipográficas, paridade total com o XML). Cobre todos os campos obrigatórios legíveis numa folha, incluindo IBS/CBS; a adequação completa ao leiaute da NT 008 está no roadmap (`specs/standards-watch.md`).
+- **Template ainda não segue o leiaute nacional único "DANFSe v2.0" da NT 008/2026.** O renderer atual cobre os campos principais do leiaute antigo (identificação, prestador, tomador, serviço, valores, totais IBS/CBS, QR Code), mas o leiaute v2.0 exige blocos que ainda não renderizamos: destinatário e intermediário, tributação municipal (ISSQN) detalhada, tributação federal (IRRF/PIS/COFINS), IBS/CBS por alíquotas efetivas (`vIBSMun`/`vIBSUF`/`pCBS`...), textos de supressão com redação oficial, watermarks CANCELADA/SUBSTITUÍDA e canhoto. A adequação está no roadmap (`specs/standards-watch.md`).
 - **Sem logo de município nem brasão RFB** — a lib não carrega ativos visuais. Consumidores que queiram podem parsear o XML e gerar PDF próprio com a identidade visual que precisam.
 - **Fontes Helvetica built-in do PDF** — universal mas genéricas. Fontes embedadas customizadas ficam para melhoria futura.
 
