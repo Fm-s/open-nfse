@@ -5,7 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Não lançado]
+## [0.10.1] — 2026-07-25
+
+Adequação à **NT 008/2026** (v1.02, 14/07/2026): a API oficial de geração do DANFSe será suspensa em **03/08/2026** — a geração passa a ser responsabilidade dos sistemas emissores.
+
+### Changed
+
+- **`gerarDanfse` agora usa `strategy: 'local'` por default** (antes `'auto'`, online-first). O renderer local (pdfkit + QR code) não toca a rede. Quem depende do PDF oficial do ADN pode passar `strategy: 'auto' | 'online'` explicitamente até a suspensão do endpoint.
+
+### Deprecated
+
+- **`consultarDanfse` e as estratégias `'auto'`/`'online'` de `gerarDanfse`** — após 03/08/2026 o endpoint do ADN falha sempre (`'auto'` passa a pagar um round-trip perdido por chamada antes do fallback). Cada uso loga `danfse.online.deprecated` no logger configurado. A adequação do renderer local ao novo leiaute nacional único da NT 008 (multi-tributo, regras visuais, paridade com o XML) fica para uma versão futura — acompanhamento em `specs/standards-watch.md`.
+
+## [0.10.0] — 2026-07-25
 
 Consolidação da documentação técnica oficial em `specs/ruleset/` (ruleset agent-friendly, rastreável à fonte) e auditoria de conformidade do `src/` contra ela. Correções derivadas:
 

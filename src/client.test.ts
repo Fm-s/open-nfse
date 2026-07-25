@@ -386,7 +386,7 @@ describe('NfseClient', () => {
     });
     const nfse = parseNfseXml(XML_SAMPLE);
 
-    const pdf = await client.gerarDanfse(nfse);
+    const pdf = await client.gerarDanfse(nfse, { strategy: 'auto' });
     expect(pdf).toBeInstanceOf(Buffer);
     expect(pdf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
   });
@@ -424,6 +424,55 @@ describe('NfseClient', () => {
     await expect(client.fetchDpsStatus('not-an-id')).rejects.toThrow(/Id do DPS inválido/);
   });
 
+  it('gerarDanfse sem strategy usa o renderer local (NT 008) — não toca a rede', async () => {
+    // Se o cliente tocasse a rede, receberia este marker em vez do PDF local.
+    mockAgent
+      .get('https://adn.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/danfse/${CHAVE}`, method: 'GET' })
+      .reply(200, '%PDF-ONLINE-MARKER', {
+        headers: { 'content-type': 'application/pdf' },
+      });
+
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+    });
+    const nfse = parseNfseXml(XML_SAMPLE);
+
+    const pdf = await client.gerarDanfse(nfse);
+    expect(pdf.slice(0, 5).toString('utf-8')).toBe('%PDF-');
+    expect(pdf.toString('latin1')).not.toContain('ONLINE-MARKER');
+  });
+
+  it("gerarDanfse 'online' e consultarDanfse logam deprecation da NT 008", async () => {
+    mockAgent
+      .get('https://adn.producaorestrita.nfse.gov.br')
+      .intercept({ path: `/danfse/${CHAVE}`, method: 'GET' })
+      .reply(200, '%PDF-ONLINE-MARKER', {
+        headers: { 'content-type': 'application/pdf' },
+      })
+      .times(2);
+
+    const warns: string[] = [];
+    const client = new NfseClient({
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: (msg) => warns.push(msg),
+        error: () => {},
+      },
+    });
+    const nfse = parseNfseXml(XML_SAMPLE);
+
+    await client.gerarDanfse(nfse, { strategy: 'online' });
+    await client.consultarDanfse(CHAVE);
+    expect(warns.filter((m) => m === 'danfse.online.deprecated')).toHaveLength(2);
+  });
+
   it("gerarDanfse('auto') NÃO mascara ForbiddenError — propaga", async () => {
     mockAgent
       .get('https://adn.producaorestrita.nfse.gov.br')
@@ -437,7 +486,9 @@ describe('NfseClient', () => {
     });
     const nfse = parseNfseXml(XML_SAMPLE);
 
-    await expect(client.gerarDanfse(nfse)).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(client.gerarDanfse(nfse, { strategy: 'auto' })).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
   });
 
   it('replayPendingEvents skips entries whose notBefore is in the future', async () => {

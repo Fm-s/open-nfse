@@ -1,13 +1,12 @@
-# DANFSe — PDF oficial da nota
+# DANFSe — PDF da nota
 
-Duas formas de obter o DANFSe (Documento Auxiliar da NFS-e) em PDF:
+O DANFSe (Documento Auxiliar da NFS-e) é gerado **localmente** pela lib com `pdfkit` + QR code, sem network.
 
-1. **Online** — baixa o PDF oficial direto do ADN (`GET /{chaveAcesso}` no host DANFSe, `endpoints.danfse`).
-2. **Local** — renderiza com `pdfkit` + QR code, sem network.
+::: warning NT 008/2026 — API oficial de geração suspensa em 03/08/2026
+A geração do DANFSe passa a ser responsabilidade dos sistemas emissores. Desde a v0.10.1 o default de `gerarDanfse` é `'local'`; as estratégias `'online'`/`'auto'` e o `consultarDanfse` continuam funcionando **até 03/08/2026** e estão deprecated — cada uso loga `danfse.online.deprecated`. A emissão manual pelo Portal Nacional não muda.
+:::
 
-A lib oferece ambas e um **modo auto** que tenta online e cai pro local em falha — o padrão que você quer em produção.
-
-## `cliente.gerarDanfse(nfse)` — default `auto`
+## `cliente.gerarDanfse(nfse)` — default `local`
 
 ```typescript
 const r = await cliente.emitir(params);
@@ -17,26 +16,22 @@ if (r.status === 'ok') {
 }
 ```
 
-Ordem de tentativa:
-1. `GET /{chaveAcesso}` no host DANFSe do ADN (`endpoints.danfse`)
-2. **Apenas falhas transientes** (`NetworkError`, `TimeoutError`, `ServerError`/5xx) → cai no renderer local
-3. Log `danfse.online.fallback` no logger configurado para rastreabilidade
+### Estratégias deprecated (`'auto'` / `'online'`)
 
-::: warning Erros permanentes sobem
-`ForbiddenError` (CNPJ sem acesso à nota), `UnauthorizedError` (certificado expirado/inválido), `NotFoundError` (chave inexistente) e `InvalidChaveAcessoError` (formato errado) **não** caem para local — eles propagam para o caller. Mascarar esses erros com um PDF local degradado esconderia um problema real (cert vencido, typo na chave, permissão errada no CNPJ).
-:::
-
-### Forçar estratégia
+Até a suspensão do endpoint, dá para forçar o caminho antigo:
 
 ```typescript
-// Só ADN — lança se falhar (sem fallback):
+// Só ADN — lança se falhar (sem fallback). Morre em 03/08/2026:
 await cliente.gerarDanfse(nfse, { strategy: 'online' });
 
-// Só local — não toca rede:
-await cliente.gerarDanfse(nfse, { strategy: 'local' });
+// Online-first com fallback local em transientes (NetworkError/Timeout/5xx).
+// Após 03/08/2026, toda chamada paga um round-trip perdido antes do fallback:
+await cliente.gerarDanfse(nfse, { strategy: 'auto' });
 ```
 
-### Opções de layout (modo local)
+No caminho online, erros permanentes sobem: `ForbiddenError` (CNPJ sem acesso à nota), `UnauthorizedError` (certificado expirado/inválido), `NotFoundError` (chave inexistente) e `InvalidChaveAcessoError` (formato errado) **não** caem para local — mascará-los com um PDF local degradado esconderia um problema real.
+
+### Opções de layout
 
 ```typescript
 await cliente.gerarDanfse(nfse, {
@@ -47,11 +42,11 @@ await cliente.gerarDanfse(nfse, {
 });
 ```
 
-No modo `online` essas opções são ignoradas — a Receita usa o template próprio dela.
+No modo `online` (deprecated) essas opções são ignoradas — a Receita usa o template próprio dela.
 
-## `cliente.consultarDanfse(chave)` — só online
+## `cliente.consultarDanfse(chave)` — só online (deprecated, morre em 03/08/2026)
 
-Quando você só tem a chave (sem o objeto `NFSe`), ou quer garantir que é o PDF oficial:
+Quando você só tem a chave (sem o objeto `NFSe`) e ainda quer o PDF oficial do ADN enquanto o endpoint existe:
 
 ```typescript
 try {
@@ -103,7 +98,7 @@ Watermark **HOMOLOGAÇÃO** em vermelho translúcido quando `ambiente: Ambiente.
 
 ## Trade-offs conhecidos
 
-- **Template não é pixel-perfect** com o oficial. Cobre todos os campos obrigatórios mas a disposição difere em margens/tipografia. Se sua prefeitura exige layout idêntico à especificação, use `strategy: 'online'`.
+- **Template ainda não segue o leiaute nacional único da NT 008/2026** (multi-tributo, regras visuais/tipográficas, paridade total com o XML). Cobre todos os campos obrigatórios legíveis numa folha, incluindo IBS/CBS; a adequação completa ao leiaute da NT 008 está no roadmap (`specs/standards-watch.md`).
 - **Sem logo de município nem brasão RFB** — a lib não carrega ativos visuais. Consumidores que queiram podem parsear o XML e gerar PDF próprio com a identidade visual que precisam.
 - **Fontes Helvetica built-in do PDF** — universal mas genéricas. Fontes embedadas customizadas ficam para melhoria futura.
 

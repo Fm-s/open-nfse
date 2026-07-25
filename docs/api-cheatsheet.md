@@ -53,7 +53,7 @@ Todas aceitam `options?: ConsultaOptions` e retornam `Consulta*Result`.
 | `gerarDanfse`         | `(nfse: NFSe, options?: GerarDanfseOptions & { strategy?: 'auto' \| 'online' \| 'local' }) → Buffer` |
 | `consultarDanfse`         | `(chaveAcesso: string) → Buffer`                                                                   |
 
-`'auto'` (default) tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `consultarDanfse` valida `/^\d{50}$/` upfront.
+`'local'` (default desde v0.10.1) renderiza offline. `'auto'`/`'online'` e `consultarDanfse` são **deprecated** (NT 008/2026 — endpoint suspenso em 03/08/2026; cada uso loga `danfse.online.deprecated`): `'auto'` tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `consultarDanfse` valida `/^\d{50}$/` upfront.
 
 #### Lifecycle
 | Método                | Assinatura                                           |

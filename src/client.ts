@@ -669,34 +669,41 @@ export class NfseClient {
   // -------------------------------------------------------------------------
 
   /**
-   * Gera o DANFSe (PDF) para uma NFS-e. Por default tenta baixar o PDF oficial
-   * do ADN e, **apenas em falhas transientes** (rede/5xx/timeout), cai no
-   * renderer local.
-   *
-   * Erros de autorização (`ForbiddenError`, `UnauthorizedError`), chave
-   * inválida (`InvalidChaveAcessoError`) ou chave inexistente (`NotFoundError`)
-   * **não** caem para local — eles sobem para o caller, que tipicamente
-   * precisa corrigir (cert expirado, CNPJ sem permissão, typo na chave).
+   * Gera o DANFSe (PDF) para uma NFS-e. Por default usa o **renderer local**
+   * (offline puro) — a NT 008/2026 suspende a API oficial de geração do
+   * DANFSe em **03/08/2026**; a geração passa a ser responsabilidade dos
+   * sistemas emissores.
    *
    * Estratégias:
-   * - `'auto'` (default) — online-first com fallback local em erros transientes.
-   * - `'online'` — só o ADN; lança em qualquer falha.
-   * - `'local'` — só o renderer local (offline puro).
+   * - `'local'` (default) — só o renderer local (offline puro).
+   * - `'auto'` — **deprecated (NT 008)**: online-first com fallback local em
+   *   erros transientes (rede/5xx/timeout). Após 03/08/2026 o caminho online
+   *   falha sempre e toda chamada paga um round-trip perdido antes do
+   *   fallback.
+   * - `'online'` — **deprecated (NT 008)**: só o ADN; lança em qualquer
+   *   falha. Após 03/08/2026 falha sempre.
    *
-   * Quando cair em `'local'`, as opções de layout (`urlConsultaPublica`,
-   * `observacoes`, `ambiente`) são aplicadas. No modo online elas são ignoradas.
+   * No caminho online, erros de autorização (`ForbiddenError`,
+   * `UnauthorizedError`), chave inválida (`InvalidChaveAcessoError`) ou chave
+   * inexistente (`NotFoundError`) **não** caem para local — eles sobem para o
+   * caller, que tipicamente precisa corrigir (cert expirado, CNPJ sem
+   * permissão, typo na chave).
+   *
+   * As opções de layout (`urlConsultaPublica`, `observacoes`, `ambiente`) são
+   * aplicadas apenas pelo renderer local; no caminho online são ignoradas.
    */
   async gerarDanfse(
     nfse: NFSe,
     options?: GerarDanfseOptions & { strategy?: 'auto' | 'online' | 'local' },
   ): Promise<Buffer> {
-    const strategy = options?.strategy ?? 'auto';
+    const strategy = options?.strategy ?? 'local';
     const state = await this.ensureState();
-    if (strategy === 'online') {
-      return consultarDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
-    }
     if (strategy === 'local') {
       return gerarDanfseLocal(nfse, options);
+    }
+    this.warnDanfseOnlineDeprecated(strategy);
+    if (strategy === 'online') {
+      return consultarDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
     }
     try {
       return await consultarDanfseInternal(state.danfse, nfse.infNFSe.chaveAcesso);
@@ -725,11 +732,26 @@ export class NfseClient {
   /**
    * Baixa o DANFSe oficial do ADN (`GET /danfse/{chaveAcesso}`). Só retorna
    * se o PDF veio de fato — erros de rede ou HTTP 4xx/5xx viram exceção.
-   * Para fallback automático, use `gerarDanfse(nfse)`.
+   *
+   * @deprecated A NT 008/2026 suspende a API oficial de geração do DANFSe em
+   * **03/08/2026** — após essa data este método falha sempre. Use
+   * `gerarDanfse(nfse)` (renderer local, default desde v0.10.1). Mantido até
+   * a remoção do endpoint para quem ainda precisa do PDF oficial do ADN.
    */
   async consultarDanfse(chaveAcesso: string): Promise<Buffer> {
+    this.warnDanfseOnlineDeprecated('online');
     const state = await this.ensureState();
     return consultarDanfseInternal(state.danfse, chaveAcesso);
+  }
+
+  // NT 008/2026: caminho online do DANFSe morre em 03/08/2026 — avisar quem
+  // ainda depende dele antes que vire erro em produção.
+  private warnDanfseOnlineDeprecated(strategy: 'auto' | 'online'): void {
+    this.logger.warn('danfse.online.deprecated', {
+      strategy,
+      motivo: 'NT 008/2026 — API oficial de geração do DANFSe suspensa em 2026-08-03',
+      acao: "use gerarDanfse(nfse) com o renderer local (strategy 'local', default)",
+    });
   }
 
   /**
