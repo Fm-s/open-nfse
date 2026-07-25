@@ -51,7 +51,8 @@ function montarDps(indice: number): DPS {
       cNBS: '123456789',
       descricao: `Serviço em lote #${indice + 1}`,
     },
-    valores: { vServ: 1.0 + indice },
+    // ME/EPP exige o membro pTotTribSN do choice totTrib (% aprox. do Simples).
+    valores: { vServ: 1.0 + indice, pTotTribSN: 6.0 },
   });
 }
 
@@ -69,7 +70,7 @@ async function main() {
     if (!confirmaEmissao) {
       console.log('  NFSE_CONFIRMA_EMISSAO!=yes — apenas pré-visualizando com dry-run...');
       for (const dps of lote) {
-        const dry = await cliente.emitir(dps, { dryRun: true });
+        const dry = await cliente.emitirDpsPronta(dps, { dryRun: true });
         console.log(
           `   • ${dps.infDPS.Id}  xml=${dry.xmlDpsAssinado.length}B  gzip=${dry.xmlDpsGZipB64.length}B`,
         );

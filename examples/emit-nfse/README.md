@@ -44,8 +44,7 @@ Saída típica:
   subject:   VOGA LTDA:00574753000100
   expira em: 2026-06-05
 
-▸ DPS montada:
-  Id:     DPS21113001000574753000100000011704000000000000
+▸ DPS a emitir:
   série:  1  nDPS: 1704000000
   valor:  R$ 100.00
 

@@ -1,7 +1,7 @@
 import {
   Ambiente,
-  buildDps,
-  type DPS,
+  createInMemoryRetryStore,
+  type EmitirParams,
   type Logger,
   NfseClient,
   OpcaoSimplesNacional,
@@ -48,32 +48,35 @@ const logger: Logger = {
 };
 
 const serie = process.env.NFSE_SERIE ?? '1';
+// nDPS explícito dispensa o DpsCounter. O default por timestamp evita colisão
+// com números já usados em Produção Restrita entre execuções do exemplo.
 const nDPS = process.env.NFSE_N_DPS ?? String(Math.floor(Date.now() / 1000));
 const valorServico = Number(process.env.NFSE_VALOR ?? '1.00');
 const confirmaEmissao = process.env.NFSE_CONFIRMA_EMISSAO === 'yes';
 
-function montarDps(): DPS {
-  return buildDps({
-    emitente: {
-      cnpj: cnpj!,
-      codMunicipio: codMun!,
-      regime: {
-        opSimpNac: OpcaoSimplesNacional.MeEpp, // ajuste para seu regime real
-        regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
-        regEspTrib: RegimeEspecialTributacao.Nenhum,
-      },
+// EmitirParams de alto nível — a lib monta, valida, assina e envia a DPS.
+const params = {
+  emitente: {
+    cnpj: cnpj!,
+    codMunicipio: codMun!,
+    regime: {
+      opSimpNac: OpcaoSimplesNacional.MeEpp, // ajuste para seu regime real
+      regApTribSN: RegimeApuracaoSimplesNacional.FederalEMunicipalPeloSN,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
     },
-    serie,
-    nDPS,
-    verAplic: 'example-emit-nfse-0.0.0',
-    servico: {
-      cTribNac: '010101',        // ajuste para o código real do serviço
-      cNBS: '123456789',          // required — consulte o Anexo B da RTC
-      descricao: 'Serviço de teste emitido pelo exemplo open-nfse',
-    },
-    valores: { vServ: valorServico },      // SN? adicione pTotTribSN: 6.0
-  });
-}
+  },
+  serie,
+  nDPS,
+  verAplic: 'example-emit-nfse-0.0.0',
+  servico: {
+    cTribNac: '010101', // ajuste para o código real do serviço
+    cNBS: '123456789', // opcional desde o RTC v1.01 — consulte o Anexo B
+    descricao: 'Serviço de teste emitido pelo exemplo open-nfse',
+  },
+  // ME/EPP exige o membro pTotTribSN do choice totTrib (% aprox. do Simples).
+  // MEI usa o default indTotTrib='0'; Não Optante usa vTotTrib/pTotTrib.
+  valores: { vServ: valorServico, pTotTribSN: 6.0 },
+} satisfies EmitirParams;
 
 async function main() {
   console.log('\n▸ Carregando certificado A1...');
@@ -85,29 +88,28 @@ async function main() {
   const cliente = new NfseClient({
     ambiente: Ambiente.ProducaoRestrita,
     certificado: provider,
+    // Em produção seria uma impl durável (Postgres); aqui só demonstra o
+    // caminho retry_pending sem lançar MissingRetryStoreError.
+    retryStore: createInMemoryRetryStore(),
     logger,
   });
 
   try {
-    const dps = montarDps();
-    console.log(`\n▸ DPS montada:`);
-    console.log(`  Id:     ${dps.infDPS.Id}`);
-    console.log(`  série:  ${dps.infDPS.serie}  nDPS: ${dps.infDPS.nDPS}`);
+    console.log('\n▸ DPS a emitir:');
+    console.log(`  série:  ${serie}  nDPS: ${nDPS}`);
     console.log(`  valor:  R$ ${valorServico.toFixed(2)}`);
 
     // --------------------------------------------------------------
-    // Dry-run: constrói + assina + comprime, sem enviar
+    // Dry-run: monta + valida + assina + comprime, sem enviar
     // --------------------------------------------------------------
-    console.log(`\n▸ Dry-run: gerando DPS assinada sem enviar...`);
-    const dry = await cliente.emitir(dps, { dryRun: true });
+    console.log('\n▸ Dry-run: gerando DPS assinada sem enviar...');
+    const dry = await cliente.emitir({ ...params, dryRun: true });
     console.log(`  xml assinado (${dry.xmlDpsAssinado.length} bytes):`);
     console.log(`    ${dry.xmlDpsAssinado.slice(0, 140)}...`);
     console.log(`  payload gzip+base64 (${dry.xmlDpsGZipB64.length} bytes): pronto para POST`);
 
     if (!confirmaEmissao) {
-      console.log(
-        '\n▸ Modo dry-run. Para emitir de verdade em Produção Restrita, defina:',
-      );
+      console.log('\n▸ Modo dry-run. Para emitir de verdade em Produção Restrita, defina:');
       console.log('    export NFSE_CONFIRMA_EMISSAO=yes');
       return;
     }
@@ -117,16 +119,23 @@ async function main() {
     // --------------------------------------------------------------
     console.log(`\n▸ Enviando DPS para ${Ambiente.ProducaoRestrita}...`);
     try {
-      const r = await cliente.emitir(dps);
-      console.log(`\n✔ NFS-e autorizada!`);
-      console.log(`  chaveAcesso: ${r.chaveAcesso}`);
-      console.log(`  idDps:       ${r.idDps}`);
-      console.log(`  nNFSe:       ${r.nfse.infNFSe.nNFSe}`);
-      console.log(`  cStat:       ${r.nfse.infNFSe.cStat}`);
-      console.log(`  vLiq:        R$ ${r.nfse.infNFSe.valores.vLiq.toFixed(2)}`);
-      if (r.alertas.length > 0) {
+      const r = await cliente.emitir(params);
+      if (r.status === 'retry_pending') {
+        console.warn('\n⚠ Falha transiente — pendente salvo no RetryStore.');
+        console.warn(`  id:   ${r.pending.id}`);
+        console.warn(`  erro: ${r.error.message}`);
+        console.warn('  Em produção, um cron com replayPendingEvents() fecharia a emissão.');
+        return;
+      }
+      console.log('\n✔ NFS-e autorizada!');
+      console.log(`  chaveAcesso: ${r.nfse.chaveAcesso}`);
+      console.log(`  idDps:       ${r.nfse.idDps}`);
+      console.log(`  nNFSe:       ${r.nfse.nfse.infNFSe.nNFSe}`);
+      console.log(`  cStat:       ${r.nfse.nfse.infNFSe.cStat}`);
+      console.log(`  vLiq:        R$ ${r.nfse.nfse.infNFSe.valores.vLiq.toFixed(2)}`);
+      if (r.nfse.alertas.length > 0) {
         console.log('\n  Alertas:');
-        for (const a of r.alertas) {
+        for (const a of r.nfse.alertas) {
           console.log(`    [${a.codigo}] ${a.descricao}`);
         }
       }

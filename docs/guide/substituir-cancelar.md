@@ -177,7 +177,7 @@ type PendingEvent = PendingEmission | PendingEventoCancelamento;
 // kind: 'rollback_cancelamento'          ← legado (idem)
 ```
 
-Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de cada variante. `createInMemoryRetryStore()` serve para testes e demos; produção precisa persistir durável — impl Postgres completa em [Integração em serviços](./integracao#1-8-nfse-pending-events-backing-store-para-retrystore).
+Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de cada variante. `createInMemoryRetryStore()` serve para testes e demos; produção precisa persistir durável — impl Postgres completa em [Integração em serviços](./integracao#nfse-pending-events).
 
 ## Regras de negócio que importam
 

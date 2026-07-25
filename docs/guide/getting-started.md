@@ -2,6 +2,12 @@
 
 Este guia cobre instalação, configuração de certificado A1 e a primeira chamada em **Produção Restrita** (homologação).
 
+::: tip Trilha recomendada
+1. **Configuração mínima** (abaixo) — consulta e DANFSe já funcionam, sem banco de dados.
+2. **Primeira emissão** com stores in-memory — nada para instalar além da lib.
+3. **Produção** — troque os stores in-memory por 3 tabelas no seu banco + um cron de `replayPendingEvents`. O SQL pronto está em [Integração em serviços](./integracao#minimo).
+:::
+
 ## Requisitos
 
 - **Node.js 20+**
@@ -95,7 +101,9 @@ try {
     },
     serie: '1',
     servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
-    valores: { vServ: 1500.0, aliqIss: 2.5 },
+    // ME/EPP exige pTotTribSN (% aprox. do Simples); MEI usa o default;
+    // Não Optante usa vTotTrib/pTotTrib. Veja o guia Emitir.
+    valores: { vServ: 1500.0, aliqIss: 2.5, pTotTribSN: 6.0 },
     tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
   });
 

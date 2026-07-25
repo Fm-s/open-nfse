@@ -83,7 +83,7 @@ const nfse = parseNfseXml(xmlFromDatabase);
 const pdf = await gerarDanfse(nfse, { observacoes: '...' });
 ```
 
-Útil pra regerar DANFSe a partir do XML salvo no seu banco (ver [integração](./integracao#schema-sql)) sem precisar de cliente configurado.
+Útil pra regerar DANFSe a partir do XML salvo no seu banco (ver [integração](./integracao#minimo)) sem precisar de cliente configurado.
 
 ## Layout do PDF local
 
