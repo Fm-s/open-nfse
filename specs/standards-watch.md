@@ -9,6 +9,7 @@
 - **NT 009/2026** (publicada 04/06/2026, atualizada 15/07/2026; substitui as NTs 005 e 007) — **adiada**: nada dela vale em agosto/2026. Cronograma e XSDs "serão publicados nas próximas semanas" (promessa em aberto desde junho/2026). Anexos já publicados: Anexo VI Leiautes V1.04.00, Anexo VII IndOp V1.02.00.
 - `validateCnpj` já aceita **CNPJ alfanumérico** (IN RFB nº 2.229/2024): DV por ASCII−48. O leiaute da DPS só aceita letras no CNPJ com a NT 009 (campos N → C).
 - Fatos geradores de locação (subitens 99.02–99.04) adiados separadamente — locadoras aguardam novo cronograma.
+- **NT 008/2026** (v1.02, 14/07/2026) — **API oficial de geração do DANFSe suspensa em 03/08/2026** (prazo prorrogado 2x: 01/07 → 15/07 → 03/08). Emissão manual pelo Portal Nacional continua. Novo leiaute nacional único do DANFSe: multi-tributo com campos IBS/CBS obrigatórios, regras visuais/tipográficas, QR Code e paridade total com o XML — sistemas emissores geram o PDF localmente. **Impacto na lib:** `consultarDanfse` (online-only) morre; `gerarDanfse` `'auto'`/`'online'` perdem o caminho online; o renderer local (pdfkit) precisa ser adequado ao leiaute da NT 008. Pendências: adequar o renderer, trocar default para `'local'`, deprecar/remover o caminho online.
 
 ## Tarefa de verificação
 
