@@ -80,6 +80,41 @@ describe('validateCnpj', () => {
     }
   });
 
+  it('passes for a valid alphanumeric CNPJ (IN RFB 2.229/2024)', () => {
+    // exemplo oficial da Receita Federal: CNPJ 12.ABC.345/01DE-35
+    expect(() => validateCnpj('12ABC34501DE35')).not.toThrow();
+  });
+
+  it('throws check_digit for alphanumeric CNPJ with wrong DV', () => {
+    try {
+      validateCnpj('12ABC34501DE36');
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidCnpjError);
+      expect((err as InvalidCnpjError).reason).toBe('check_digit');
+    }
+  });
+
+  it('throws format for lowercase letters', () => {
+    try {
+      validateCnpj('12abc34501de35');
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidCnpjError);
+      expect((err as InvalidCnpjError).reason).toBe('format');
+    }
+  });
+
+  it('throws format when a letter lands in the DV positions', () => {
+    try {
+      validateCnpj('12ABC34501DEA5');
+      expect.fail('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(InvalidCnpjError);
+      expect((err as InvalidCnpjError).reason).toBe('format');
+    }
+  });
+
   it('exposes the rejected value on the error', () => {
     try {
       validateCnpj('11111111111111');

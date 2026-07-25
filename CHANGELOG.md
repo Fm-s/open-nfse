@@ -16,11 +16,14 @@ Consolidação da documentação técnica oficial em `specs/ruleset/` (ruleset a
   - `SubstituirParams` perde `autor`/`tpAmb`/`verAplic`/`dhEvento` (não há mais evento nem rollback); **mantém** `retryStore`/`isTransient` (resiliência a transientes) e ganha as opções de emissão (`skipValidation`/`skipCepValidation`/`skipCpfCnpjValidation`/`cepValidator`). A free function `substituir` mantém o parâmetro `retryPolicy`.
   - Novo helper interno `emitDpsProntaSeguro` (emite uma DPS já pronta com persistência de transiente no `RetryStore`) — usado por `substituir`.
   - `buildSubstituicaoXml` marcado `@deprecated` — mantido como representação de baixo nível do evento (leitura/inspeção/XSD), não para envio pelo contribuinte.
-  - ⚠️ **Pendente de validação em Produção Restrita** antes do release.
 
 - **`buildDps`: o choice `totTrib` agora é selecionado conforme o regime** (`opSimpNac`), aplicando E0710/E0712/E0713. Antes o builder fixava `indTotTrib='0'` para todos — válido só para MEI; Não Optante e ME/EPP (os casos mais comuns) recebiam DPS rejeitada (E0713/E0712) e queimavam `nDPS`.
   - `ValoresInput` ganha **`vTotTrib`** e **`pTotTrib`** (`{ ...Fed, ...Est, ...Mun }`, Lei da Transparência / IBPT) — os membros válidos para **Não Optante**.
   - Seleção: MEI → `indTotTrib='0'` (default); ME/EPP → `pTotTribSN`; Não Optante → `vTotTrib`/`pTotTrib`. Combinação inválida regime×membro lança `RuleViolationError` em vez de gerar DPS rejeitável. **Breaking:** Não Optante/ME/EPP sem um membro de `totTrib` agora lançam (antes saíam com `indTotTrib='0'`).
+
+### Added
+
+- **CNPJ alfanumérico (IN RFB nº 2.229/2024, vigente desde julho/2026):** `validateCnpj` aceita o novo formato — 12 posições `[A-Z0-9]` + 2 dígitos verificadores sempre numéricos, com DV calculado pelo valor ASCII − 48 de cada caractere (dígitos mantêm 0–9; A=17 … Z=42). CNPJs 100% numéricos seguem válidos sem mudança; minúsculas e letras nas posições de DV são rejeitadas com `reason: 'format'`. **Atenção:** o leiaute da DPS só passa a aceitar CNPJ alfanumérico com a NT 009/2026 (campos N → C) — até lá, um CNPJ com letras passa no DV mas é rejeitado na validação XSD da emissão.
 
 ### Added — guardas fail-fast de emissão (`buildDps`)
 

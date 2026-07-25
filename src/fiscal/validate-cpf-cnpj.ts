@@ -1,7 +1,9 @@
 import { InvalidCnpjError, InvalidCpfError } from '../errors/validation.js';
 
 const CPF_REGEX = /^\d{11}$/;
-const CNPJ_REGEX = /^\d{14}$/;
+// CNPJ alfanumérico (IN RFB nº 2.229/2024, vigente desde julho/2026): 12 posições
+// alfanuméricas maiúsculas + 2 dígitos verificadores sempre numéricos.
+const CNPJ_REGEX = /^[A-Z0-9]{12}\d{2}$/;
 
 /**
  * Valida um CPF conforme o algoritmo oficial da Receita Federal:
@@ -30,9 +32,15 @@ export function validateCpf(cpf: string): void {
 }
 
 /**
- * Valida um CNPJ conforme o algoritmo oficial da Receita Federal:
- * formato (14 dígitos) + dígitos verificadores (módulo 11 com pesos
- * `[5,4,3,2,9,8,7,6,5,4,3,2]` e depois `[6,5,4,3,2,9,8,7,6,5,4,3,2]`).
+ * Valida um CNPJ conforme o algoritmo oficial da Receita Federal, incluindo o
+ * CNPJ alfanumérico (IN RFB nº 2.229/2024): 12 posições `[A-Z0-9]` + 2 dígitos
+ * verificadores numéricos (módulo 11 com pesos `[5,4,3,2,9,8,7,6,5,4,3,2]` e
+ * depois `[6,5,4,3,2,9,8,7,6,5,4,3,2]`). No cálculo do DV cada caractere vale
+ * seu código ASCII menos 48 (dígitos mantêm 0–9; A=17 … Z=42).
+ *
+ * Nota: o leiaute da NFS-e Nacional só passa a aceitar CNPJ alfanumérico na
+ * DPS com a NT 009/2026 (campos N → C); até lá, um CNPJ com letras é válido
+ * aqui mas rejeitado na validação XSD da emissão.
  *
  * Lança `InvalidCnpjError` com `reason: 'format' | 'known_invalid' | 'check_digit'`.
  */
@@ -44,7 +52,8 @@ export function validateCnpj(cnpj: string): void {
     throw new InvalidCnpjError(cnpj, 'known_invalid');
   }
 
-  const digits = cnpj.split('').map(Number);
+  // ASCII − 48: dígitos mantêm o valor 0–9, letras A–Z valem 17–42.
+  const digits = cnpj.split('').map((c) => c.charCodeAt(0) - 48);
   const weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
   const weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
 
