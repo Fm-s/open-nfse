@@ -11,7 +11,7 @@ import type {
   TipoAmbienteDps,
   TipoEventoNfse,
 } from '../nfse/enums.js';
-import { ATTR_PREFIX, type XmlObject, parseXml } from '../xml/parser.js';
+import { ATTR_PREFIX, parseXml, type XmlObject } from '../xml/parser.js';
 
 /**
  * `<evento>` retornado pela Receita após o processamento de um pedido de

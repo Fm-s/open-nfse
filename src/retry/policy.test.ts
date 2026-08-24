@@ -7,7 +7,7 @@ import {
   TooManyRequestsError,
 } from '../errors/http.js';
 import { type Logger, noopLogger } from '../logging.js';
-import { type RetryPolicy, createDefaultRetryPolicy, makeSafePolicy } from './policy.js';
+import { createDefaultRetryPolicy, makeSafePolicy, type RetryPolicy } from './policy.js';
 
 const NOW = new Date('2026-05-12T10:00:00Z');
 

@@ -1,16 +1,16 @@
 import type { HttpClient } from '../http/client.js';
 import { DEFAULT_TTL_MS, type ParametrosCache } from './cache.js';
 import {
-  type RawResultadoConsultaAliquotas,
-  type RawResultadoConsultaBeneficio,
-  type RawResultadoConsultaConvenio,
-  type RawResultadoConsultaRegimesEspeciais,
-  type RawResultadoConsultaRetencoes,
   parseAliquotasResult,
   parseBeneficioResult,
   parseConvenioResult,
   parseRegimesEspeciaisResult,
   parseRetencoesResult,
+  type RawResultadoConsultaAliquotas,
+  type RawResultadoConsultaBeneficio,
+  type RawResultadoConsultaConvenio,
+  type RawResultadoConsultaRegimesEspeciais,
+  type RawResultadoConsultaRetencoes,
 } from './parse.js';
 import type {
   ConsultaAliquotasResult,

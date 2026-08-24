@@ -12,9 +12,9 @@ import { NetworkError, ServerError, TimeoutError } from './errors/http.js';
 import {
   type CancelarParams,
   type CancelarResult,
+  cancelar as cancelarInternal,
   type SubstituirParams,
   type SubstituirResult,
-  cancelar as cancelarInternal,
   substituir as substituirInternal,
 } from './eventos/cancelar.js';
 import type { EventoResult } from './eventos/post-evento.js';
@@ -22,20 +22,19 @@ import { postEvento } from './eventos/post-evento.js';
 import { signPedRegEventoXml } from './eventos/sign-event.js';
 import { HttpClient } from './http/client.js';
 import { type Logger, noopLogger } from './logging.js';
-import type { DPS } from './nfse/domain.js';
-import type { NFSe } from './nfse/domain.js';
+import type { DPS, NFSe } from './nfse/domain.js';
 import type { DpsCounter } from './nfse/dps-counter.js';
 import {
   type DpsDryRunResult,
+  type EmitirParams,
+  type EmitirResult,
   type EmitLoteOptions,
   type EmitLoteResult,
   type EmitOptions,
-  type EmitirParams,
-  type EmitirResult,
-  type NfseEmitResult,
   emitDpsPronta as emitDpsProntaInternal,
   emitMany as emitManyInternal,
   emitSeguro,
+  type NfseEmitResult,
   replayEmission,
 } from './nfse/emit.js';
 import { fetchByChave as fetchByChaveInternal } from './nfse/fetch-by-chave.js';
@@ -46,8 +45,8 @@ import {
 } from './nfse/fetch-dps-status.js';
 import type { NfseQueryResult } from './nfse/types.js';
 import {
-  type ParametrosCache,
   createInMemoryParametrosCache,
+  type ParametrosCache,
 } from './parametros-municipais/cache.js';
 import {
   type ConsultaOptions,
@@ -65,8 +64,8 @@ import type {
   ConsultaRegimesEspeciaisResult,
   ConsultaRetencoesResult,
 } from './parametros-municipais/types.js';
-import { type RetryPolicy, createDefaultRetryPolicy, makeSafePolicy } from './retry/policy.js';
-import { type PendingEvent, type RetryStore, isPendingEmission } from './retry/store.js';
+import { createDefaultRetryPolicy, makeSafePolicy, type RetryPolicy } from './retry/policy.js';
+import { isPendingEmission, type RetryStore } from './retry/store.js';
 import { defaultIsTransient } from './retry/transient.js';
 
 export type ReplayItem =

@@ -1,4 +1,4 @@
-import { Agent, type Dispatcher, errors as UndiciErrors, request } from 'undici';
+import { Agent, type Dispatcher, request, errors as UndiciErrors } from 'undici';
 import type { A1Certificate } from '../certificate/types.js';
 import {
   ForbiddenError,

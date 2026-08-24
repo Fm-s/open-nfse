@@ -1,7 +1,7 @@
 import type {
   AmbienteGerador,
-  CST,
   CodigoNaoNif,
+  CST,
   EnvioMDIC,
   FinalidadeNFSe,
   IndicadorDestinatario,

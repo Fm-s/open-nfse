@@ -97,7 +97,7 @@ export function createViaCepValidator(options: ViaCepOptions = {}): CepValidator
       let parsed: ViaCepResponse;
       try {
         parsed = JSON.parse(bodyText) as ViaCepResponse;
-      } catch (cause) {
+      } catch {
         throw new InvalidCepError(
           normalized,
           'api_unavailable',

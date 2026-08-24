@@ -2,7 +2,7 @@ import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 import type { DPS } from '../nfse/domain.js';
-import { type EmitOptions, type NfseEmitResult, emitDpsProntaSeguro } from '../nfse/emit.js';
+import { type EmitOptions, emitDpsProntaSeguro, type NfseEmitResult } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
@@ -14,8 +14,8 @@ import {
   type PendingEmission,
   type PendingEvent,
   type PendingEventKind,
-  type RetryStore,
   pendingEventId,
+  type RetryStore,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
 import { type AutorEvento, buildCancelamentoXml } from './build-event-xml.js';

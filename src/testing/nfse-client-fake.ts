@@ -1,8 +1,8 @@
 import { TipoAmbiente } from '../ambiente.js';
 import type { FetchByNsuParams, ReplayItem } from '../client.js';
 import { type GerarDanfseOptions, gerarDanfse as gerarDanfseLocal } from '../danfse/gerar.js';
-import { StatusDistribuicao } from '../dfe/types.js';
 import type { NsuQueryResult } from '../dfe/types.js';
+import { StatusDistribuicao } from '../dfe/types.js';
 import { TimeoutError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import type {
@@ -23,12 +23,12 @@ import type { DPS, NFSe } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
 import type {
   DpsDryRunResult,
+  EmitirParams,
+  EmitirResult,
   EmitLoteItem,
   EmitLoteOptions,
   EmitLoteResult,
   EmitOptions,
-  EmitirParams,
-  EmitirResult,
   NfseEmitResult,
 } from '../nfse/emit.js';
 import type { NfseQueryResult } from '../nfse/types.js';

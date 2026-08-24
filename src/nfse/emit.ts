@@ -13,8 +13,8 @@ import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
   type PendingEmission,
-  type RetryStore,
   pendingEmissionId,
+  type RetryStore,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
 import { type BuildDpsParams, buildDps } from './build-dps.js';

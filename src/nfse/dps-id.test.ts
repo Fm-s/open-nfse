@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidDpsIdParamError, buildDpsId } from './dps-id.js';
+import { buildDpsId, InvalidDpsIdParamError } from './dps-id.js';
 
 describe('buildDpsId', () => {
   it('builds a 45-char ID following "DPS" + cMun(7) + tpInsc(1) + insc(14) + serie(5) + nDPS(15)', () => {

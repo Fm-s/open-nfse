@@ -45,7 +45,6 @@ export interface BuildSubstituicaoXmlParams {
 }
 
 const DEFAULT_TP_AMB = '2' as TipoAmbienteDps;
-const DEFAULT_AMB_GER = '2' as AmbienteGeradorEvento; // SefinNacional
 const VERSAO_EVENTO = '1.01';
 const TIPO_CANCELAMENTO = '101101' as TipoEventoNfse;
 const TIPO_CANCELAMENTO_SUBSTITUICAO = '105102' as TipoEventoNfse;

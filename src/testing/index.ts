@@ -1,9 +1,9 @@
 import type { NfseClient } from '../client.js';
 import type { NfseClientFake } from './nfse-client-fake.js';
 
+export type { ProgrammedFailure } from './fake-state.js';
 export { NfseClientFake } from './nfse-client-fake.js';
 export { FakeSeed } from './seed.js';
-export type { ProgrammedFailure } from './fake-state.js';
 export { synthChaveAcesso, synthNfse } from './synth.js';
 
 /**

@@ -8,14 +8,14 @@ import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
 import { createDefaultRetryPolicy } from '../retry/policy.js';
 import {
-  MissingRetryStoreError,
   createInMemoryRetryStore,
   isPendingEmission,
+  MissingRetryStoreError,
 } from '../retry/store.js';
 import {
+  createInMemoryDpsCounter,
   type DpsCounter,
   MissingDpsCounterError,
-  createInMemoryDpsCounter,
 } from './dps-counter.js';
 import { type EmitirParams, emitSeguro } from './emit.js';
 import { OpcaoSimplesNacional, RegimeEspecialTributacao } from './enums.js';

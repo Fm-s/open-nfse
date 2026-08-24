@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidEventoPedidoIdParamError, buildEventoPedidoId } from './event-id.js';
+import { buildEventoPedidoId, InvalidEventoPedidoIdParamError } from './event-id.js';
 
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 

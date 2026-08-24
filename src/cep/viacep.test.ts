@@ -1,6 +1,5 @@
 import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { InvalidCepError } from '../errors/validation.js';
 import type { CepInfo } from './types.js';
 import { createViaCepValidator } from './viacep.js';
 

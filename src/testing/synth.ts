@@ -25,7 +25,9 @@ export function synthChaveAcesso(sequential: number, cnpj: string): string {
  * Preserva todos os campos da DPS originais (util pra consumers que inspecionam
  * `nfse.infNFSe.DPS.infDPS.*` em testes).
  */
-export function synthNfse(dps: DPS, chaveAcesso: string, ambiente: TipoAmbiente): NFSe {
+// `_ambiente` não é usado (o RTC não tem `tpAmb` em `infNFSe`) — mantido na
+// assinatura por compatibilidade: `synthNfse` é público em open-nfse/testing.
+export function synthNfse(dps: DPS, chaveAcesso: string, _ambiente: TipoAmbiente): NFSe {
   const descServ = dps.infDPS.serv.cServ.xDescServ;
   return {
     versao: '1.01',

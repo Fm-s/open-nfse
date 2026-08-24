@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DEFAULT_TTL_MS, createInMemoryParametrosCache } from './cache.js';
+import { createInMemoryParametrosCache, DEFAULT_TTL_MS } from './cache.js';
 
 describe('createInMemoryParametrosCache', () => {
   it('roundtrips get+set', async () => {

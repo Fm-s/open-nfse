@@ -15,13 +15,13 @@ import type {
   VServPrest,
 } from './domain.js';
 import { buildDpsId } from './dps-id.js';
-import { OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
 import type {
   IndicadorTotalTributos,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
 } from './enums.js';
+import { OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
 
 /** Regime tributário do emitente. Casa com os grupos do `TCRegTrib`. */
 export interface RegimeTributario {

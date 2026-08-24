@@ -1,6 +1,6 @@
 import type {
-  DPS,
   DocDedRed,
+  DPS,
   Endereco,
   EnderecoSimples,
   IdentificadorPessoa,
