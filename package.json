@@ -83,7 +83,7 @@
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
     "typedoc-vitepress-theme": "^1.1.2",
-    "typescript": "^5.7.0",
+    "typescript": "^6.0.3",
     "vitepress": "^1.6.4",
     "vitest": "^4.1.11"
   },
