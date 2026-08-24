@@ -13,6 +13,8 @@ Adoção do bundle XSD oficial **`esquemas-nfse-rtc-v1-01-20260727`** (CNPJ alfa
 
 - **`schemas/1.01/` atualizado para o bundle 20260727** e `_rtc-schemas.generated.ts` regenerado. A validação XSD local (WASM) agora aceita **CNPJ alfanumérico** (IN RFB nº 2.229/2024) em `TSCNPJ` (`[0-9A-Z]{14}`), nos Ids (`TSIdDPS`, `TSIdPedRegEvt`, `TSIdEvento`) e nas chaves (`TSChaveNFSe`, `TSChaveNFe`) — fecha o gap anunciado na v0.10.0 ("passa no DV mas é rejeitado no XSD").
 - **Validadores locais espelham os novos patterns**: `buildDpsId` aceita CNPJ alfanumérico (CPF segue numérico, `tpInsc=1`); `buildEventoPedidoId` valida a chave pelo recorte do `TSIdPedRegEvt` (posição 9 = tpInsc `1|2`, inscrição alfanumérica só quando `2`); `fetchByChave`/`consultarDanfse`/`gerarDanfse` e `fetchDpsStatus`/`existsDpsStatus` aceitam chave/Id com CNPJ alfanumérico; `NfseClientFake` idem.
+- Serialização de XML (DPS e eventos) migrada do `XMLBuilder` do `fast-xml-parser` (deprecated na v5.11) para o pacote sucessor **`fast-xml-builder`** (nova dependência de runtime, mesmo autor). Mesmas opções, saída byte a byte idêntica — verificada por comparação A/B e pela suíte (round-trip, XSD, assinatura). O `fast-xml-parser` permanece para o parsing (`XMLParser`).
+- Toolchain de dev atualizado: biome 2.5, vitest 4.1, TypeScript 6.0; `npm audit fix` (undici 8.10, runtime). Sem impacto na API pública.
 
 ### Changed (breaking)
 

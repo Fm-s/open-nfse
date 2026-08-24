@@ -1,4 +1,6 @@
-import { XMLBuilder } from 'fast-xml-parser';
+// Import default: o entry ESM do fast-xml-builder só exporta default (o named
+// `Builder` do .d.ts não existe em runtime).
+import XMLBuilder from 'fast-xml-builder';
 import { RuleViolationError } from '../errors/validation.js';
 import { ATTR_PREFIX } from '../xml/parser.js';
 import type {
