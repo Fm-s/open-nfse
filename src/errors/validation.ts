@@ -51,7 +51,7 @@ export class InvalidChaveAcessoError extends ValidationError {
     options?: { cause?: unknown },
   ) {
     super(
-      `Chave de acesso inválida: "${value}". Deve conter exatamente 50 dígitos numéricos.`,
+      `Chave de acesso inválida: "${value}". Deve conter 50 caracteres no pattern TSChaveNFSe (numérica; CNPJ alfanumérico permitido nas posições 7-20).`,
       options,
     );
   }
@@ -63,7 +63,7 @@ export class InvalidDpsIdError extends ValidationError {
     options?: { cause?: unknown },
   ) {
     super(
-      `Id do DPS inválido: "${value}". Deve bater com o pattern "DPS" + 42 dígitos (TSIdDPS do RTC v1.01).`,
+      `Id do DPS inválido: "${value}". Deve bater com o TSIdDPS do RTC v1.01: "DPS" + 42 caracteres (inscrição federal alfanumérica quando tpInsc=2/CNPJ).`,
       options,
     );
   }

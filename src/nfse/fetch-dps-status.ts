@@ -4,10 +4,12 @@ import { InvalidDpsIdError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 
 /**
- * Pattern do `infDPS.Id` — `DPS` + 42 dígitos (cLocEmi 7 + tpInsc 1 +
+ * Pattern do `infDPS.Id` — `DPS` + 42 caracteres (cLocEmi 7 + tpInsc 1 +
  * inscFederal 14 + serie 5 + nDPS 15 = 42). Total 45 chars (TSIdDPS).
+ * Bundle RTC v1.01-20260727: inscrição federal alfanumérica quando tpInsc=2
+ * (CNPJ); numérica quando tpInsc=1 (CPF com zeros à esquerda).
  */
-const REGEX_DPS_ID = /^DPS\d{42}$/;
+const REGEX_DPS_ID = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
 
 /** Resposta de `GET /dps/{id}` quando há NFS-e gerada. */
 export interface DpsStatusResult {

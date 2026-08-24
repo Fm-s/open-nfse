@@ -5,7 +5,9 @@ import { gzipBase64DecodeToText } from '../http/encoding.js';
 import { parseNfseXml } from './parse-xml.js';
 import type { NfseQueryResult } from './types.js';
 
-const REGEX_CHAVE_ACESSO = /^\d{50}$/;
+// TSChaveNFSe (bundle RTC v1.01-20260727): posições 7–20 aceitam alfanumérico
+// (CNPJ alfanumérico, IN RFB nº 2.229/2024); demais posições numéricas.
+const REGEX_CHAVE_ACESSO = /^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/;
 
 interface SefinNfseGetResponse {
   readonly tipoAmbiente: 1 | 2;

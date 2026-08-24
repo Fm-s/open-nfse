@@ -1,8 +1,11 @@
 import { ValidationError } from '../errors/validation.js';
 
 /**
- * Per Anexo II do SEFIN_ADN v1.00-20251226 (publicado 2025-12-27):
- * `PRE` + chave(50) + tipoEvento(6) = 59 chars. Pattern `PRE[0-9]{56}`.
+ * Per Anexo II do SEFIN_ADN v1.01-20260122: `PRE` + chave(50) + tipoEvento(6)
+ * = 59 chars. Pattern TSIdPedRegEvt (bundle RTC v1.01-20260727, CNPJ
+ * alfanumérico): `PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}` — na chave,
+ * posições 1–8 = cMun+ambGer, 9 = tpInsc (1=CPF, 2=CNPJ), 10–23 = inscrição
+ * federal (alfanumérica quando CNPJ), 24–50 numéricas.
  *
  * **Mudança breaking vs RTC v1.01 original**: o `nPedRegEvento` (3 dígitos)
  * foi removido tanto da composição do `Id` quanto do corpo de `infPedReg`.
@@ -24,7 +27,9 @@ export class InvalidEventoPedidoIdParamError extends ValidationError {
   }
 }
 
-const REGEX_CHAVE = /^\d{50}$/;
+// Derivado do TSIdPedRegEvt: a chave embutida no Id precisa casar com este
+// recorte (o Id composto é validado pelo XSD do pedRegEvento no envio).
+const REGEX_CHAVE = /^[0-9]{8}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{27}$/;
 const REGEX_TIPO_EVENTO = /^\d{6}$/;
 
 export function buildEventoPedidoId(params: BuildEventoPedidoIdParams): string {
@@ -33,7 +38,7 @@ export function buildEventoPedidoId(params: BuildEventoPedidoIdParams): string {
     throw new InvalidEventoPedidoIdParamError(
       'chaveAcesso',
       chaveAcesso,
-      'deve conter exatamente 50 dígitos.',
+      'deve conter 50 caracteres no formato da chave de acesso (posição 9 = tpInsc 1|2; inscrição federal alfanumérica apenas quando tpInsc=2).',
     );
   }
   if (!REGEX_TIPO_EVENTO.test(tipoEvento)) {

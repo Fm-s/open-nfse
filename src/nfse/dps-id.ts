@@ -7,9 +7,12 @@ export interface BuildDpsIdParams {
   readonly cLocEmi: string;
   /** Tipo de inscrição federal do emitente. */
   readonly tipoInsc: TipoInscricaoEmitente;
-  /** CNPJ (14 dígitos) ou CPF (11 dígitos). Sem máscara; zeros à esquerda preservados. */
+  /**
+   * CNPJ (14 caracteres, alfanumérico maiúsculo — IN RFB nº 2.229/2024) ou
+   * CPF (11 dígitos). Sem máscara; zeros à esquerda preservados.
+   */
   readonly inscricaoFederal: string;
-  /** Série do DPS (1 a 5 dígitos). */
+  /** Série do DPS (1 a 5 dígitos; séries de 5 dígitos vão até 89999). */
   readonly serie: string;
   /** Número do DPS (1 a 15 dígitos). */
   readonly nDPS: string;
@@ -26,9 +29,11 @@ export class InvalidDpsIdParamError extends ValidationError {
 }
 
 const REGEX_COD_MUN = /^\d{7}$/;
-const REGEX_CNPJ = /^\d{14}$/;
+// TSCNPJ (bundle RTC v1.01-20260727): CNPJ alfanumérico, `[0-9A-Z]{14}`.
+const REGEX_CNPJ = /^[0-9A-Z]{14}$/;
 const REGEX_CPF = /^\d{11}$/;
-const REGEX_SERIE = /^\d{1,5}$/;
+// TSSerieDPS (bundle 20260727): `[0-9]{1,4}|[0-8][0-9]{4}` — 90000–99999 é inválido.
+const REGEX_SERIE = /^(?:[0-9]{1,4}|[0-8][0-9]{4})$/;
 // TSNumDPS: primeiro dígito 1-9 (sem zero à esquerda), 1 a 15 dígitos. O <nDPS>
 // emitido no XML segue esse pattern; o Id usa padStart e tolera zeros.
 const REGEX_NDPS = /^[1-9]\d{0,14}$/;
@@ -47,7 +52,7 @@ export function buildDpsId(params: BuildDpsIdParams): string {
       throw new InvalidDpsIdParamError(
         'inscricaoFederal',
         inscricaoFederal,
-        'CNPJ deve conter 14 dígitos.',
+        'CNPJ deve conter 14 caracteres alfanuméricos maiúsculos (0-9, A-Z).',
       );
     }
     digitoTipo = '2';
@@ -65,7 +70,7 @@ export function buildDpsId(params: BuildDpsIdParams): string {
   }
 
   if (!REGEX_SERIE.test(serie)) {
-    throw new InvalidDpsIdParamError('serie', serie, 'deve conter 1 a 5 dígitos.');
+    throw new InvalidDpsIdParamError('serie', serie, 'deve conter 1 a 5 dígitos (máximo 89999).');
   }
   if (!REGEX_NDPS.test(nDPS)) {
     throw new InvalidDpsIdParamError(

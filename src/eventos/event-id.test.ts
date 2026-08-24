@@ -4,9 +4,9 @@ import { InvalidEventoPedidoIdParamError, buildEventoPedidoId } from './event-id
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 
 describe('buildEventoPedidoId', () => {
-  // Per Anexo II SEFIN_ADN v1.00-20251226 (publicado 2025-12-27): o
-  // nPedRegEvento foi removido da composição. Pattern `PRE[0-9]{56}` em vez
-  // do antigo `PRE[0-9]{59}`. Era 62 chars; agora 59.
+  // Per Anexo II SEFIN_ADN (desde v1.00-20251226): o nPedRegEvento foi removido
+  // da composição — 59 chars em vez de 62. Pattern atual (bundle 20260727):
+  // `PRE[0-9]{8}(1[0-9]{14}|2[0-9A-Z]{14})[0-9]{33}`.
   it('builds PRE + chave(50) + tipoEvento(6) = 59 chars', () => {
     const id = buildEventoPedidoId({
       chaveAcesso: CHAVE,
@@ -26,11 +26,21 @@ describe('buildEventoPedidoId', () => {
     expect(id.startsWith('PRE')).toBe(true);
   });
 
+  // TSIdPedRegEvt (bundle 20260727): chave com CNPJ alfanumérico nas posições 10–23.
+  it('accepts a chave with alphanumeric CNPJ (tpInsc=2)', () => {
+    // cMun 2111300 + ambGer 2 + tpInsc 2 + CNPJ 12ABC345DE0100 + 27 dígitos.
+    const chaveAlnum = `21113002212ABC345DE0100${'0'.repeat(27)}`;
+    const id = buildEventoPedidoId({ chaveAcesso: chaveAlnum, tipoEvento: '101101' });
+    expect(id).toBe(`PRE${chaveAlnum}101101`);
+  });
+
   it.each([
     ['', 'empty'],
     ['abc', 'non-numeric'],
     ['1'.repeat(49), '49 digits'],
     ['1'.repeat(51), '51 digits'],
+    [`211130023${'0'.repeat(41)}`, 'tpInsc inválido (3)'],
+    [`21113002212abc345de0100${'0'.repeat(27)}`, 'letras minúsculas'],
   ])('rejects chaveAcesso "%s" (%s)', (chave) => {
     expect(() => buildEventoPedidoId({ chaveAcesso: chave, tipoEvento: '101101' })).toThrow(
       InvalidEventoPedidoIdParamError,

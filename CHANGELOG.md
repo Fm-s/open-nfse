@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] — 2026-08-24
+
+Adoção do bundle XSD oficial **`esquemas-nfse-rtc-v1-01-20260727`** (CNPJ alfanumérico), em produção na SEFIN Nacional desde **10/08/2026** conforme o log oficial de Atualizações e Implantações do portal gov.br/nfse. Mesma versão de leiaute (RTC v1.01); mudam apenas patterns de tipos simples.
+
+### Changed
+
+- **`schemas/1.01/` atualizado para o bundle 20260727** e `_rtc-schemas.generated.ts` regenerado. A validação XSD local (WASM) agora aceita **CNPJ alfanumérico** (IN RFB nº 2.229/2024) em `TSCNPJ` (`[0-9A-Z]{14}`), nos Ids (`TSIdDPS`, `TSIdPedRegEvt`, `TSIdEvento`) e nas chaves (`TSChaveNFSe`, `TSChaveNFe`) — fecha o gap anunciado na v0.10.0 ("passa no DV mas é rejeitado no XSD").
+- **Validadores locais espelham os novos patterns**: `buildDpsId` aceita CNPJ alfanumérico (CPF segue numérico, `tpInsc=1`); `buildEventoPedidoId` valida a chave pelo recorte do `TSIdPedRegEvt` (posição 9 = tpInsc `1|2`, inscrição alfanumérica só quando `2`); `fetchByChave`/`consultarDanfse`/`gerarDanfse` e `fetchDpsStatus`/`existsDpsStatus` aceitam chave/Id com CNPJ alfanumérico; `NfseClientFake` idem.
+
+### Changed (breaking)
+
+- **Séries 90000–99999 agora são rejeitadas** (`buildDpsId` e XSD): o bundle 20260727 **corrigiu oficialmente** o pattern quebrado do `TSSerieDPS` para `[0-9]{1,4}|[0-8][0-9]{4}` — a faixa 9xxxx nunca foi aceita pela SEFIN (E1235); a lib só deixava passar por causa da deviation libxml-compat local, agora removida.
+
+### Notes
+
+- **Prazos oficiais de agosto/2026** (sem impacto de código): Resolução CGSN nº 191 (04/08) prorroga a obrigatoriedade de emissão pelo Emissor Nacional para o **Simples Nacional de 01/09 para 01/11/2026**; orientação CGNFS-e de 07/08 — a **ausência dos grupos IBS/CBS não rejeita** o documento até **31/12/2026** (destaque obrigatório escalonado: 01/10/2026, 01/12/2026 e 01/01/2027 conforme o caso).
+
 ## [0.10.1] — 2026-07-25
 
 Adequação à **NT 008/2026** (v1.02, 14/07/2026): a API oficial de geração do DANFSe será suspensa em **03/08/2026** — a geração passa a ser responsabilidade dos sistemas emissores.

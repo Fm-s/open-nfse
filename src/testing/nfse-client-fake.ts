@@ -45,8 +45,9 @@ import { FakeState, type ProgrammedFailure } from './fake-state.js';
 import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';
 
-const REGEX_CHAVE = /^\d{50}$/;
-const REGEX_ID_DPS = /^DPS\d{42}$/;
+// Espelham TSChaveNFSe e TSIdDPS do bundle RTC v1.01-20260727 (CNPJ alfanumérico).
+const REGEX_CHAVE = /^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/;
+const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
 
 /**
  * Dublê em memória do `NfseClient` para testes de consumidores. Expõe a mesma

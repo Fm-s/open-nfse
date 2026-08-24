@@ -406,7 +406,8 @@ function buildTotTrib(v: ValoresInput, opSimpNac: OpcaoSimplesNacional): TribTot
  * Valida o DV de CPF/CNPJ do emitente e do tomador (E0080/E0096/E0188/E0206) no
  * próprio builder, para que o caminho offline `buildDps` + `buildDpsXml`
  * (dry-run/preview, design principle #5) também rejeite DV inválido — não só o
- * `emitSeguro`. O XSD valida apenas a contagem de dígitos, não o DV.
+ * `emitSeguro`. O XSD valida apenas o formato (14 chars alfanuméricos no
+ * TSCNPJ do bundle 20260727), não o DV.
  */
 function assertIdentifiersDv(params: BuildDpsParams): void {
   validateCnpj(params.emitente.cnpj);

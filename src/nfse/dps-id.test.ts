@@ -55,12 +55,39 @@ describe('buildDpsId', () => {
       cLocEmi: '2111300',
       tipoInsc: 'CNPJ',
       inscricaoFederal: '22005747530001',
-      serie: '99999',
+      serie: '89999',
       nDPS: '123456789012345',
     });
 
-    expect(id.slice(25, 30)).toBe('99999');
+    expect(id.slice(25, 30)).toBe('89999');
     expect(id.slice(30, 45)).toBe('123456789012345');
+  });
+
+  // TSSerieDPS (bundle 20260727): `[0-9]{1,4}|[0-8][0-9]{4}` — 90000–99999 inválido.
+  it('rejects serie 90000 (above the TSSerieDPS upper bound)', () => {
+    expect(() =>
+      buildDpsId({
+        cLocEmi: '2111300',
+        tipoInsc: 'CNPJ',
+        inscricaoFederal: '22005747530001',
+        serie: '90000',
+        nDPS: '1',
+      }),
+    ).toThrow(InvalidDpsIdParamError);
+  });
+
+  // TSCNPJ alfanumérico (IN RFB nº 2.229/2024; bundle 20260727).
+  it('accepts an alphanumeric CNPJ with tpInsc=2', () => {
+    const id = buildDpsId({
+      cLocEmi: '2111300',
+      tipoInsc: 'CNPJ',
+      inscricaoFederal: '12ABC345DE0100',
+      serie: '1',
+      nDPS: '1',
+    });
+
+    expect(id.slice(10, 11)).toBe('2');
+    expect(id.slice(11, 25)).toBe('12ABC345DE0100');
   });
 
   it('preserves leading zeros in CNPJ', () => {
@@ -116,12 +143,24 @@ describe('buildDpsId', () => {
     ).toThrow(InvalidDpsIdParamError);
   });
 
-  it('rejects non-numeric inscricaoFederal', () => {
+  it('rejects lowercase letters in CNPJ (TSCNPJ exige maiúsculas)', () => {
     expect(() =>
       buildDpsId({
         cLocEmi: '2111300',
         tipoInsc: 'CNPJ',
         inscricaoFederal: 'abcdefghijklmn',
+        serie: '1',
+        nDPS: '1',
+      }),
+    ).toThrow(InvalidDpsIdParamError);
+  });
+
+  it('rejects letters in CPF (alfanumérico só vale para CNPJ)', () => {
+    expect(() =>
+      buildDpsId({
+        cLocEmi: '2111300',
+        tipoInsc: 'CPF',
+        inscricaoFederal: '1234567890A',
         serie: '1',
         nDPS: '1',
       }),
