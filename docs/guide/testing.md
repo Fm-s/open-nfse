@@ -140,7 +140,7 @@ describe('PedidoService', () => {
   it('emite nota e guarda a chave no pedido', async () => {
     const pedido = { id: 1, valor: 100, cliente: { cnpj: '...' } };
     const resultado = await service.emitirNota(pedido);
-    expect(resultado.chaveAcesso).toMatch(/^\d{50}$/);
+    expect(resultado.chaveAcesso).toMatch(/^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/); // TSChaveNFSe
     expect(fake.emittedChaves).toHaveLength(1);
   });
 

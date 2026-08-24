@@ -26,7 +26,7 @@ const inf = resultado.nfse.infNFSe;
 
 // Identificação
 inf.Id;                                // "NFS..." (concatenado com a chave)
-inf.chaveAcesso;                       // 50 dígitos
+inf.chaveAcesso;                       // 50 caracteres (CNPJ alfanumérico nas posições 10-23)
 inf.nNFSe;                             // número municipal sequencial
 inf.cStat;                             // "100" = autorizado
 inf.dhProc;                            // Date
@@ -65,7 +65,7 @@ try {
   const r = await cliente.fetchByChave(chave);
 } catch (err) {
   if (err instanceof InvalidChaveAcessoError) {
-    // chave com formato inválido (não tem 50 dígitos)
+    // chave com formato inválido (fora do pattern TSChaveNFSe)
   } else if (err instanceof NotFoundError) {
     // HTTP 404 — chave não existe na Receita
   } else if (err instanceof UnauthorizedError) {

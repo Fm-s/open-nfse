@@ -53,7 +53,7 @@ Todas aceitam `options?: ConsultaOptions` e retornam `Consulta*Result`.
 | `gerarDanfse`         | `(nfse: NFSe, options?: GerarDanfseOptions & { strategy?: 'auto' \| 'online' \| 'local' }) → Buffer` |
 | `consultarDanfse`         | `(chaveAcesso: string) → Buffer`                                                                   |
 
-`'local'` (default desde v0.10.1) renderiza offline. `'auto'`/`'online'` e `consultarDanfse` são **deprecated** (NT 008/2026 — endpoint suspenso em 03/08/2026; cada uso loga `danfse.online.deprecated`): `'auto'` tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `consultarDanfse` valida `/^\d{50}$/` upfront.
+`'local'` (default desde v0.10.1) renderiza offline. `'auto'`/`'online'` e `consultarDanfse` são **deprecated** (NT 008/2026 — endpoint suspenso em 03/08/2026; cada uso loga `danfse.online.deprecated`): `'auto'` tenta online e cai para local **só em transientes** (`NetworkError`/`TimeoutError`/`ServerError`); permission/404 propagam. `consultarDanfse` valida a chave (pattern `TSChaveNFSe`) upfront.
 
 #### Lifecycle
 | Método                | Assinatura                                           |
@@ -207,7 +207,7 @@ Todos herdam de `OpenNfseError`. Árvore e comportamento por método em [Erros t
 | `ExpiredCertificateError`         | A1 vencido (detectado no load)                                               |
 | `InvalidCertificateError`         | A1 malformado / PKCS#12 corrompido                                           |
 | `InvalidCertificatePasswordError` | Senha errada do .pfx                                                         |
-| `InvalidChaveAcessoError`         | Chave fora de `/^\d{50}$/`                                                    |
+| `InvalidChaveAcessoError`         | Chave fora do `TSChaveNFSe` (`/^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/`)             |
 | `InvalidXmlError`                 | XML estruturalmente inválido                                                 |
 | `XsdValidationError`              | XSD RTC v1.01 violado; carrega `violations[]`                                 |
 | `InvalidCepError`                 | Formato inválido / ViaCEP 404                                                |

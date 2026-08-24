@@ -112,7 +112,7 @@ function isEventoXmlSigned(xml: string | undefined | null): boolean {
 }
 
 export interface EmitenteConfig {
-  /** CNPJ do emitente (14 dígitos, sem máscara). */
+  /** CNPJ do emitente (14 caracteres sem máscara; alfanumérico maiúsculo aceito — IN RFB nº 2.229/2024). */
   readonly cnpj: string;
   /** Inscrição Municipal no município emissor. */
   readonly inscricaoMunicipal: string;

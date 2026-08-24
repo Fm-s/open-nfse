@@ -63,7 +63,7 @@ try {
 Sem fallback — erros lançam. Use quando quiser falhar alto.
 
 ::: tip Validação upfront
-`consultarDanfse` valida `/^\d{50}$/` antes de tocar a rede e lança `InvalidChaveAcessoError` se a chave estiver fora do formato — mesmo comportamento de `fetchByChave`. Protege contra round-trips desperdiçados e input injection via URL.
+`consultarDanfse` valida a chave (pattern `TSChaveNFSe`, CNPJ alfanumérico aceito) antes de tocar a rede e lança `InvalidChaveAcessoError` se a chave estiver fora do formato — mesmo comportamento de `fetchByChave`. Protege contra round-trips desperdiçados e input injection via URL.
 :::
 
 ## `gerarDanfse(nfse)` standalone — função pura
@@ -84,7 +84,7 @@ const pdf = await gerarDanfse(nfse, { observacoes: '...' });
 
 A4 portrait, uma página, com os seguintes blocos:
 
-1. **Cabeçalho** — "DANFS-e", chave de acesso (50 dígitos agrupados em 4), nº NFS-e, protocolo
+1. **Cabeçalho** — "DANFS-e", chave de acesso (50 caracteres agrupados em 4), nº NFS-e, protocolo
 2. **Prestador de Serviços** — CNPJ/CPF, IM, razão social, endereço completo
 3. **Tomador de Serviços** — documento (CNPJ/CPF/NIF/cNaoNIF), nome, endereço (ou "não identificado")
 4. **Descrição do Serviço** — cTribNac, cNBS, cTribMun, local de incidência, discriminação longa

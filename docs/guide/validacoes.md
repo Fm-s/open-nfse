@@ -20,7 +20,7 @@ Mais barata primeiro para falhar rápido antes de gastar tempo.
 
 ## CPF/CNPJ check-digit
 
-Verifica formato (11/14 dígitos sem máscara) + dígitos verificadores (algoritmo modulo-11 oficial da Receita).
+Verifica formato + dígitos verificadores (algoritmo modulo-11 oficial da Receita). CPF: 11 dígitos sem máscara. CNPJ: **alfanumérico** (IN RFB nº 2.229/2024, em produção na NFS-e desde 10/08/2026) — 12 posições `[A-Z0-9]` + 2 DV sempre numéricos, DV calculado sobre o valor ASCII − 48 de cada caractere; CNPJs 100% numéricos seguem válidos.
 
 ### Expostos para uso standalone
 
@@ -29,6 +29,7 @@ import { validateCpf, validateCnpj, InvalidCpfError, InvalidCnpjError } from 'op
 
 try {
   validateCnpj('00574753000100');     // OK
+  validateCnpj('12ABC345DE0108');     // OK — alfanumérico (IN RFB nº 2.229/2024)
   validateCnpj('00000000000001');     // throws InvalidCnpjError(reason: 'check_digit')
   validateCnpj('11111111111111');     // throws InvalidCnpjError(reason: 'known_invalid')
   validateCnpj('abc');                 // throws InvalidCnpjError(reason: 'format')

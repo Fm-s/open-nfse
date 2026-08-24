@@ -280,7 +280,7 @@ Com defaults, essas falhas **nem chegam** à Receita:
 
 | Erro                           | Causa                                                       |
 |--------------------------------|-------------------------------------------------------------|
-| `InvalidCnpjError`             | DV do CNPJ incorreto ou formato fora de `^\d{14}$`           |
+| `InvalidCnpjError`             | DV do CNPJ incorreto ou formato fora de `^[A-Z0-9]{12}\d{2}$` |
 | `InvalidCpfError`              | Mesmo, para CPF                                             |
 | `InvalidCepError`              | Formato inválido ou ViaCEP retornou 404                     |
 | `XsdValidationError`           | DPS não bate com RTC v1.01 (campo faltando, pattern errado) |

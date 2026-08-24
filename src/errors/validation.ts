@@ -22,7 +22,8 @@ export class InvalidCnpjError extends ValidationError {
     public readonly reason: 'format' | 'check_digit' | 'known_invalid',
   ) {
     const texto = {
-      format: 'formato inválido (esperado 14 dígitos sem máscara)',
+      format:
+        'formato inválido (esperado 14 caracteres sem máscara: 12 alfanuméricos maiúsculos + 2 dígitos verificadores)',
       check_digit: 'dígitos verificadores não conferem',
       known_invalid: 'sequência repetida inválida',
     }[reason];

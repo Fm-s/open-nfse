@@ -38,9 +38,9 @@ export function validateCpf(cpf: string): void {
  * depois `[6,5,4,3,2,9,8,7,6,5,4,3,2]`). No cálculo do DV cada caractere vale
  * seu código ASCII menos 48 (dígitos mantêm 0–9; A=17 … Z=42).
  *
- * Nota: o leiaute da NFS-e Nacional só passa a aceitar CNPJ alfanumérico na
- * DPS com a NT 009/2026 (campos N → C); até lá, um CNPJ com letras é válido
- * aqui mas rejeitado na validação XSD da emissão.
+ * O leiaute da NFS-e Nacional aceita CNPJ alfanumérico na DPS desde
+ * 10/08/2026 (bundle XSD 20260727, adotado na v0.11.0) — a validação XSD
+ * local também aceita.
  *
  * Lança `InvalidCnpjError` com `reason: 'format' | 'known_invalid' | 'check_digit'`.
  */

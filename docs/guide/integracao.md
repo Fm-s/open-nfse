@@ -19,8 +19,23 @@ Depende do que você faz com a lib. Comece pelo seu caso e ignore o resto:
 
 Todo SQL abaixo é PostgreSQL, traduzível para MySQL (`CHAR`/`VARCHAR` iguais, `BIGSERIAL` → `BIGINT AUTO_INCREMENT`, `TIMESTAMPTZ` → `DATETIME(3)`, `TEXT` → `MEDIUMTEXT`) ou SQL Server (`IDENTITY`, `DATETIME2`, `NVARCHAR(MAX)`).
 
-::: tip CNPJ alfanumérico
-Os `CHECK (cnpj ~ '^\d{14}$')` abaixo assumem CNPJ numérico — o que o leiaute da DPS aceita hoje. Quando a NT 009/2026 entrar em vigor (campos N → C), troque para `'^[A-Z0-9]{12}\d{2}$'`.
+::: warning CNPJ alfanumérico — em produção desde 10/08/2026
+O leiaute da NFS-e aceita **CNPJ alfanumérico** (IN RFB nº 2.229/2024: 12 posições `[A-Z0-9]` + 2 dígitos verificadores numéricos) desde 10/08/2026 — bundle XSD 20260727, adotado pela lib na v0.11.0. Todo o SQL abaixo já usa os patterns novos. **Se o seu banco já existe com as versões numéricas deste guia, migre:**
+
+- Colunas `CHAR`/`VARCHAR` (como as deste guia): basta trocar as constraints —
+
+  ```sql
+  ALTER TABLE dps_counters      DROP CONSTRAINT dps_counters_cnpj_check,
+    ADD CONSTRAINT dps_counters_cnpj_check CHECK (cnpj ~ '^[A-Z0-9]{12}\d{2}$');
+  ALTER TABLE nfse_autorizadas  DROP CONSTRAINT nfse_autorizadas_chave_acesso_check,
+    ADD CONSTRAINT nfse_autorizadas_chave_acesso_check
+    CHECK (chave_acesso ~ '^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$');
+  -- idem para emitentes.cnpj, nsu_cursors.cnpj e demais CHECKs numéricos
+  ```
+
+  (nomes das constraints: confira com `\d nome_da_tabela` no psql — os default do Postgres seguem esse formato).
+- Colunas **numéricas** (`BIGINT`/`NUMERIC`/`DECIMAL`) para CNPJ, chave de acesso ou `id_dps`: **precisam virar texto** (`CHAR(14)`/`CHAR(50)`/`CHAR(45)`). Tipo numérico não comporta letras e já corrompia zeros à esquerda (`00574753000100` → `574753000100`). Migre com `ALTER TABLE ... ALTER COLUMN cnpj TYPE CHAR(14) USING lpad(cnpj::text, 14, '0')` — o `lpad` restaura os zeros perdidos — e refaça índices/FKs que apontavam para a coluna.
+- O mesmo vale para **código da aplicação**: qualquer `parseInt`/`Number()` sobre CNPJ, chave ou `id_dps` quebra com letras. Esses identificadores sempre foram `string` na API da lib — mantenha-os como texto de ponta a ponta.
 :::
 
 ## 1. O mínimo para emitir — 3 tabelas {#minimo}
@@ -31,8 +46,8 @@ Os `CHECK (cnpj ~ '^\d{14}$')` abaixo assumem CNPJ numérico — o que o leiaute
 
 ```sql
 CREATE TABLE dps_counters (
-  cnpj         CHAR(14)   NOT NULL CHECK (cnpj ~ '^\d{14}$'),
-  serie        VARCHAR(5) NOT NULL CHECK (serie ~ '^\d{1,5}$'),
+  cnpj         CHAR(14)   NOT NULL CHECK (cnpj ~ '^[A-Z0-9]{12}\d{2}$'),
+  serie        VARCHAR(5) NOT NULL CHECK (serie ~ '^([0-9]{1,4}|[0-8][0-9]{4})$'),
   proximo_ndps BIGINT     NOT NULL DEFAULT 1 CHECK (proximo_ndps BETWEEN 1 AND 999999999999999),
   PRIMARY KEY (cnpj, serie)
 );
@@ -161,8 +176,8 @@ Documento fiscal oficial assinado pela Sefin. **Retenção mínima 5 anos** (CTN
 
 ```sql
 CREATE TABLE nfse_autorizadas (
-  chave_acesso          CHAR(50) PRIMARY KEY CHECK (chave_acesso ~ '^\d{50}$'),
-  emitente_cnpj         CHAR(14) NOT NULL CHECK (emitente_cnpj ~ '^\d{14}$'),
+  chave_acesso          CHAR(50) PRIMARY KEY CHECK (chave_acesso ~ '^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$'),
+  emitente_cnpj         CHAR(14) NOT NULL CHECK (emitente_cnpj ~ '^[A-Z0-9]{12}\d{2}$'),
   id_dps                CHAR(45) NOT NULL UNIQUE,
   nnfse                 VARCHAR(30) NOT NULL,     -- número municipal
   ndfse                 VARCHAR(30),              -- número nacional (DFe)
@@ -191,7 +206,7 @@ Certificado **fora do banco** — KMS/Vault, coluna guarda só referência opaca
 ```sql
 CREATE TABLE emitentes (
   id                     BIGSERIAL PRIMARY KEY,
-  cnpj                   CHAR(14) NOT NULL UNIQUE CHECK (cnpj ~ '^\d{14}$'),
+  cnpj                   CHAR(14) NOT NULL UNIQUE CHECK (cnpj ~ '^[A-Z0-9]{12}\d{2}$'),
   inscricao_municipal    VARCHAR(30) NOT NULL,
   cod_municipio          CHAR(7)  NOT NULL CHECK (cod_municipio ~ '^\d{7}$'),
   razao_social           TEXT NOT NULL,
@@ -222,7 +237,7 @@ Só se você consome DF-e (lado tomador / sync incremental). `fetchByNsu` é inc
 
 ```sql
 CREATE TABLE nsu_cursors (
-  cnpj       CHAR(14) PRIMARY KEY CHECK (cnpj ~ '^\d{14}$'),
+  cnpj       CHAR(14) PRIMARY KEY CHECK (cnpj ~ '^[A-Z0-9]{12}\d{2}$'),
   ultimo_nsu BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
