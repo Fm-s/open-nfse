@@ -9,7 +9,7 @@ import type { HttpClient } from '../http/client.js';
  * Bundle RTC v1.01-20260727: inscrição federal alfanumérica quando tpInsc=2
  * (CNPJ); numérica quando tpInsc=1 (CPF com zeros à esquerda).
  */
-const REGEX_DPS_ID = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
+export const REGEX_DPS_ID = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
 
 /** Resposta de `GET /dps/{id}` quando há NFS-e gerada. */
 export interface DpsStatusResult {

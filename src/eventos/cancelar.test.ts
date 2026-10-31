@@ -8,7 +8,11 @@ import { Ambiente } from '../ambiente.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { NfseClient } from '../client.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
-import { InvalidLayoutError, LayoutMismatchError } from '../errors/validation.js';
+import {
+  InvalidDpsIdError,
+  InvalidLayoutError,
+  LayoutMismatchError,
+} from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDps } from '../nfse/build-dps.js';
@@ -357,6 +361,25 @@ describe('cancelar', () => {
     ).rejects.toMatchObject({ rule: 'TSMotivo' });
   });
 
+  it.each([
+    ['ausente', undefined],
+    ['não-string', 123],
+  ])(
+    'xMotivo %s (chamador JS) com cMotivo ≠ 9 → RuleViolationError TSMotivo, não TypeError',
+    async (_caso, xMotivo) => {
+      const dispatch = vi.spyOn(mockAgent, 'dispatch');
+      await expect(
+        cancelar(httpClient, cert, createDefaultRetryPolicy(), {
+          chaveAcesso: CHAVE_ORIGINAL,
+          autor: { CNPJ: '00574753000100' },
+          cMotivo: JustificativaCancelamento.ErroEmissao,
+          xMotivo: xMotivo as unknown as string,
+        }),
+      ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSMotivo' });
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
   // TSMotivo restringe TSString (tiposSimples_v1.01.xsd:13-21, idêntico nos
   // bundles nt004 e nt009): pattern `[!-ÿ]{1}[ -ÿ]{0,}[!-ÿ]{1}|[!-ÿ]{1}` — sem
   // espaço nas pontas, só U+0020–U+00FF. Fora disso a SEFIN rejeita no schema.
@@ -601,6 +624,23 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
       }),
     ).rejects.toThrow();
   });
+
+  it.each([
+    ['ausente (chamador JS)', undefined],
+    ['malformado', 'DPS123'],
+  ])(
+    'novaDps.infDPS.Id %s → InvalidDpsIdError (não TypeError nem E0042) sem POST',
+    async (_caso, id) => {
+      const dispatch = vi.spyOn(mockAgent, 'dispatch');
+      const base = minimalNovaDps();
+      // Chamador JS: o Id inválido não passa pelo tipo.
+      const novaDps = { ...base, infDPS: { ...base.infDPS, Id: id } } as unknown as DPS;
+      await expect(
+        substituir(httpClient, cert, policy, { ...baseSubstParams, novaDps, skipValidation: true }),
+      ).rejects.toBeInstanceOf(InvalidDpsIdError);
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects xMotivo fora do pattern TSString (travessão U+2013) antes de tocar a rede', async () => {
     const dispatch = vi.spyOn(mockAgent, 'dispatch');

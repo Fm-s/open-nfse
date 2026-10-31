@@ -1,5 +1,5 @@
 import type { A1Certificate } from '../certificate/types.js';
-import { RuleViolationError } from '../errors/validation.js';
+import { InvalidDpsIdError, RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 import type { Logger } from '../logging.js';
 import type { DPS, DpsFor, Substituicao } from '../nfse/domain.js';
@@ -9,6 +9,7 @@ import {
   JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
+import { REGEX_DPS_ID } from '../nfse/fetch-dps-status.js';
 import { assertLayout, type Layout, unknownLayout } from '../nfse/layout.js';
 import type { RetryPolicy } from '../retry/policy.js';
 import {
@@ -236,7 +237,10 @@ export function validarCancelamento(params: CancelarParams): void {
   // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
   // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
   // deste evento — o campo aqui é evento/.../e101101/xMotivo.)
-  if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
+  if (
+    params.cMotivo === JustificativaCancelamento.Outros &&
+    !(typeof params.xMotivo === 'string' && params.xMotivo.trim())
+  ) {
     throw new RuleViolationError(
       'cMotivo=9 (Outros) exige xMotivo não-vazio (evento 101101)',
       'e101101/xMotivo',
@@ -259,7 +263,10 @@ export function prepararSubstituicao<L extends Layout>(params: SubstituirParams<
 
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
   // round-trip + queima de nDPS num emit que seria rejeitado.
-  if (subst.cMotivo === JustificativaSubstituicao.Outros && !subst.xMotivo?.trim()) {
+  if (
+    subst.cMotivo === JustificativaSubstituicao.Outros &&
+    !(typeof subst.xMotivo === 'string' && subst.xMotivo.trim())
+  ) {
     throw new RuleViolationError(
       'cMotivo=99 (Outros) exige xMotivo não-vazio — per E0078',
       'E0078',
@@ -360,7 +367,12 @@ function assertChSubstdaTSChaveNFSe(chSubstda: unknown): asserts chSubstda is st
  * da chave de NFS-e não está especificado nas fontes oficiais (XSD, Anexos,
  * manuais) — a Sefin continua sendo a autoridade sobre ele.
  */
-function assertChSubstdaCorrespondeAoIdDps(chSubstda: string, idDps: string): void {
+function assertChSubstdaCorrespondeAoIdDps(chSubstda: string, idDps: unknown): void {
+  // TSIdDPS antes de comparar posições: Id ausente (chamador JS) ou malformado
+  // gera erro tipado, não TypeError nem uma E0042 enganosa.
+  if (typeof idDps !== 'string' || !REGEX_DPS_ID.test(idDps)) {
+    throw new InvalidDpsIdError(String(idDps));
+  }
   const chave = {
     cMun: chSubstda.slice(0, 7),
     tpInsc: chSubstda.slice(8, 9),
@@ -452,7 +464,13 @@ const TSSTRING_PATTERN = /^(?:[!-ÿ][ -ÿ]*[!-ÿ]|[!-ÿ])$/u;
  * por validação XSD local antes do POST, e a rejeição de schema da Sefin é
  * opaca (travessão/aspas curvas coladas de editor de texto são o caso comum).
  */
-function validarTSMotivo(xMotivo: string): void {
+function validarTSMotivo(xMotivo: unknown): void {
+  if (typeof xMotivo !== 'string') {
+    throw new RuleViolationError(
+      `xMotivo é obrigatório e deve ser texto de 15 a 255 caracteres (recebido ${xMotivo === undefined ? 'undefined' : typeof xMotivo}) — per TSMotivo do RTC v1.01`,
+      'TSMotivo',
+    );
+  }
   const len = xMotivo.length;
   if (len < 15 || len > 255) {
     throw new RuleViolationError(
