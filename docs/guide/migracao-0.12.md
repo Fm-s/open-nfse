@@ -13,8 +13,9 @@ A `0.12.0` introduz o suporte a dois leiautes (`nt004` e `nt009`; veja [Leiautes
 7. DTOs de `DPS` persistidos na 0.11 (sem `layout`) precisam de `layout: 'nt004'` antes de voltar à lib.
 8. `interface X extends EmitirParams` (sem argumento) não compila mais — use `EmitirParams<'nt004'>`.
 9. Na virada para o `nt009`, drene o `RetryStore` com o cliente `nt004` antes de trocar ([seção 7](#virada-retrystore)).
+10. Revise os pré-checks novos de `cancelar`/`substituir`, o tratamento de `UnreadableAuthorizedNfseError` e as mudanças do `NfseClientFake` ([seção 6](#outras-mudancas)) — valem também no `nt004`.
 
-Para quem continua em produção no leiaute atual, escolha `'nt004'` em tudo: o comportamento é o da 0.11.
+Para quem continua em produção no leiaute atual, escolha `'nt004'` em tudo: os XMLs enviados e o fluxo de emissão são os da 0.11, **com** os pré-checks locais, os resultados novos e as mudanças do fake listados na [seção 6](#outras-mudancas) e no fim da [seção 7](#virada-retrystore).
 
 ## 1. `NfseClient` exige `layout`
 
@@ -119,12 +120,31 @@ const fake9 = new NfseClientFake({ layout: 'nt009', ambiente: TipoAmbiente.Homol
 
 `NfseClientLike<L = Layout>` é genérico; sem argumento aceita qualquer cliente, então serviços só de leitura não precisam escolher.
 
-## 6. Outras mudanças
+## 6. Outras mudanças {#outras-mudancas}
 
 - `parseNfseXml(xml, { logger? })` lê os dois leiautes; campos do outro leiaute geram `warn` `nfse.parse.unexpected_field` (e são ignorados); valores aceitos pelo XSD mas sempre rejeitados pelo Anexo I (nt009: E0031, E0034) são mantidos, com `warn` `nfse.parse.rule_violation`.
-- `cancelar`/`substituir` (funções livres) ganharam um `layout?` opcional ao final; pelo `NfseClient` nada muda.
+- `cancelar` (função livre) ganhou `layout?` opcional ao final; `substituir` (função livre) ganhou `layout?` e, depois dele, `logger?` (recebe os `warn` do parser da substituta). Pelo `NfseClient` nada muda.
 - `PendingEvent.layout?` (opcional, observabilidade) — dados já persistidos continuam válidos.
 - Novos enums `TipoAjusteBC` e `TipoAjusteBCLocImoveis`, novos erros `InvalidLayoutError` e `LayoutMismatchError` (com `field` opcional).
+
+**Pré-checks novos em `cancelar`/`substituir` (os dois leiautes, antes de qualquer I/O):**
+
+- `xMotivo` segue o pattern de `TSString` (base de `TSMotivo`): só U+0020–U+00FF, sem espaço nas pontas. Travessão `–`, aspas curvas, tab ou quebra de linha (o caso comum de texto colado de editor) lançam `RuleViolationError` (`rule: 'TSMotivo'`) — na 0.11 iam à Sefin e voltavam como rejeição de schema. `xMotivo` ausente ou não-string (chamador JS) também vira `RuleViolationError('TSMotivo')`, não `TypeError`.
+- `substituir`: um `infDPS.subst` já preenchido na `novaDps` precisa ser idêntico a `chaveOriginal`/`cMotivo`/`xMotivo` — divergência lança `RuleViolationError` (`rule: 'infDPS/subst'`); na 0.11 o `subst` da DPS era enviado em silêncio. A chave substituída é checada contra `TSChaveNFSe` (`rule: 'TSChaveNFSe'`) e contra o `infDPS.Id` da substituta — Cód.Mun./Tipo de Inscrição/Inscrição iguais (`rule: 'E0042'`) — e um `infDPS.Id` fora de `TSIdDPS` lança `InvalidDpsIdError`.
+
+**Emissão e leitura:**
+
+- Resposta `201` cujo XML a lib não consegue ler → `UnreadableAuthorizedNfseError` com a chave (ver [seção 7](#virada-retrystore)); o mesmo para um `201` com `chaveAcesso` mas sem `nfseXmlGZipB64`. `201` sem corpo → `NetworkError` (transiente: `emitir`/`substituir` devolvem `retry_pending` e o replay reconcilia). `fetchDpsStatus` com `200` sem `chaveAcesso` também lança `NetworkError`.
+- `fetchByChave`, `consultarDanfse` e o `NfseClientFake` aceitam, além do pattern de `TSChaveNFSe`, a chave na regra de formação de `TSIdNFSe` (CNPJ alfanumérico nas posições 10–23) — a chave real de um CNPJ alfanumérico com letra no 12º caractere não casa com `TSChaveNFSe`.
+- `verAplic` default: na 0.11 era `open-nfse/<versão>` literal; na 0.12 o pré-release convencional é compactado (`0.12.0-rc.1` → `open-nfse/0.12.0rc1`), cai para o prefixo `onfse/` quando não cabe nos 20 chars e, como último recurso, para `onfse#<hash>` (nunca trunca nem lança). Só importa se você lê o `verAplic` das notas emitidas.
+
+**`NfseClientFake` e `synthNfse`** (testes que afirmavam o comportamento antigo do fake podem quebrar):
+
+- Os guards offline do real rodam **antes** da falha programada, que não é consumida por eles nem pelo `dryRun`: os do `buildDps` em `emitir`, o DV de CPF/CNPJ em `emitirDpsPronta`/`emitirEmLote`/`substituir` (honrando `skipCpfCnpjValidation`), os de `cancelar` (motivo, `TSMotivo`, chave e `verAplic` do pedido) e os de `substituir` acima.
+- `substituir` com `failNextEmit({ kind: 'transient' })` devolve `retry_pending` (como o real) em vez de lançar `TimeoutError`; a original fica intacta.
+- As chaves sintetizadas seguem a regra de formação de `TSIdNFSe` a partir do `infDPS.Id` (`synthChaveAcesso(seq, cnpj, idDps?)`), então passam na E0042 ao serem substituídas.
+- `synthNfse` calcula `infNFSe.valores` pelas fórmulas do Anexo I (`vBC` com os ajustes da BC, `vISSQN = vBC × pAliq`, `vTotalRet`, e `vLiq` subtraindo ISSQN/PIS/COFINS **só quando retidos** — na 0.11 o ISSQN era sempre subtraído) e lança `InvalidLayoutError` para DPS sem `layout`.
+- Os resultados de emissão do fake são estreitados pelo layout como no real (`NfseClientFake<'nt009'>` / `NfseClientLike<'nt009'>` → `NfseNt009`).
 
 ## 7. Virada para o `nt009`: drenar o `RetryStore` {#virada-retrystore}
 
@@ -160,5 +180,6 @@ A mesma reconciliação vale fora da virada: um re-POST rejeitado com E0014 (sé
 **Mudanças no `ReplayItem` e na emissão (0.12):**
 
 - `success_emission` ganhou `reconciledFrom?` (a rejeição do re-POST, quando o item veio da reconciliação) e há o status novo `success_emission_unreadable`. Um `switch` exaustivo sobre `item.status` precisa do `case` novo.
-- Novo erro `UnreadableAuthorizedNfseError`: NFS-e **autorizada** cuja resposta a lib não conseguiu interpretar (parser ou NFS-e de outro layout que a DPS enviada). Carrega `chaveAcesso`/`idDps`/`xmlNfse` — persista e **não reemita**. Na 0.11 essa falha saía como um erro genérico, sem a chave. `emitir`/`emitirDpsPronta`/`substituir` lançam; `emitirEmLote` devolve o item `success_unreadable`; o replay, `success_emission_unreadable`.
+- Novo erro `UnreadableAuthorizedNfseError`: NFS-e **autorizada** cuja resposta a lib não conseguiu interpretar (parser ou NFS-e de outro layout que a DPS enviada). Carrega `chaveAcesso`/`idDps`/`xmlNfse` — persista e **não reemita**. Na 0.11 essa falha saía como um erro genérico, sem a chave. `emitir`/`emitirDpsPronta`/`substituir` lançam; `emitirEmLote` devolve o item `success_unreadable` (conta em `successCount` e não aborta o lote com `stopOnError`); o replay, `success_emission_unreadable`. Um `switch` exaustivo sobre `EmitLoteItem['status']` também precisa do `case` novo.
+- O replay não apaga mais uma emissão sem saber se a nota existe: só o `404` do `GET /dps/{id}` leva a `failed_permanent`; qualquer outra falha da consulta mantém a entrada (`still_pending`).
 - Resultados de emissão tipados pelo layout do cliente: em `NfseClient<'nt009'>`, `emitir`/`emitirDpsPronta`/`emitirEmLote`/`substituir` devolvem `NfseNt009` (`NfseEmitResult<L>`, `EmitirResult<L>`, `EmitLoteResult<L>`, `SubstituirResult<L>`; sem argumento, a união de antes). O `ReplayItem` segue com a união — o store pode ter pendentes de outro layout.
