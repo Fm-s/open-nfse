@@ -3,16 +3,22 @@ import { TipoAmbiente } from '../ambiente.js';
 import { StatusDistribuicao, TipoDocumento } from '../dfe/types.js';
 import { NotFoundError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
-import { InvalidLayoutError, LayoutMismatchError } from '../errors/validation.js';
+import {
+  InvalidLayoutError,
+  LayoutMismatchError,
+  RuleViolationError,
+} from '../errors/validation.js';
 import { dpsNt009Completa } from '../nfse/__fixtures__/dps-nt009.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { EmitirParams } from '../nfse/emit.js';
 import {
+  JustificativaCancelamento,
   JustificativaSubstituicao,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
 } from '../nfse/enums.js';
 import { NfseClientFake } from './nfse-client-fake.js';
+import { synthChaveAcesso } from './synth.js';
 
 function baseEmitirParams(): EmitirParams<'nt004'> & { dryRun?: false } {
   return {
@@ -167,8 +173,8 @@ describe('NfseClientFake.cancelar', () => {
     const r = await fake.cancelar({
       chaveAcesso: emitted.nfse.chaveAcesso,
       autor: { CNPJ: '00574753000100' },
-      cMotivo: '1' as never,
-      xMotivo: 'erro de teste',
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'Erro de teste na emissão',
     });
 
     expect(r.status).toBe('ok');
@@ -183,8 +189,8 @@ describe('NfseClientFake.cancelar', () => {
       fake.cancelar({
         chaveAcesso: '1'.repeat(50),
         autor: { CNPJ: '00574753000100' },
-        cMotivo: '1' as never,
-        xMotivo: 'x',
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo: 'Erro de teste na emissão',
       }),
     ).rejects.toBeInstanceOf(ReceitaRejectionError);
   });
@@ -329,7 +335,7 @@ describe('NfseClientFake — layout', () => {
     );
     await expect(
       fake.substituir({
-        chaveOriginal: '21113002200574753000100000000000146726037032711025',
+        chaveOriginal: synthChaveAcesso(1, '', base.infDPS.Id),
         novaDps: hibrida,
         cMotivo: JustificativaSubstituicao.Outros,
         xMotivo: 'Correção de valor do serviço',
@@ -348,5 +354,128 @@ describe('NfseClientFake — layout', () => {
     const r = await fake.emitir(baseEmitirParams());
     expect(r.status).toBe('retry_pending');
     if (r.status === 'retry_pending') expect(r.pending.layout).toBe('nt009');
+  });
+});
+
+describe('NfseClientFake — validações offline antes da falha programada (paridade com emitSeguro)', () => {
+  const comAjusteBC = () =>
+    ({ ...baseEmitirParams(), ajusteBC: { issqn: { valor: 400 } } }) as never;
+
+  it('rejection programada não mascara o guard de buildDps nem é consumida por ele', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'rejection', codigo: 'E1', descricao: 'x' });
+    // nt004 não aceita ajusteBC (nt009) — o real lança antes de qualquer POST.
+    await expect(fake.emitir(comAjusteBC())).rejects.toBeInstanceOf(LayoutMismatchError);
+    // A falha simula o POST; como nada foi "enviado", continua programada.
+    await expect(fake.emitir(baseEmitirParams())).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
+  it('transient programada: o guard lança antes de consumir a falha ou o sequencial', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'transient' });
+    await expect(fake.emitir(comAjusteBC())).rejects.toBeInstanceOf(LayoutMismatchError);
+    const r = await fake.emitir(baseEmitirParams());
+    expect(r.status).toBe('retry_pending');
+    if (r.status === 'retry_pending') expect(r.pending.nDPS).toBe('1');
+  });
+
+  it('dry-run não faz POST — não consome a falha programada', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'rejection', codigo: 'E1', descricao: 'x' });
+    const dry = await fake.emitir({ ...baseEmitirParams(), dryRun: true });
+    expect(dry.dryRun).toBe(true);
+    await expect(fake.emitir(baseEmitirParams())).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+});
+
+describe('NfseClientFake.cancelar / substituir — mesmos guards offline do real', () => {
+  const CHAVE = '21113002200574753000100000000000146726037032711025';
+  const autor = { CNPJ: '00574753000100' };
+
+  it('cancelar: cMotivo=9 sem xMotivo e xMotivo fora de TSMotivo lançam antes da falha programada', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextCancel({ kind: 'rejection', codigo: 'E1', descricao: 'x' });
+    await expect(
+      fake.cancelar({
+        chaveAcesso: CHAVE,
+        autor,
+        cMotivo: JustificativaCancelamento.Outros,
+        xMotivo: '  ',
+      }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'e101101/xMotivo' });
+    await expect(
+      fake.cancelar({
+        chaveAcesso: CHAVE,
+        autor,
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo: 'curto',
+      }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSMotivo' });
+    expect(fake.cancelledChaves).toEqual([]);
+    // A falha programada segue intacta para a próxima chamada válida.
+    await expect(
+      fake.cancelar({
+        chaveAcesso: CHAVE,
+        autor,
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo: 'Erro de teste na emissão',
+      }),
+    ).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
+  it('substituir: cMotivo=99 sem xMotivo (E0078) e xMotivo fora de TSMotivo lançam sem emitir', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const novaDps = buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '2' });
+    await expect(
+      fake.substituir({ chaveOriginal: CHAVE, novaDps, cMotivo: JustificativaSubstituicao.Outros }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'E0078' });
+    await expect(
+      fake.substituir({
+        chaveOriginal: CHAVE,
+        novaDps,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'curto',
+      }),
+    ).rejects.toBeInstanceOf(RuleViolationError);
+    expect(fake.emittedChaves).toEqual([]);
+    expect(fake.substituidas.size).toBe(0);
+  });
+
+  it.each(['nt004', 'nt009'] as const)(
+    'substituir (%s): a substituta carrega infDPS.subst com a chave original',
+    async (layout) => {
+      const fake = new NfseClientFake({ layout });
+      const novaDps =
+        layout === 'nt004'
+          ? buildDps({ ...baseEmitirParams(), layout, nDPS: '2' })
+          : dpsNt009Completa();
+      // E0042: a chave substituída é do mesmo emitente/município do Id da DPS.
+      const chaveOriginal = synthChaveAcesso(1, '', novaDps.infDPS.Id);
+      const r = await fake.substituir({
+        chaveOriginal,
+        novaDps: novaDps as never,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      });
+      if (r.status !== 'ok') throw new Error('esperava ok');
+      expect(r.novaNfse.nfse.infNFSe.DPS.infDPS.subst).toEqual({
+        chSubstda: chaveOriginal,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      });
+    },
+  );
+});
+
+describe('synthChaveAcesso com idDps', () => {
+  it('segue a regra de formação de TSIdNFSe a partir do Id da DPS (E0042)', () => {
+    const idDps = 'DPS211130020057475300010000001000000000000002';
+    const chave = synthChaveAcesso(7, '', idDps);
+    expect(chave).toMatch(/^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/);
+    expect(chave.slice(0, 7)).toBe('2111300'); // Cód.Mun.
+    expect(chave.slice(7, 8)).toBe('2'); // Amb.Ger. = Sefin Nacional
+    expect(chave.slice(8, 9)).toBe('2'); // Tipo de Inscrição
+    expect(chave.slice(9, 23)).toBe('00574753000100'); // Inscrição
+    expect(synthChaveAcesso(8, '', idDps)).not.toBe(chave);
   });
 });

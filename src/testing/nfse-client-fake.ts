@@ -5,11 +5,13 @@ import type { NsuQueryResult } from '../dfe/types.js';
 import { StatusDistribuicao } from '../dfe/types.js';
 import { TimeoutError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
-import type {
-  CancelarParams,
-  CancelarResult,
-  SubstituirParams,
-  SubstituirResult,
+import {
+  type CancelarParams,
+  type CancelarResult,
+  prepararSubstituicao,
+  type SubstituirParams,
+  type SubstituirResult,
+  validarCancelamento,
 } from '../eventos/cancelar.js';
 import type { EventoResult } from '../eventos/post-evento.js';
 import {
@@ -63,9 +65,11 @@ const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
  *  - Mantém estado in-memory (emitidas, canceladas, substituídas, parâmetros).
  *  - Oferece API de seed (`fake.seed.*`) e simulação de falhas
  *    (`fake.failNextEmit`, `fake.failNextCancel`).
- *  - **Executa as mesmas validações offline** (CPF/CNPJ, XSD, CEP) que o real
- *    quando `skipValidation` etc. não são passados — assim o consumidor testa
- *    o caminho de validação sem mock adicional.
+ *  - **Executa os mesmos guards offline** do real — os de `buildDps`
+ *    (CPF/CNPJ, regras de negócio, layout) em `emitir` e os de
+ *    `cancelar`/`substituir` (motivo, `TSMotivo`, E0078) — antes de consumir a
+ *    falha programada (que simula o POST), assim o consumidor testa o caminho
+ *    de validação sem mock adicional. Não roda a validação XSD nem a de CEP.
  *
  * Estrutural-compatível com `NfseClient` — se você tipar suas dependências
  * como `NfseClientLike`, pode injetar qualquer um.
@@ -188,18 +192,21 @@ export class NfseClientFake<L extends Layout = Layout> {
   async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
   async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
     assertParamsLayout(this.layout, params);
-    const failure = this.consumeFailure('emit');
+    // Como o emitSeguro: monta (e valida) a DPS com o nDPS placeholder/explícito
+    // antes de tocar no sequencial ou na falha programada — esta simula o POST,
+    // então guard offline (ex.: LayoutMismatchError, regras de buildDps) e
+    // dry-run não a consomem.
+    const dpsValidada = this.montarDps(params, params.nDPS ?? '1');
 
     if (params.dryRun) {
-      const nDPS = params.nDPS ?? '1';
-      const dps = this.montarDps(params, nDPS);
       return {
         dryRun: true,
-        xmlDpsAssinado: `<?xml version="1.0"?><DPS versao="1.01"><infDPS Id="${dps.infDPS.Id}"/></DPS>`,
+        xmlDpsAssinado: `<?xml version="1.0"?><DPS versao="1.01"><infDPS Id="${dpsValidada.infDPS.Id}"/></DPS>`,
         xmlDpsGZipB64: 'FAKE_GZIP_B64',
       };
     }
 
+    const failure = this.consumeFailure('emit');
     if (failure?.kind === 'rejection') {
       throw new ReceitaRejectionError({
         mensagens: [
@@ -242,7 +249,7 @@ export class NfseClientFake<L extends Layout = Layout> {
       return { status: 'retry_pending', pending, error };
     }
 
-    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, params.emitente.cnpj);
+    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, params.emitente.cnpj, idDps);
     const nfse = synthNfse(dps, chaveAcesso, this.ambiente);
     const result: NfseEmitResult = {
       chaveAcesso,
@@ -300,7 +307,7 @@ export class NfseClientFake<L extends Layout = Layout> {
       'CNPJ' in dps.infDPS.prest.identificador
         ? dps.infDPS.prest.identificador.CNPJ
         : '00000000000000';
-    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, cnpj);
+    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, cnpj, dps.infDPS.Id);
     const nfse = synthNfse(dps, chaveAcesso, this.ambiente);
     const result: NfseEmitResult = {
       chaveAcesso,
@@ -347,6 +354,8 @@ export class NfseClientFake<L extends Layout = Layout> {
   // -------------------------------------------------------------------------
 
   async cancelar(params: CancelarParams): Promise<CancelarResult> {
+    // Mesmos guards offline do real, antes da falha programada (que simula o POST).
+    validarCancelamento(params);
     const failure = this.consumeFailure('cancel');
     if (failure?.kind === 'rejection') {
       throw new ReceitaRejectionError({
@@ -374,7 +383,10 @@ export class NfseClientFake<L extends Layout = Layout> {
 
   async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
     assertSameLayout(this.layout, params.novaDps);
-    const novaNfse = await this.emitirDpsPronta(params.novaDps);
+    // Mesmos guards do real (E0078, TSMotivo) + `infDPS.subst` auto-preenchido.
+    // O layout é preservado, então a DPS continua sendo do layout `L`.
+    const novaDps = prepararSubstituicao(params) as DpsFor<L>;
+    const novaNfse = await this.emitirDpsPronta(novaDps);
     this.state.substituted.set(params.chaveOriginal, novaNfse.chaveAcesso);
     // Modela o sistema gerando o evento 105102 (autor=MEmis) que cancela a
     // original — o contribuinte não posta esse evento.

@@ -68,18 +68,7 @@ export async function cancelar(
 ): Promise<CancelarResult> {
   // Chamador JS: layout desconhecido não vai parar no PendingEvent.
   if (layout !== undefined) assertLayout(layout);
-  // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
-  // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
-  // deste evento — o campo aqui é evento/.../e101101/xMotivo.)
-  if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
-    throw new RuleViolationError(
-      'cMotivo=9 (Outros) exige xMotivo não-vazio (evento 101101)',
-      'e101101/xMotivo',
-    );
-  }
-  // TSMotivo (tiposSimples_v1.01.xsd:355) — minLength 15, maxLength 255.
-  // xMotivo é required em CancelarParams, então sempre checa.
-  validarTSMotivo(params.xMotivo);
+  validarCancelamento(params);
 
   const isTransient = params.isTransient ?? defaultIsTransient;
 
@@ -197,31 +186,7 @@ export async function substituir<L extends Layout = Layout>(
 ): Promise<SubstituirResult<L>> {
   // Chamador JS: layout desconhecido → InvalidLayoutError (não um LayoutMismatchError enganoso).
   if (layout !== undefined) assertLayout(layout);
-  // O <subst> efetivamente enviado: o da DPS (se presente, precisa concordar com
-  // os params) ou o montado a partir dos params. Os guards abaixo rodam sobre ele.
-  const subst = resolverSubst(params);
-
-  // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
-  // round-trip + queima de nDPS num emit que seria rejeitado.
-  if (subst.cMotivo === JustificativaSubstituicao.Outros && !subst.xMotivo?.trim()) {
-    throw new RuleViolationError(
-      'cMotivo=99 (Outros) exige xMotivo não-vazio — per E0078',
-      'E0078',
-    );
-  }
-  // TSMotivo — 15 a 255 chars + pattern TSString quando presente (xMotivo é
-  // opcional em subst).
-  if (subst.xMotivo !== undefined) {
-    validarTSMotivo(subst.xMotivo);
-  }
-  // TSChaveNFSe — chSubstda precisa ter a forma da chave antes de comparar
-  // posições (chamador JS sem chaveOriginal, chave truncada etc.).
-  assertChSubstdaTSChaveNFSe(subst.chSubstda);
-  // Rule E0042 — Cód.Mun./Tipo de Inscrição/Inscrição da chave substituída
-  // devem corresponder exatamente aos do Id desta DPS.
-  assertChSubstdaCorrespondeAoIdDps(subst.chSubstda, params.novaDps.infDPS.Id);
-
-  const dpsComSubst = comSubst(params.novaDps, subst);
+  const dpsComSubst = prepararSubstituicao(params);
 
   // Único write do contribuinte: a DPS com <subst> via POST /nfse. O Sistema
   // Nacional NFS-e gera, de forma atômica com a emissão, o evento 105102
@@ -262,6 +227,58 @@ export async function substituir<L extends Layout = Layout>(
 // -----------------------------------------------------------------------------
 // helpers
 // -----------------------------------------------------------------------------
+
+/**
+ * Validações offline do evento 101101, rodadas antes de assinar/enviar.
+ * Exportada (interna à lib) para o `NfseClientFake` reaproveitar os mesmos guards.
+ */
+export function validarCancelamento(params: CancelarParams): void {
+  // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
+  // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
+  // deste evento — o campo aqui é evento/.../e101101/xMotivo.)
+  if (params.cMotivo === JustificativaCancelamento.Outros && !params.xMotivo?.trim()) {
+    throw new RuleViolationError(
+      'cMotivo=9 (Outros) exige xMotivo não-vazio (evento 101101)',
+      'e101101/xMotivo',
+    );
+  }
+  // TSMotivo (tiposSimples_v1.01.xsd:355) — minLength 15, maxLength 255.
+  // xMotivo é required em CancelarParams, então sempre checa.
+  validarTSMotivo(params.xMotivo);
+}
+
+/**
+ * Validações offline da substituição + DPS substituta com o `<subst>` que será
+ * enviado. Exportada (interna à lib) para o `NfseClientFake` reaproveitar os
+ * mesmos guards.
+ */
+export function prepararSubstituicao<L extends Layout>(params: SubstituirParams<L>): DPS {
+  // O <subst> efetivamente enviado: o da DPS (se presente, precisa concordar com
+  // os params) ou o montado a partir dos params. Os guards abaixo rodam sobre ele.
+  const subst = resolverSubst(params);
+
+  // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
+  // round-trip + queima de nDPS num emit que seria rejeitado.
+  if (subst.cMotivo === JustificativaSubstituicao.Outros && !subst.xMotivo?.trim()) {
+    throw new RuleViolationError(
+      'cMotivo=99 (Outros) exige xMotivo não-vazio — per E0078',
+      'E0078',
+    );
+  }
+  // TSMotivo — 15 a 255 chars + pattern TSString quando presente (xMotivo é
+  // opcional em subst).
+  if (subst.xMotivo !== undefined) {
+    validarTSMotivo(subst.xMotivo);
+  }
+  // TSChaveNFSe — chSubstda precisa ter a forma da chave antes de comparar
+  // posições (chamador JS sem chaveOriginal, chave truncada etc.).
+  assertChSubstdaTSChaveNFSe(subst.chSubstda);
+  // Rule E0042 — Cód.Mun./Tipo de Inscrição/Inscrição da chave substituída
+  // devem corresponder exatamente aos do Id desta DPS.
+  assertChSubstdaCorrespondeAoIdDps(subst.chSubstda, params.novaDps.infDPS.Id);
+
+  return comSubst(params.novaDps, subst);
+}
 
 /**
  * Resolve o `<subst>` que será enviado. Sem `infDPS.subst` na DPS, monta-o dos
