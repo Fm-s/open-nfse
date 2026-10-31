@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] — 2026-10-31
+
+Patch de segurança de dependências de runtime. Sem mudança de API.
+
+### Security
+
+- **`undici` 8.10.0 → 8.12.3** (piso do `package.json` sobe para `^8.12.3`). Corrige 22 advisories, entre eles bypass de validação de certificado TLS quando opções `tls` são passadas ao `Agent` (GHSA-2m5v-pch6-74hx), cache poisoning e vários DoS em descompressão/WebSocket. A lib passa o certificado mTLS via `connect` (não `tls`), então o bypass não se aplicava ao uso interno — mas consumidores que injetam o próprio `dispatcher` podem ser afetados.
+- **`node-forge` 1.4.0 → 1.4.2** (piso sobe para `^1.4.2`). Corrige 12 advisories, entre eles a falsificação do MAC de PKCS#12 com contagem de iterações zero (GHSA-jc66-7q78-782g): um PFX forjado "abria" com qualquer senha em `pkcs12FromAsn1`, usado no carregamento do certificado A1. Relevante para aplicações que aceitam upload de certificado de terceiros.
+- Dev: `vitest`/`@vitest/coverage-v8` 4.1.12 e `npm audit fix` em dependências transitivas de build/docs. Restam advisories só de dev na cadeia `vitepress` 1.x (`vite`/`esbuild`, correção apenas no vitepress 2) e `typedoc` → `minimatch` (sem correção publicada).
+
 ## [0.11.0] — 2026-08-24
 
 Adoção do bundle XSD oficial **`esquemas-nfse-rtc-v1-01-20260727`** (CNPJ alfanumérico), em produção na SEFIN Nacional desde **10/08/2026** conforme o log oficial de Atualizações e Implantações do portal gov.br/nfse. Mesma versão de leiaute (RTC v1.01); mudam apenas patterns de tipos simples.
