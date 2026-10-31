@@ -64,6 +64,7 @@ export {
   InvalidDpsIdError,
   InvalidLayoutError,
   InvalidXmlError,
+  LayoutMismatchError,
   RuleViolationError,
   ValidationError,
   XsdValidationError,
@@ -110,6 +111,10 @@ export type { LogContext, Logger } from './logging.js';
 export { noopLogger } from './logging.js';
 export type {
   BuildDpsParams,
+  BuildDpsParamsBase,
+  BuildDpsParamsFor,
+  BuildDpsParamsNt004,
+  BuildDpsParamsNt009,
   EmitenteInput,
   EnderecoBr,
   RegimeTributario,

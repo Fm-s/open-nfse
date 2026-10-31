@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { InvalidCnpjError, RuleViolationError } from '../errors/validation.js';
-import { type BuildDpsParams, buildDps } from './build-dps.js';
+import { InvalidCnpjError, InvalidLayoutError, RuleViolationError } from '../errors/validation.js';
+import { type BuildDpsParamsNt004, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import {
+  FinalidadeNFSe,
   IndicadorTotalTributos,
   OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
@@ -13,8 +14,9 @@ import {
 } from './enums.js';
 import { validateDpsXml } from './validate-xml.js';
 
-function baseParams(): BuildDpsParams {
+function baseParams(): BuildDpsParamsNt004 {
   return {
+    layout: 'nt004',
     emitente: {
       cnpj: '00574753000100',
       codMunicipio: '2111300',
@@ -479,5 +481,27 @@ describe('buildDps — incidência por serviço (E0532)', () => {
         valores: { ...baseParams().valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
       }),
     ).not.toThrow();
+  });
+});
+
+describe('buildDps — layout', () => {
+  it("layout 'nt009' produz InfDPSNt009 com finNFSe Regular e XML válido no XSD nt009", async () => {
+    const dps = buildDps({ ...baseParams(), layout: 'nt009' });
+    expect(dps.layout).toBe('nt009');
+    expect(dps.versao).toBe('1.01');
+    expect(dps.infDPS.finNFSe).toBe(FinalidadeNFSe.Regular);
+    const xml = buildDpsXml(dps);
+    expect(xml).toContain('<finNFSe>0</finNFSe>');
+    await expect(validateDpsXml(xml, { layout: 'nt009' })).resolves.toBeUndefined();
+  });
+
+  it("layout 'nt004' não carrega finNFSe", () => {
+    const dps = buildDps(baseParams());
+    expect(dps.layout).toBe('nt004');
+    expect('finNFSe' in dps.infDPS).toBe(false);
+  });
+
+  it.each([undefined, 'NT004', 'nt010'])('layout %s → InvalidLayoutError', (layout) => {
+    expect(() => buildDps({ ...baseParams(), layout } as never)).toThrow(InvalidLayoutError);
   });
 });

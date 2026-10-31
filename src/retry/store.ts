@@ -1,4 +1,5 @@
 import { ValidationError } from '../errors/validation.js';
+import type { Layout } from '../nfse/layout.js';
 
 /** Tipo do item pendente — roteia o replay pro endpoint certo. */
 export type PendingEventKind =
@@ -10,6 +11,12 @@ export type PendingEventKind =
 interface PendingBase {
   /** Chave estável de deduplicação no store. */
   readonly id: string;
+  /**
+   * Layout do documento/cliente que gerou o pendente. Preenchido nas entradas
+   * novas; **ausente** em entradas persistidas antes do suporte a layouts
+   * (≤ 0.11) — o replay não depende dele (re-POSTa o XML assinado como está).
+   */
+  readonly layout?: Layout;
   /**
    * XML **assinado** (XMLDSig) pronto para re-POST sem re-assinatura.
    * `replayPendingEvents` envia este XML diretamente ao SEFIN; persistir

@@ -17,11 +17,12 @@ import {
   type RetryStore,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
-import { type BuildDpsParams, buildDps } from './build-dps.js';
+import { type BuildDpsParams, type BuildDpsParamsFor, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, NFSe } from './domain.js';
 import { type DpsCounter, MissingDpsCounterError } from './dps-counter.js';
+import { assertSameLayout, type Layout } from './layout.js';
 import { parseNfseXml } from './parse-xml.js';
 import { signDpsXml } from './sign-xml.js';
 import { validateDpsXml } from './validate-xml.js';
@@ -106,25 +107,32 @@ type SefinPostBody = SefinPostSuccessBody | SefinPostErrorBody;
  * viram exceção.
  *
  * O caminho padrão é `emitSeguro` / `NfseClient.emitir(params)`.
+ *
+ * `expectedLayout` (passado pelo `NfseClient`) rejeita com
+ * `LayoutMismatchError` uma DPS de outro layout antes de qualquer trabalho.
  */
 export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
   options: EmitOptions & { dryRun: true },
+  expectedLayout?: Layout,
 ): Promise<DpsDryRunResult>;
 export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
   options?: EmitOptions & { dryRun?: false },
+  expectedLayout?: Layout,
 ): Promise<NfseEmitResult>;
 export async function emitDpsPronta(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dps: DPS,
   options?: EmitOptions,
+  expectedLayout?: Layout,
 ): Promise<NfseEmitResult | DpsDryRunResult> {
+  if (expectedLayout !== undefined) assertSameLayout(expectedLayout, dps);
   // Pré-validações, em ordem de custo crescente: primeiro as sync baratas
   // (CPF/CNPJ DV), depois as locais pesadas (XSD contra a RTC v1.01), por
   // último o lookup externo de CEP — que pode bater em viacep.com.br.
@@ -169,9 +177,12 @@ export async function emitDpsProntaSeguro(
     readonly retryStore: RetryStore | undefined;
     readonly retryPolicy: RetryPolicy;
     readonly isTransient?: (err: unknown) => boolean;
+    /** Layout do cliente: DPS de outro layout → `LayoutMismatchError` antes de qualquer trabalho. */
+    readonly expectedLayout?: Layout;
   },
   options?: Omit<EmitOptions, 'dryRun'>,
 ): Promise<EmitirResult> {
+  if (deps.expectedLayout !== undefined) assertSameLayout(deps.expectedLayout, dps);
   const isTransient = deps.isTransient ?? defaultIsTransient;
 
   if (!options?.skipCpfCnpjValidation) {
@@ -207,6 +218,7 @@ export async function emitDpsProntaSeguro(
       const pending: PendingEmission = {
         id: pendingEmissionId(dps.infDPS.Id),
         kind: 'emission',
+        layout: dps.layout,
         idDps: dps.infDPS.Id,
         emitenteCnpj: 'CNPJ' in ident ? ident.CNPJ : '',
         serie: dps.infDPS.serie,
@@ -311,12 +323,21 @@ export interface EmitLoteResult {
 
 const DEFAULT_CONCURRENCY = 4;
 
+/**
+ * `expectedLayout` (passado pelo `NfseClient`) checa **o lote inteiro** antes
+ * do primeiro envio: um único item de outro layout rejeita tudo com
+ * `LayoutMismatchError`.
+ */
 export async function emitMany(
   httpClient: HttpClient,
   certificate: A1Certificate,
   dpsList: readonly DPS[],
   options?: EmitLoteOptions,
+  expectedLayout?: Layout,
 ): Promise<EmitLoteResult> {
+  if (expectedLayout !== undefined) {
+    for (const dps of dpsList) assertSameLayout(expectedLayout, dps);
+  }
   const concurrency = Math.max(1, Math.floor(options?.concurrency ?? DEFAULT_CONCURRENCY));
   const stopOnError = options?.stopOnError ?? false;
   const perEmitOptions: EmitOptions & { dryRun: false } = {
@@ -405,23 +426,28 @@ async function getDefaultCepValidator(): Promise<CepValidator> {
 
 /**
  * Parâmetros de alto nível para `emitSeguro`. Equivalente a `BuildDpsParams`
- * sem o campo `nDPS` (fornecido pelo `DpsCounter`), mais os flags de emissão.
+ * do layout `L` sem `nDPS` (fornecido pelo `DpsCounter`) e sem `layout`
+ * (vem do cliente), mais os flags de emissão.
  *
  * Passe `nDPS` explícito para override manual (útil para `dryRun` sem queimar
  * um número ou replay determinístico em testes).
  */
-export interface EmitirParams extends Omit<BuildDpsParams, 'nDPS'>, EmitOptions {
-  /**
-   * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
-   * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
-   * um número do counter à toa).
-   *
-   * **Não preencher com zeros à esquerda** — o `Id` da DPS é composto a partir
-   * desta string, então `'1'` e `'00001'` produzem `Id`s distintos para o mesmo
-   * número sequencial.
-   */
-  readonly nDPS?: string;
-}
+export type EmitirParams<L extends Layout = Layout> = Omit<
+  BuildDpsParamsFor<L>,
+  'nDPS' | 'layout'
+> &
+  EmitOptions & {
+    /**
+     * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
+     * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
+     * um número do counter à toa).
+     *
+     * **Não preencher com zeros à esquerda** — o `Id` da DPS é composto a partir
+     * desta string, então `'1'` e `'00001'` produzem `Id`s distintos para o mesmo
+     * número sequencial.
+     */
+    readonly nDPS?: string;
+  };
 
 /**
  * Resultado discriminado de `emitSeguro`.
@@ -451,16 +477,21 @@ interface EmitSeguroDeps {
   readonly isTransient?: (err: unknown) => boolean;
 }
 
-export async function emitSeguro(
-  deps: EmitSeguroDeps,
-  params: EmitirParams,
+/**
+ * O layout da DPS vem de `deps.layout` (o do cliente) — `params` não o carrega.
+ */
+export async function emitSeguro<L extends Layout>(
+  deps: EmitSeguroDeps & { readonly layout: L },
+  params: EmitirParams<L>,
 ): Promise<EmitirResult | DpsDryRunResult> {
   const isTransient = deps.isTransient ?? defaultIsTransient;
+  const montarDps = (nDPS: string): DPS =>
+    buildDps({ ...params, layout: deps.layout, nDPS } as BuildDpsParams);
 
   // 1. Monta DPS com nDPS placeholder para validação (XSD não distingue
   //    valor específico — só valida contra pattern [1-9][0-9]{0,14}).
   const placeholderOrExplicit = params.nDPS ?? '1';
-  const dpsParaValidar = buildDps({ ...params, nDPS: placeholderOrExplicit });
+  const dpsParaValidar = montarDps(placeholderOrExplicit);
 
   // 2. Validações offline. Ordem: CPF/CNPJ (sync) → XSD (WASM) → CEP (HTTP).
   if (!params.skipCpfCnpjValidation) {
@@ -495,7 +526,7 @@ export async function emitSeguro(
 
   // 5. Rebuild com nDPS real + sign. Não re-valido XSD — estrutura é
   //    idêntica, só o valor numérico mudou (e já sabemos que bate no pattern).
-  const dpsReal = buildDps({ ...params, nDPS: nDpsReal });
+  const dpsReal = montarDps(nDpsReal);
   const xmlUnsigned = buildDpsXml(dpsReal);
   const xmlSigned = signDpsXml(xmlUnsigned, deps.certificate);
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
@@ -522,6 +553,7 @@ export async function emitSeguro(
       const pending: PendingEmission = {
         id: pendingEmissionId(dpsReal.infDPS.Id),
         kind: 'emission',
+        layout: dpsReal.layout,
         idDps: dpsReal.infDPS.Id,
         emitenteCnpj: params.emitente.cnpj,
         serie: params.serie,

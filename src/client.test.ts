@@ -3,13 +3,26 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import forge from 'node-forge';
 import { MockAgent } from 'undici';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente, TipoAmbiente } from './ambiente.js';
 import { ClientClosedError, NfseClient } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
 import { ForbiddenError } from './errors/http.js';
-import { InvalidChaveAcessoError } from './errors/validation.js';
+import {
+  InvalidChaveAcessoError,
+  InvalidLayoutError,
+  LayoutMismatchError,
+} from './errors/validation.js';
 import { gzipBase64Encode } from './http/encoding.js';
+import { dpsNt009Completa } from './nfse/__fixtures__/dps-nt009.js';
+import { buildDps } from './nfse/build-dps.js';
+import { buildDpsXml } from './nfse/build-xml.js';
+import { createInMemoryDpsCounter } from './nfse/dps-counter.js';
+import {
+  JustificativaSubstituicao,
+  OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
+} from './nfse/enums.js';
 import { parseNfseXml } from './nfse/parse-xml.js';
 import { createInMemoryRetryStore } from './retry/store.js';
 
@@ -59,6 +72,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -85,6 +99,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -112,6 +127,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -138,6 +154,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.Producao,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -170,6 +187,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -211,7 +229,7 @@ describe('NfseClient', () => {
           },
         },
       },
-    } as Parameters<NfseClient['emitirDpsPronta']>[0];
+    } as Parameters<NfseClient<'nt004'>['emitirDpsPronta']>[0];
 
     mockAgent
       .get('https://sefin.producaorestrita.nfse.gov.br')
@@ -226,6 +244,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -268,9 +287,10 @@ describe('NfseClient', () => {
           },
         },
       },
-    } as Parameters<NfseClient['emitirDpsPronta']>[0];
+    } as Parameters<NfseClient<'nt004'>['emitirDpsPronta']>[0];
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -285,6 +305,7 @@ describe('NfseClient', () => {
 
   it('does not close an injected dispatcher on close()', async () => {
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -309,6 +330,7 @@ describe('NfseClient', () => {
 
   it('close() is idempotent — second call is a no-op', async () => {
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -319,6 +341,7 @@ describe('NfseClient', () => {
 
   it('rejects any call after close() with ClientClosedError', async () => {
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -345,6 +368,7 @@ describe('NfseClient', () => {
     }
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -362,6 +386,7 @@ describe('NfseClient', () => {
 
   it('consultarDanfse rejects chaves fora do pattern sem tocar a rede', async () => {
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -382,6 +407,7 @@ describe('NfseClient', () => {
       .reply(503, 'service unavailable');
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -407,6 +433,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -419,6 +446,7 @@ describe('NfseClient', () => {
 
   it('fetchDpsStatus rejeita idDps malformado sem tocar a rede', async () => {
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -436,6 +464,7 @@ describe('NfseClient', () => {
       });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -458,6 +487,7 @@ describe('NfseClient', () => {
 
     const warns: string[] = [];
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -482,6 +512,7 @@ describe('NfseClient', () => {
       .reply(403, 'cnpj sem acesso');
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -513,6 +544,7 @@ describe('NfseClient', () => {
     });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -561,6 +593,7 @@ describe('NfseClient', () => {
     });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -607,6 +640,7 @@ describe('NfseClient', () => {
     });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -661,6 +695,7 @@ describe('NfseClient', () => {
     });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -721,6 +756,7 @@ describe('NfseClient', () => {
     };
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -783,6 +819,7 @@ describe('NfseClient', () => {
     };
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -852,6 +889,7 @@ describe('NfseClient', () => {
     });
 
     const client = new NfseClient({
+      layout: 'nt004',
       ambiente: Ambiente.ProducaoRestrita,
       certificado: { pfx, password: senha },
       dispatcher: mockAgent,
@@ -879,5 +917,183 @@ describe('NfseClient', () => {
     expect(warnings.some((w) => /sem XMLDSig.*re-assinando/.test(w.message))).toBe(true);
 
     await client.close();
+  });
+});
+
+describe('NfseClient — layout', () => {
+  const senha = 'senha';
+  let pfx: Buffer;
+  let mockAgent: MockAgent;
+
+  beforeAll(() => {
+    pfx = gerarPfxTeste(senha);
+  });
+  beforeEach(() => {
+    mockAgent = new MockAgent();
+    mockAgent.disableNetConnect();
+  });
+  afterEach(async () => {
+    await mockAgent.close();
+  });
+
+  const baseConfig = () => ({
+    ambiente: Ambiente.ProducaoRestrita,
+    certificado: { pfx, password: senha },
+    dispatcher: mockAgent,
+  });
+
+  const paramsSemLayout = {
+    emitente: {
+      cnpj: '00574753000100',
+      codMunicipio: '2111300',
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.NaoOptante,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
+      },
+    },
+    serie: '1',
+    servico: { cTribNac: '250101', cNBS: '123456789', descricao: 'Teste' },
+    valores: { vServ: 100, pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
+    skipCepValidation: true,
+  } as const;
+  const paramsBase = { ...paramsSemLayout, nDPS: '1' } as const;
+
+  it.each([undefined, 'NT009', 'nt010'])(
+    'construtor rejeita layout %s com InvalidLayoutError',
+    (layout) => {
+      expect(() => new NfseClient({ ...baseConfig(), layout } as never)).toThrow(
+        InvalidLayoutError,
+      );
+    },
+  );
+
+  it('expõe o layout configurado', () => {
+    expect(new NfseClient({ ...baseConfig(), layout: 'nt009' }).layout).toBe('nt009');
+  });
+
+  it('emitirDpsPronta com DPS de outro layout lança LayoutMismatchError sem consumir contador nem enviar', async () => {
+    const counter = createInMemoryDpsCounter();
+    const next = vi.spyOn(counter, 'next');
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    const client = new NfseClient({ ...baseConfig(), layout: 'nt009', dpsCounter: counter });
+    const dpsNt004 = buildDps({ ...paramsBase, layout: 'nt004' });
+    const err = await client.emitirDpsPronta(dpsNt004 as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LayoutMismatchError);
+    expect(err).toMatchObject({ expected: 'nt009', received: 'nt004' });
+    expect(next).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
+    await client.close();
+  });
+
+  it('emitirEmLote com um item de outro layout rejeita o lote inteiro antes do primeiro envio', async () => {
+    const counter = createInMemoryDpsCounter();
+    const next = vi.spyOn(counter, 'next');
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    const client = new NfseClient({ ...baseConfig(), layout: 'nt009', dpsCounter: counter });
+    const lote = [
+      buildDps({ ...paramsBase, layout: 'nt009' }),
+      buildDps({ ...paramsBase, nDPS: '2', layout: 'nt004' }),
+    ];
+    await expect(client.emitirEmLote(lote as never)).rejects.toBeInstanceOf(LayoutMismatchError);
+    expect(next).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
+    await client.close();
+  });
+
+  it('substituir com novaDps de outro layout lança LayoutMismatchError sem enviar', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    const client = new NfseClient({ ...baseConfig(), layout: 'nt004' });
+    await expect(
+      client.substituir({
+        chaveOriginal: CHAVE,
+        novaDps: buildDps({ ...paramsBase, layout: 'nt009' }) as never,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Substituição por erro de digitação',
+      }),
+    ).rejects.toBeInstanceOf(LayoutMismatchError);
+    expect(dispatch).not.toHaveBeenCalled();
+    await client.close();
+  });
+
+  it('replay aceita PendingEmission legado sem campo layout', async () => {
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: 'v',
+        dataHoraProcessamento: '2026-05-12T10:00:00-03:00',
+        idDps: 'legacy-id',
+        chaveAcesso: CHAVE,
+        nfseXmlGZipB64: gzipBase64Encode(XML_SAMPLE),
+      });
+    const store = createInMemoryRetryStore();
+    // Formato 0.11: sem `layout`.
+    await store.save({
+      id: 'emission:legacy-id',
+      kind: 'emission',
+      idDps: 'legacy-id',
+      emitenteCnpj: '00574753000100',
+      serie: '1',
+      nDPS: '1',
+      xmlAssinado:
+        '<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="legacy-id"/></DPS>',
+      firstAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastAttemptAt: new Date('2026-05-12T09:00:00Z'),
+      lastError: { message: '500', errorName: 'ServerError', transient: true },
+    });
+    const client = new NfseClient({ ...baseConfig(), layout: 'nt009', retryStore: store });
+    const results = await client.replayPendingEvents();
+    expect(results.map((r) => r.status)).toEqual(['success_emission']);
+    expect(await store.list()).toHaveLength(0);
+    await client.close();
+  });
+
+  it('emitir persiste layout no PendingEmission em falha transiente', async () => {
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(503, {});
+    const store = createInMemoryRetryStore();
+    const client = new NfseClient({
+      ...baseConfig(),
+      layout: 'nt009',
+      retryStore: store,
+      dpsCounter: createInMemoryDpsCounter(),
+    });
+    const r = await client.emitir(paramsSemLayout);
+    expect(r.status).toBe('retry_pending');
+    const [entry] = await store.list();
+    expect(entry?.layout).toBe('nt009');
+    await client.close();
+  });
+
+  it('DPS nt009 com campo do nt004 (vDedRed) é rejeitada com LayoutMismatchError e field', () => {
+    const dpsNt009 = dpsNt009Completa();
+    const dps = {
+      ...dpsNt009,
+      infDPS: {
+        ...dpsNt009.infDPS,
+        valores: { ...dpsNt009.infDPS.valores, vDedRed: { pDR: 1 } },
+      },
+    } as never;
+    expect(() => buildDpsXml(dps)).toThrow(LayoutMismatchError);
+    expect(() => buildDpsXml(dps)).toThrow(
+      expect.objectContaining({ field: 'infDPS.valores.vDedRed' }),
+    );
+  });
+
+  it('emitir no client nt009 produz DPS com finNFSe', async () => {
+    const clientNt009 = new NfseClient({ ...baseConfig(), layout: 'nt009' });
+    const r = await clientNt009.emitir({ ...paramsBase, dryRun: true });
+    expect(r.xmlDpsAssinado).toContain('<finNFSe>0</finNFSe>');
+    await clientNt009.close();
+  });
+
+  it('emitir no client nt004 não produz finNFSe', async () => {
+    const clientNt004 = new NfseClient({ ...baseConfig(), layout: 'nt004' });
+    const r = await clientNt004.emitir({ ...paramsBase, dryRun: true });
+    expect(r.xmlDpsAssinado).not.toContain('finNFSe');
+    await clientNt004.close();
   });
 });

@@ -1,3 +1,4 @@
+import type { Layout } from '../nfse/layout.js';
 import { OpenNfseError } from './base.js';
 
 export abstract class ValidationError extends OpenNfseError {}
@@ -119,5 +120,28 @@ export class InvalidLayoutError extends ValidationError {
     super(
       `layout inválido: ${JSON.stringify(received) ?? String(received)} (valores válidos: "nt004", "nt009")`,
     );
+  }
+}
+
+/**
+ * DPS de um layout entregue a um cliente configurado para outro, ou DPS que
+ * carrega um campo exclusivo do outro layout (`field` preenchido — caminho do
+ * campo, ex.: `infDPS.valores.vDedRed`; nesse caso `expected === received`).
+ * Lançada antes de qualquer consumo de `nDPS` ou envio à rede.
+ */
+export class LayoutMismatchError extends ValidationError {
+  readonly expected: Layout;
+  readonly received: Layout;
+  readonly field?: string;
+
+  constructor(expected: Layout, received: Layout, field?: string) {
+    super(
+      field !== undefined
+        ? `DPS do layout "${received}" contém o campo ${field}, que não existe nesse layout`
+        : `DPS do layout "${received}" não é aceita por um cliente configurado com layout "${expected}"`,
+    );
+    this.expected = expected;
+    this.received = received;
+    if (field !== undefined) this.field = field;
   }
 }

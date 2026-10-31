@@ -7,9 +7,10 @@ import { TipoAmbiente } from '../ambiente.js';
 import type { CepInfo, CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
-import { InvalidCepError, InvalidCnpjError } from '../errors/validation.js';
+import { InvalidCepError, InvalidCnpjError, LayoutMismatchError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
+import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
 import { emitDpsPronta, emitMany } from './emit.js';
 
@@ -88,6 +89,14 @@ describe('emit', () => {
 
   afterEach(async () => {
     await mockAgent.close();
+  });
+
+  it('expectedLayout diferente do da DPS → LayoutMismatchError antes de qualquer trabalho', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    await expect(
+      emitDpsPronta(httpClient, cert, minimalDps(), { dryRun: true }, 'nt009'),
+    ).rejects.toBeInstanceOf(LayoutMismatchError);
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('returns a dry-run result without hitting the network when dryRun=true', async () => {
@@ -577,6 +586,15 @@ describe('emitMany', () => {
 
     expect(maxInFlight).toBeGreaterThan(1);
     expect(maxInFlight).toBeLessThanOrEqual(3);
+  });
+
+  it('expectedLayout: um item de outro layout rejeita o lote inteiro antes do primeiro POST', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    const dpsList: DPS[] = [dpsWith('1'), dpsNt009Completa()];
+    await expect(emitMany(httpClient, cert, dpsList, undefined, 'nt004')).rejects.toBeInstanceOf(
+      LayoutMismatchError,
+    );
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('returns an empty-but-valid result for an empty list without hitting the network', async () => {

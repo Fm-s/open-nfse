@@ -1,13 +1,14 @@
 import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
-import type { DPS } from '../nfse/domain.js';
+import type { DPS, DpsFor } from '../nfse/domain.js';
 import { type EmitOptions, emitDpsProntaSeguro, type NfseEmitResult } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
+import type { Layout } from '../nfse/layout.js';
 import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
@@ -53,11 +54,16 @@ export type CancelarResult =
       readonly error: Error;
     };
 
+/**
+ * `layout` (opcional; o `NfseClient` passa o seu) é gravado no `PendingEvent`
+ * persistido em falha transiente.
+ */
 export async function cancelar(
   httpClient: HttpClient,
   certificate: A1Certificate,
   retryPolicy: RetryPolicy,
   params: CancelarParams,
+  layout?: Layout,
 ): Promise<CancelarResult> {
   // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
   // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
@@ -97,6 +103,7 @@ export async function cancelar(
       firstAttemptAt: now,
     });
     const pending = buildPendingEvent({
+      ...(layout !== undefined ? { layout } : {}),
       kind: 'cancelamento_simples',
       chaveNfse: params.chaveAcesso,
       tipoEvento: '101101',
@@ -124,14 +131,14 @@ export async function cancelar(
  * `cepValidator`) são repassadas ao emit; `retryStore`/`isTransient` controlam
  * a resiliência a falhas transientes (idêntico a `emitir`).
  */
-export interface SubstituirParams extends Omit<EmitOptions, 'dryRun'> {
+export interface SubstituirParams<L extends Layout = Layout> extends Omit<EmitOptions, 'dryRun'> {
   /** Chave da NFS-e a ser substituída (a antiga). */
   readonly chaveOriginal: string;
   /**
    * Nova DPS (substituta). Se `infDPS.subst` não estiver preenchido, é
    * auto-completado com `chaveOriginal` + `cMotivo`/`xMotivo`.
    */
-  readonly novaDps: DPS;
+  readonly novaDps: DpsFor<L>;
   readonly cMotivo: JustificativaSubstituicao;
   readonly xMotivo?: string;
   /**
@@ -166,11 +173,17 @@ export type SubstituirResult =
       readonly error: Error;
     };
 
-export async function substituir(
+/**
+ * `layout` (opcional; o `NfseClient` passa o seu): quando presente, `novaDps`
+ * de outro layout é rejeitada com `LayoutMismatchError` antes de qualquer
+ * trabalho.
+ */
+export async function substituir<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
   retryPolicy: RetryPolicy,
-  params: SubstituirParams,
+  params: SubstituirParams<L>,
+  layout?: L,
 ): Promise<SubstituirResult> {
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
   // round-trip + queima de nDPS num emit que seria rejeitado.
@@ -214,6 +227,7 @@ export async function substituir(
       retryStore: params.retryStore,
       retryPolicy,
       ...(params.isTransient ? { isTransient: params.isTransient } : {}),
+      ...(layout !== undefined ? { expectedLayout: layout } : {}),
     },
     emitOptions,
   );
@@ -256,6 +270,7 @@ function toError(err: unknown): Error {
 }
 
 interface PendingEventFactoryInput {
+  readonly layout?: Layout;
   readonly kind: Exclude<PendingEventKind, 'emission'>;
   readonly chaveNfse: string;
   readonly chaveSubstituta?: string;
@@ -279,6 +294,7 @@ interface PendingEventFactoryInput {
 function buildPendingEvent(input: PendingEventFactoryInput): PendingEvent {
   return {
     id: pendingEventId(input.chaveNfse, input.tipoEvento, input.kind),
+    ...(input.layout !== undefined ? { layout: input.layout } : {}),
     kind: input.kind,
     chaveNfse: input.chaveNfse,
     ...(input.chaveSubstituta ? { chaveSubstituta: input.chaveSubstituta } : {}),

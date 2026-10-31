@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente } from '../ambiente.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
+import { LayoutMismatchError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDps } from '../nfse/build-dps.js';
@@ -78,6 +79,7 @@ function mockEventoSuccessBody(chave: string, tipoEvento: '101101' | '105102') {
 
 function minimalNovaDps(): DPS {
   return buildDps({
+    layout: 'nt004',
     emitente: {
       cnpj: '00574753000100',
       codMunicipio: '2111300',
@@ -158,6 +160,37 @@ describe('cancelar', () => {
         xMotivo: 'motivo suficientemente longo',
       }),
     ).rejects.toMatchObject({ name: 'ReceitaRejectionError', codigo: 'E8001' });
+  });
+
+  it('grava o layout recebido no PendingEvent persistido; sem layout, entrada fica sem o campo', async () => {
+    for (let i = 0; i < 2; i++) {
+      mockAgent
+        .get('https://sefin.example.test')
+        .intercept({ path: `/SefinNacional/nfse/${CHAVE_ORIGINAL}/eventos`, method: 'POST' })
+        .reply(500, 'boom');
+    }
+    const params = {
+      chaveAcesso: CHAVE_ORIGINAL,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'erro transitorio 5xx',
+    };
+    const comLayout = createInMemoryRetryStore();
+    await cancelar(
+      httpClient,
+      cert,
+      createDefaultRetryPolicy(),
+      { ...params, retryStore: comLayout },
+      'nt009',
+    );
+    expect((await comLayout.list())[0]?.layout).toBe('nt009');
+
+    const semLayout = createInMemoryRetryStore();
+    await cancelar(httpClient, cert, createDefaultRetryPolicy(), {
+      ...params,
+      retryStore: semLayout,
+    });
+    expect((await semLayout.list())[0]).not.toHaveProperty('layout');
   });
 
   it('persists pending on transient (5xx) error and returns retry_pending', async () => {
@@ -374,6 +407,21 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     const stored = await retryStore.list();
     expect(stored).toHaveLength(1);
     expect(stored[0]?.kind).toBe('emission');
+    expect(stored[0]?.layout).toBe('nt004'); // layout da novaDps
+  });
+
+  it('layout explícito: novaDps de outro layout → LayoutMismatchError sem POST', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    await expect(
+      substituir(
+        httpClient,
+        cert,
+        policy,
+        { ...baseSubstParams, novaDps: minimalNovaDps() } as never,
+        'nt009',
+      ),
+    ).rejects.toBeInstanceOf(LayoutMismatchError);
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('throws MissingRetryStoreError on a transient emit failure without a store', async () => {

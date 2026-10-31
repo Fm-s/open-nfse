@@ -78,7 +78,7 @@ import type {
   VDescCondIncond,
   VServPrest,
 } from './domain.js';
-import type { Layout } from './layout.js';
+import { assertNoForeignLayoutFields, type Layout, unknownLayout } from './layout.js';
 
 const NFSE_NS = 'http://www.sped.fazenda.gov.br/nfse';
 const DSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
@@ -103,11 +103,14 @@ const xmlBuilder = new XMLBuilder({
  * emit `versao="1.01"`.
  */
 export function buildDpsXml(dps: DPS, options?: BuildDpsXmlOptions): string {
+  // Layout desconhecido → InvalidLayoutError; campo do outro layout →
+  // LayoutMismatchError (o serializer o descartaria em silêncio).
+  assertNoForeignLayoutFields(dps);
   const root = {
     DPS: {
       [`${ATTR_PREFIX}xmlns`]: NFSE_NS,
       [`${ATTR_PREFIX}versao`]: dps.versao,
-      infDPS: dps.layout === 'nt009' ? buildInfDPSNt009(dps.infDPS) : buildInfDPSNt004(dps.infDPS),
+      infDPS: buildInfDPS(dps),
       ...onlyDefined('Signature', dps.signature ? buildSignature(dps.signature) : undefined),
     },
   };
@@ -116,6 +119,17 @@ export function buildDpsXml(dps: DPS, options?: BuildDpsXmlOptions): string {
   return options?.includeXmlDeclaration === false
     ? body
     : `<?xml version="1.0" encoding="UTF-8"?>${body}`;
+}
+
+function buildInfDPS(dps: DPS): object {
+  switch (dps.layout) {
+    case 'nt004':
+      return buildInfDPSNt004(dps.infDPS);
+    case 'nt009':
+      return buildInfDPSNt009(dps.infDPS);
+    default:
+      return unknownLayout(dps);
+  }
 }
 
 function buildInfDPSNt004(inf: InfDPSNt004): object {

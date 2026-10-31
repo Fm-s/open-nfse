@@ -22,7 +22,7 @@ import { postEvento } from './eventos/post-evento.js';
 import { signPedRegEventoXml } from './eventos/sign-event.js';
 import { HttpClient } from './http/client.js';
 import { type Logger, noopLogger } from './logging.js';
-import type { DPS, NFSe } from './nfse/domain.js';
+import type { DpsFor, NFSe } from './nfse/domain.js';
 import type { DpsCounter } from './nfse/dps-counter.js';
 import {
   type DpsDryRunResult,
@@ -43,6 +43,7 @@ import {
   existsDpsStatus as existsDpsStatusInternal,
   fetchDpsStatus as fetchDpsStatusInternal,
 } from './nfse/fetch-dps-status.js';
+import { assertLayout, assertSameLayout, type Layout } from './nfse/layout.js';
 import type { NfseQueryResult } from './nfse/types.js';
 import {
   createInMemoryParametrosCache,
@@ -119,7 +120,16 @@ export interface EmitenteConfig {
   readonly codigoMunicipio: string;
 }
 
-export interface NfseClientConfig {
+export interface NfseClientConfig<L extends Layout = Layout> {
+  /**
+   * Layout (leiaute) das DPS que este cliente emite: `'nt004'` (produção) ou
+   * `'nt009'` (NT 009). **Obrigatório, sem default.** Tipa os métodos de
+   * emissão (`emitir`, `emitirDpsPronta`, `emitirEmLote`, `substituir`) —
+   * uma DPS de outro layout não compila, e em runtime (chamador JS) lança
+   * `LayoutMismatchError` antes de consumir `nDPS` ou tocar a rede. Os métodos
+   * de leitura aceitam documentos de qualquer layout.
+   */
+  readonly layout: L;
   readonly ambiente: Ambiente;
   readonly certificado: CertificateInput;
   readonly emitente?: EmitenteConfig;
@@ -180,7 +190,9 @@ interface ClientState {
   readonly certificate: A1Certificate;
 }
 
-export class NfseClient {
+export class NfseClient<L extends Layout = Layout> {
+  /** Layout configurado (ver `NfseClientConfig.layout`). */
+  readonly layout: L;
   private readonly ambiente: Ambiente;
   private readonly provider: CertificateProvider;
   private readonly timeoutMs: number;
@@ -195,7 +207,9 @@ export class NfseClient {
   private statePromise: Promise<ClientState> | null = null;
   private closed = false;
 
-  constructor(config: NfseClientConfig) {
+  constructor(config: NfseClientConfig<L>) {
+    // Chamadores JS podem omitir ou errar o layout — falha cedo, no construtor.
+    this.layout = assertLayout(config.layout) as L;
     this.ambiente = config.ambiente;
     this.provider = normalizeProvider(config.certificado);
     this.timeoutMs = config.timeoutMs ?? 60_000;
@@ -273,21 +287,22 @@ export class NfseClient {
    * Para emitir uma DPS já montada manualmente (bypass counter + retry flow),
    * use `emitirDpsPronta(dps)`.
    */
-  async emitir(params: EmitirParams & { dryRun: true }): Promise<DpsDryRunResult>;
-  async emitir(params: EmitirParams & { dryRun?: false }): Promise<EmitirResult>;
-  async emitir(params: EmitirParams): Promise<EmitirResult | DpsDryRunResult> {
+  async emitir(params: EmitirParams<L> & { dryRun: true }): Promise<DpsDryRunResult>;
+  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
+  async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
     const state = await this.ensureState();
     const cepValidator = params.cepValidator ?? this.cepValidator;
-    const mergedParams: EmitirParams = {
+    const mergedParams: EmitirParams<L> = {
       ...params,
       ...(cepValidator ? { cepValidator } : {}),
     };
-    const deps: Parameters<typeof emitSeguro>[0] = {
+    const deps = {
       httpClient: state.sefin,
       certificate: state.certificate,
       dpsCounter: this.dpsCounter,
       retryStore: this.retryStore,
       retryPolicy: this.retryPolicy,
+      layout: this.layout,
     };
     if (mergedParams.dryRun === true) {
       return emitSeguro(deps, { ...mergedParams, dryRun: true });
@@ -300,31 +315,40 @@ export class NfseClient {
    * counter, não usa o `RetryStore`. Falhas viram exceção direta.
    * Útil para replay customizado, testes com nDPS determinístico, ou quando
    * você pré-assina o XML externamente.
+   *
+   * A DPS precisa ser do layout do cliente — senão `LayoutMismatchError`.
    */
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options?: EmitOptions & { dryRun?: false },
   ): Promise<NfseEmitResult>;
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options: EmitOptions & { dryRun: true },
   ): Promise<DpsDryRunResult>;
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options?: EmitOptions,
   ): Promise<NfseEmitResult | DpsDryRunResult> {
+    assertSameLayout(this.layout, dps);
     const state = await this.ensureState();
     const merged = this.mergeEmitOptions(options);
     if (options?.dryRun === true) {
-      return emitDpsProntaInternal(state.sefin, state.certificate, dps, {
-        ...merged,
-        dryRun: true,
-      });
+      return emitDpsProntaInternal(
+        state.sefin,
+        state.certificate,
+        dps,
+        { ...merged, dryRun: true },
+        this.layout,
+      );
     }
-    return emitDpsProntaInternal(state.sefin, state.certificate, dps, {
-      ...merged,
-      dryRun: false,
-    });
+    return emitDpsProntaInternal(
+      state.sefin,
+      state.certificate,
+      dps,
+      { ...merged, dryRun: false },
+      this.layout,
+    );
   }
 
   /**
@@ -344,8 +368,16 @@ export class NfseClient {
    * TooManyRequestsError`; o caller pode inspecionar `error.getRetryAfterMs()`
    * para decidir quando re-emitir os itens que falharam (mesmo `nDPS` —
    * SEFIN deduplica via `infDPS.Id`).
+   *
+   * Todas as DPS precisam ser do layout do cliente: um único item de outro
+   * layout rejeita o lote inteiro com `LayoutMismatchError` antes do primeiro
+   * envio.
    */
-  async emitirEmLote(dpsList: readonly DPS[], options?: EmitLoteOptions): Promise<EmitLoteResult> {
+  async emitirEmLote(
+    dpsList: readonly DpsFor<L>[],
+    options?: EmitLoteOptions,
+  ): Promise<EmitLoteResult> {
+    for (const dps of dpsList) assertSameLayout(this.layout, dps);
     const state = await this.ensureState();
     const mergedCepValidator = options?.cepValidator ?? this.cepValidator;
     const merged: EmitLoteOptions = {
@@ -360,7 +392,7 @@ export class NfseClient {
         : {}),
       ...(mergedCepValidator !== undefined ? { cepValidator: mergedCepValidator } : {}),
     };
-    return emitManyInternal(state.sefin, state.certificate, dpsList, merged);
+    return emitManyInternal(state.sefin, state.certificate, dpsList, merged, this.layout);
   }
 
   private mergeEmitOptions(options: EmitOptions | undefined): EmitOptions {
@@ -398,7 +430,7 @@ export class NfseClient {
       ...params,
       ...(retryStore ? { retryStore } : {}),
     };
-    return cancelarInternal(state.sefin, state.certificate, this.retryPolicy, merged);
+    return cancelarInternal(state.sefin, state.certificate, this.retryPolicy, merged, this.layout);
   }
 
   /**
@@ -416,16 +448,24 @@ export class NfseClient {
    * Resultado discriminado (igual a `emitir`): `'ok'` (`novaNfse`) ou
    * `'retry_pending'` — falha transiente no `POST /nfse` persistida no
    * `retryStore` para replay via `replayPendingEvents` (dedup por `infDPS.Id`).
-   * Rejeição **permanente** (regra fiscal) lança exceção.
+   * Rejeição **permanente** (regra fiscal) lança exceção. `novaDps` de outro
+   * layout → `LayoutMismatchError` antes de qualquer envio.
    */
-  async substituir(params: SubstituirParams): Promise<SubstituirResult> {
+  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
+    assertSameLayout(this.layout, params.novaDps);
     const state = await this.ensureState();
     const retryStore = params.retryStore ?? this.retryStore;
-    const merged: SubstituirParams = {
+    const merged: SubstituirParams<L> = {
       ...params,
       ...(retryStore ? { retryStore } : {}),
     };
-    return substituirInternal(state.sefin, state.certificate, this.retryPolicy, merged);
+    return substituirInternal(
+      state.sefin,
+      state.certificate,
+      this.retryPolicy,
+      merged,
+      this.layout,
+    );
   }
 
   /**

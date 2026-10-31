@@ -2,10 +2,11 @@ import { RuleViolationError } from '../errors/validation.js';
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import { DEFAULT_VER_APLIC } from '../version.js';
 import type {
-  DPS,
+  DpsFor,
   Endereco,
   IdentificadorPessoa,
   InfDPSNt004,
+  InfDPSNt009,
   InfoPessoaNt004,
   InfoPrestador,
   RegTrib,
@@ -21,7 +22,8 @@ import type {
   RegimeEspecialTributacao,
   TipoAmbienteDps,
 } from './enums.js';
-import { OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
+import { FinalidadeNFSe, OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
+import { assertLayout, type Layout } from './layout.js';
 
 /** Regime tributário do emitente. Casa com os grupos do `TCRegTrib`. */
 export interface RegimeTributario {
@@ -148,7 +150,8 @@ export interface ValoresInput {
   };
 }
 
-export interface BuildDpsParams {
+/** Campos de `buildDps` comuns aos dois layouts. */
+export interface BuildDpsParamsBase {
   readonly emitente: EmitenteInput;
   readonly serie: string;
   /**
@@ -181,6 +184,25 @@ export interface BuildDpsParams {
    */
   readonly skipCpfCnpjValidation?: boolean;
 }
+
+/** Parâmetros de `buildDps` para o layout `nt004` (produção). */
+export interface BuildDpsParamsNt004 extends BuildDpsParamsBase {
+  /** Layout da DPS. Obrigatório — sem default. */
+  readonly layout: 'nt004';
+}
+
+/** Parâmetros de `buildDps` para o layout `nt009` (NT 009 release 1). */
+export interface BuildDpsParamsNt009 extends BuildDpsParamsBase {
+  /** Layout da DPS. Obrigatório — sem default. */
+  readonly layout: 'nt009';
+}
+
+/** Parâmetros de `buildDps` — discriminados por `layout` (obrigatório). */
+export type BuildDpsParams = BuildDpsParamsNt004 | BuildDpsParamsNt009;
+
+/** Membro de {@link BuildDpsParams} do layout `L`. */
+export type BuildDpsParamsFor<L extends Layout> = Extract<BuildDpsParams, { readonly layout: L }>;
+
 const DEFAULT_TP_AMB: TipoAmbienteDps = '2' as TipoAmbienteDps;
 const TP_EMIT_PRESTADOR = '1' as InfDPSNt004['tpEmit'];
 const DEFAULT_TRIB_ISSQN: TipoTribISSQN = '1' as TipoTribISSQN;
@@ -195,7 +217,8 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  * Para cenários avançados — exterior, obra, atvEvento, dedução/redução, IBSCBS —
  * construa `InfDPSNt004` manualmente (todos os tipos da RTC estão exportados).
  */
-export function buildDps(params: BuildDpsParams): DPS {
+export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout']> {
+  const layout = assertLayout((params as { readonly layout?: unknown }).layout);
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
   assertValoresConsistency(params.valores, params.emitente.regime);
@@ -232,7 +255,8 @@ export function buildDps(params: BuildDpsParams): DPS {
   const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
   assertVerAplic(verAplic);
 
-  const infDPS: InfDPSNt004 = {
+  // Campos comuns aos dois layouts (toma/valores do buildDps cabem em ambos).
+  const comum = {
     Id,
     tpAmb,
     dhEmi,
@@ -248,7 +272,15 @@ export function buildDps(params: BuildDpsParams): DPS {
     valores,
   };
 
-  return { layout: 'nt004', versao: '1.01', infDPS };
+  if (layout === 'nt009') {
+    // nt009: mesmos campos + `finNFSe` obrigatório (só "Regular" na release 1).
+    // A ordem de serialização (finNFSe após cMotivoEmisTI, cNBS antes de
+    // xDescServ) é responsabilidade do serializer.
+    const infDPS: InfDPSNt009 = { ...comum, finNFSe: FinalidadeNFSe.Regular };
+    return { layout, versao: '1.01', infDPS } as DpsFor<P['layout']>;
+  }
+  const infDPS: InfDPSNt004 = comum;
+  return { layout, versao: '1.01', infDPS } as DpsFor<P['layout']>;
 }
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,8 @@ import { TipoAmbiente } from '../ambiente.js';
 import { StatusDistribuicao, TipoDocumento } from '../dfe/types.js';
 import { NotFoundError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
+import { InvalidLayoutError, LayoutMismatchError } from '../errors/validation.js';
+import { dpsNt009Completa } from '../nfse/__fixtures__/dps-nt009.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { EmitirParams } from '../nfse/emit.js';
 import {
@@ -12,7 +14,7 @@ import {
 } from '../nfse/enums.js';
 import { NfseClientFake } from './nfse-client-fake.js';
 
-function baseEmitirParams(): EmitirParams {
+function baseEmitirParams(): EmitirParams<'nt004'> & { dryRun?: false } {
   return {
     emitente: {
       cnpj: '00574753000100',
@@ -31,7 +33,7 @@ function baseEmitirParams(): EmitirParams {
 
 describe('NfseClientFake.emitir', () => {
   it('returns ok with a synthesized chave + parsed nfse', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const r = await fake.emitir(baseEmitirParams());
 
     expect('status' in r && r.status).toBe('ok');
@@ -46,7 +48,7 @@ describe('NfseClientFake.emitir', () => {
   });
 
   it('throws ReceitaRejectionError when failNextEmit(rejection) is programmed', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.failNextEmit({ kind: 'rejection', codigo: 'E401', descricao: 'CNPJ não autorizado' });
 
     await expect(fake.emitir(baseEmitirParams())).rejects.toMatchObject({
@@ -60,7 +62,7 @@ describe('NfseClientFake.emitir', () => {
   });
 
   it('returns retry_pending when failNextEmit(transient) is programmed', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.failNextEmit({ kind: 'transient', message: 'mock timeout' });
 
     const r = await fake.emitir(baseEmitirParams());
@@ -73,7 +75,7 @@ describe('NfseClientFake.emitir', () => {
   });
 
   it('dry-run does not add to emittedChaves and does not consume counter', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const r = await fake.emitir({ ...baseEmitirParams(), dryRun: true });
 
     expect('dryRun' in r && r.dryRun).toBe(true);
@@ -81,7 +83,7 @@ describe('NfseClientFake.emitir', () => {
   });
 
   it('nDPS increments per emitir call', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const r1 = await fake.emitir(baseEmitirParams());
     const r2 = await fake.emitir(baseEmitirParams());
 
@@ -93,7 +95,7 @@ describe('NfseClientFake.emitir', () => {
 
 describe('NfseClientFake.fetchByChave', () => {
   it('returns seeded NFS-e', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const emitted = await fake.emitir(baseEmitirParams());
     if (!('status' in emitted) || emitted.status !== 'ok') throw new Error('emit should succeed');
 
@@ -103,14 +105,14 @@ describe('NfseClientFake.fetchByChave', () => {
   });
 
   it('throws NotFoundError for un-seeded chave', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     await expect(
       fake.fetchByChave('21113002200574753000100000000000146726037032711025'),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it('throws InvalidChaveAcessoError for malformed chave', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     await expect(fake.fetchByChave('abc')).rejects.toMatchObject({
       name: 'InvalidChaveAcessoError',
     });
@@ -119,14 +121,14 @@ describe('NfseClientFake.fetchByChave', () => {
 
 describe('NfseClientFake.fetchByNsu', () => {
   it('returns NENHUM_DOCUMENTO_LOCALIZADO when dfe queue is empty', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const r = await fake.fetchByNsu({ ultimoNsu: 0 });
     expect(r.status).toBe(StatusDistribuicao.NenhumDocumento);
     expect(r.documentos).toEqual([]);
   });
 
   it('returns seeded documents above the ultimoNsu cursor', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.seed.dfe([
       {
         nsu: 10,
@@ -158,7 +160,7 @@ describe('NfseClientFake.fetchByNsu', () => {
 
 describe('NfseClientFake.cancelar', () => {
   it('registers the cancellation and returns ok with a fake evento', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const emitted = await fake.emitir(baseEmitirParams());
     if (!('status' in emitted) || emitted.status !== 'ok') throw new Error();
 
@@ -175,7 +177,7 @@ describe('NfseClientFake.cancelar', () => {
   });
 
   it('rejects when failNextCancel(rejection) is set (e.g., prazo expirado)', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.failNextCancel({ kind: 'rejection', codigo: 'E8001', descricao: 'Prazo expirado' });
     await expect(
       fake.cancelar({
@@ -190,11 +192,11 @@ describe('NfseClientFake.cancelar', () => {
 
 describe('NfseClientFake.substituir', () => {
   it('emits the new DPS and records original as substituted+cancelled', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const original = await fake.emitir(baseEmitirParams());
     if (!('status' in original) || original.status !== 'ok') throw new Error();
 
-    const novaDps = buildDps({ ...baseEmitirParams(), nDPS: '2' });
+    const novaDps = buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '2' });
     const r = await fake.substituir({
       chaveOriginal: original.nfse.chaveAcesso,
       novaDps,
@@ -211,13 +213,13 @@ describe('NfseClientFake.substituir', () => {
 
 describe('NfseClientFake parametros municipais', () => {
   it('returns empty results when nothing is seeded', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     const r = await fake.consultarAliquota('2111300', '250101', '2026-03-01');
     expect(r.aliquotas).toEqual({});
   });
 
   it('returns seeded aliquota', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.seed.aliquota('2111300', '250101', '2026-03-01', {
       aliquotas: {
         '250101': [
@@ -231,7 +233,7 @@ describe('NfseClientFake parametros municipais', () => {
   });
 
   it('seeded convenio is returned', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     fake.seed.convenio('2111300', {
       parametrosConvenio: {
         tipoConvenio: '1',
@@ -249,7 +251,7 @@ describe('NfseClientFake parametros municipais', () => {
 
 describe('NfseClientFake.reset', () => {
   it('clears all state', async () => {
-    const fake = new NfseClientFake();
+    const fake = new NfseClientFake({ layout: 'nt004' });
     await fake.emitir(baseEmitirParams());
     expect(fake.emittedChaves).toHaveLength(1);
 
@@ -257,5 +259,48 @@ describe('NfseClientFake.reset', () => {
     expect(fake.emittedChaves).toEqual([]);
     expect(fake.cancelledChaves).toEqual([]);
     expect(fake.eventosRegistrados).toEqual([]);
+  });
+});
+
+describe('NfseClientFake — layout', () => {
+  it.each([undefined, 'NT004', 'nt010'])('construtor rejeita layout %s', (layout) => {
+    expect(() => new NfseClientFake({ layout } as never)).toThrow(InvalidLayoutError);
+  });
+
+  it('emitir no fake nt009 monta DPS nt009', async () => {
+    const fake = new NfseClientFake({ layout: 'nt009' });
+    expect(fake.layout).toBe('nt009');
+    const r = await fake.emitir(baseEmitirParams());
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') expect(r.nfse.nfse.layout).toBe('nt009');
+  });
+
+  it('emitirDpsPronta / emitirEmLote / substituir rejeitam DPS de outro layout', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const dpsNt009 = dpsNt009Completa();
+    await expect(fake.emitirDpsPronta(dpsNt009 as never)).rejects.toBeInstanceOf(
+      LayoutMismatchError,
+    );
+    const ok = buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '9' });
+    await expect(fake.emitirEmLote([ok, dpsNt009] as never)).rejects.toBeInstanceOf(
+      LayoutMismatchError,
+    );
+    expect(fake.emittedChaves).toHaveLength(0); // nada do lote foi "emitido"
+    await expect(
+      fake.substituir({
+        chaveOriginal: '21113002200574753000100000000000146726037032711025',
+        novaDps: dpsNt009 as never,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      }),
+    ).rejects.toBeInstanceOf(LayoutMismatchError);
+  });
+
+  it('transient no fake grava layout no PendingEmission', async () => {
+    const fake = new NfseClientFake({ layout: 'nt009' });
+    fake.failNextEmit({ kind: 'transient' });
+    const r = await fake.emitir(baseEmitirParams());
+    expect(r.status).toBe('retry_pending');
+    if (r.status === 'retry_pending') expect(r.pending.layout).toBe('nt009');
   });
 });

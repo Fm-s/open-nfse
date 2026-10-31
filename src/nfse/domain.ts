@@ -413,6 +413,23 @@ export type DPS = DpsNt004 | DpsNt009;
 /** Union dos layouts de NFS-e suportados — discrimine por `nfse.layout`. */
 export type NFSe = NfseNt004 | NfseNt009;
 
-export type DpsFor<L extends Layout> = Extract<DPS, { readonly layout: L }>;
+// Mapas layout → tipo. `DpsFor`/`NfseFor` usam indexed access (e não
+// `Extract<DPS, { layout: L }>`, equivalente) porque o TS mede indexed access
+// como covariante em `L`; com o conditional type de `Extract`, interfaces
+// genéricas como `SubstituirParams<L>` ficavam invariantes e
+// `NfseClient<'nt009'>` deixava de ser atribuível a `NfseClient<Layout>`.
+interface DpsPorLayout {
+  readonly nt004: DpsNt004;
+  readonly nt009: DpsNt009;
+}
 
-export type NfseFor<L extends Layout> = Extract<NFSe, { readonly layout: L }>;
+interface NfsePorLayout {
+  readonly nt004: NfseNt004;
+  readonly nt009: NfseNt009;
+}
+
+/** DPS do layout `L` (`DpsFor<Layout>` = {@link DPS}). */
+export type DpsFor<L extends Layout> = DpsPorLayout[L];
+
+/** NFS-e do layout `L` (`NfseFor<Layout>` = {@link NFSe}). */
+export type NfseFor<L extends Layout> = NfsePorLayout[L];

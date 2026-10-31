@@ -11,6 +11,7 @@ import type {
   RtcInfoIbsCbsNt009,
   Serv,
 } from './domain.js';
+import { unknownLayout } from './layout.js';
 
 export interface CollectedCep {
   /** Caminho legível dentro da DPS — usado em mensagens de erro. */
@@ -44,6 +45,8 @@ export function collectCepsFromDps(dps: DPS): readonly CollectedCep[] {
     case 'nt009':
       collectCepsNt009(out, dps.infDPS);
       break;
+    default:
+      unknownLayout(dps);
   }
 
   return out;
@@ -95,6 +98,8 @@ export function collectIdentifiersFromDps(dps: DPS): readonly CollectedIdentifie
     case 'nt009':
       collectIdentifiersNt009(out, dps.infDPS);
       break;
+    default:
+      unknownLayout(dps);
   }
 
   return out;

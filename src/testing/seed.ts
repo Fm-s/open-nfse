@@ -14,7 +14,7 @@ import type { FakeState } from './fake-state.js';
  * para montar cenários antes de exercitar o código em teste.
  *
  * ```ts
- * const fake = new NfseClientFake();
+ * const fake = new NfseClientFake({ layout: 'nt004' });
  * fake.seed.nfse('21113...', mockNfseResult);
  * fake.seed.aliquota('2111300', '250101', '2026-03-01', [{ ... }]);
  *

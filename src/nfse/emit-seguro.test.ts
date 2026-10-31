@@ -54,7 +54,7 @@ function selfSignedCert(): A1Certificate {
   };
 }
 
-function baseParams(): EmitirParams {
+function baseParams(): EmitirParams<'nt004'> {
   return {
     emitente: {
       cnpj: '00574753000100',
@@ -117,6 +117,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore: undefined,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       baseParams(),
     );
@@ -134,6 +135,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore: undefined,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       { ...baseParams(), nDPS: '99' },
     );
@@ -149,6 +151,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore: undefined,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       { ...baseParams(), dryRun: true },
     );
@@ -165,6 +168,7 @@ describe('emitSeguro', () => {
           dpsCounter: undefined,
           retryStore: undefined,
           retryPolicy: createDefaultRetryPolicy(),
+          layout: 'nt004',
         },
         baseParams(),
       ),
@@ -187,6 +191,7 @@ describe('emitSeguro', () => {
           dpsCounter: counter,
           retryStore: undefined,
           retryPolicy: createDefaultRetryPolicy(),
+          layout: 'nt004',
         },
         paramsInvalidos,
       ),
@@ -209,6 +214,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       baseParams(),
     );
@@ -249,6 +255,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       baseParams(),
     );
@@ -283,6 +290,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       baseParams(),
     );
@@ -311,6 +319,7 @@ describe('emitSeguro', () => {
           dpsCounter: counter,
           retryStore: undefined,
           retryPolicy: createDefaultRetryPolicy(),
+          layout: 'nt004',
         },
         baseParams(),
       ),
@@ -335,6 +344,7 @@ describe('emitSeguro', () => {
           dpsCounter: counter,
           retryStore,
           retryPolicy: createDefaultRetryPolicy(),
+          layout: 'nt004',
         },
         baseParams(),
       ),
@@ -357,6 +367,7 @@ describe('emitSeguro', () => {
         dpsCounter: createInMemoryDpsCounter(),
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       baseParams(),
     );
@@ -376,6 +387,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore: undefined,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       { ...baseParams(), dryRun: true, nDPS: '42' },
     );
@@ -400,6 +412,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       p,
     );
@@ -410,6 +423,7 @@ describe('emitSeguro', () => {
         dpsCounter: counter,
         retryStore,
         retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
       },
       p,
     );

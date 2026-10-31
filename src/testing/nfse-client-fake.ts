@@ -18,8 +18,8 @@ import {
   InvalidDpsIdError,
   NotFoundError,
 } from '../index.js';
-import { buildDps } from '../nfse/build-dps.js';
-import type { DPS, NFSe } from '../nfse/domain.js';
+import { type BuildDpsParams, buildDps } from '../nfse/build-dps.js';
+import type { DPS, DpsFor, NFSe } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
 import type {
   DpsDryRunResult,
@@ -31,6 +31,7 @@ import type {
   EmitOptions,
   NfseEmitResult,
 } from '../nfse/emit.js';
+import { assertLayout, assertSameLayout, type Layout } from '../nfse/layout.js';
 import type { NfseQueryResult } from '../nfse/types.js';
 import type { ConsultaOptions } from '../parametros-municipais/fetch.js';
 import type {
@@ -62,16 +63,27 @@ const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
  *
  * Estrutural-compatível com `NfseClient` — se você tipar suas dependências
  * como `NfseClientLike`, pode injetar qualquer um.
+ *
+ * Como o real, é genérico no `layout` (obrigatório): os métodos de emissão
+ * só aceitam DPS do layout configurado e lançam `LayoutMismatchError` em
+ * runtime para DPS de outro layout.
  */
-export class NfseClientFake {
+export class NfseClientFake<L extends Layout = Layout> {
   private readonly state = new FakeState();
   readonly seed: FakeSeed;
-  /** Ambiente simulado. Default `ProducaoRestrita`. */
+  /** Layout simulado (ver `NfseClientConfig.layout`). */
+  readonly layout: L;
+  /** Ambiente simulado. Default `Homologacao`. */
   readonly ambiente: TipoAmbiente;
 
-  constructor(options?: { readonly ambiente?: TipoAmbiente }) {
-    this.ambiente = options?.ambiente ?? TipoAmbiente.Homologacao;
+  constructor(options: { readonly layout: L; readonly ambiente?: TipoAmbiente }) {
+    this.layout = assertLayout(options?.layout) as L;
+    this.ambiente = options.ambiente ?? TipoAmbiente.Homologacao;
     this.seed = new FakeSeed(this.state);
+  }
+
+  private montarDps(params: EmitirParams<L>, nDPS: string): DPS {
+    return buildDps({ ...params, layout: this.layout, nDPS } as BuildDpsParams);
   }
 
   // -------------------------------------------------------------------------
@@ -166,12 +178,14 @@ export class NfseClientFake {
   // Emissão
   // -------------------------------------------------------------------------
 
-  async emitir(params: EmitirParams): Promise<EmitirResult | DpsDryRunResult> {
+  async emitir(params: EmitirParams<L> & { dryRun: true }): Promise<DpsDryRunResult>;
+  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
+  async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
     const failure = this.consumeFailure('emit');
 
     if (params.dryRun) {
       const nDPS = params.nDPS ?? '1';
-      const dps = buildDps({ ...params, nDPS });
+      const dps = this.montarDps(params, nDPS);
       return {
         dryRun: true,
         xmlDpsAssinado: `<?xml version="1.0"?><DPS versao="1.01"><infDPS Id="${dps.infDPS.Id}"/></DPS>`,
@@ -199,7 +213,7 @@ export class NfseClientFake {
       serie: params.serie,
       nDPS,
     });
-    const dps = buildDps({ ...params, nDPS });
+    const dps = this.montarDps(params, nDPS);
 
     if (failure?.kind === 'transient') {
       const error = new TimeoutError(5000, {
@@ -208,6 +222,7 @@ export class NfseClientFake {
       const pending: PendingEmission = {
         id: `emission:${idDps}`,
         kind: 'emission',
+        layout: this.layout,
         idDps,
         emitenteCnpj: params.emitente.cnpj,
         serie: params.serie,
@@ -237,17 +252,18 @@ export class NfseClientFake {
   }
 
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options?: EmitOptions & { dryRun?: false },
   ): Promise<NfseEmitResult>;
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options: EmitOptions & { dryRun: true },
   ): Promise<DpsDryRunResult>;
   async emitirDpsPronta(
-    dps: DPS,
+    dps: DpsFor<L>,
     options?: EmitOptions,
   ): Promise<NfseEmitResult | DpsDryRunResult> {
+    assertSameLayout(this.layout, dps);
     if (options?.dryRun) {
       return {
         dryRun: true,
@@ -291,7 +307,12 @@ export class NfseClientFake {
     return result;
   }
 
-  async emitirEmLote(dpsList: readonly DPS[], _options?: EmitLoteOptions): Promise<EmitLoteResult> {
+  async emitirEmLote(
+    dpsList: readonly DpsFor<L>[],
+    _options?: EmitLoteOptions,
+  ): Promise<EmitLoteResult> {
+    // Como o real: o lote inteiro é checado antes do primeiro "envio".
+    for (const dps of dpsList) assertSameLayout(this.layout, dps);
     const items: EmitLoteItem[] = [];
     let successCount = 0;
     let failureCount = 0;
@@ -342,7 +363,8 @@ export class NfseClientFake {
     return { status: 'ok', evento };
   }
 
-  async substituir(params: SubstituirParams): Promise<SubstituirResult> {
+  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
+    assertSameLayout(this.layout, params.novaDps);
     const novaNfse = await this.emitirDpsPronta(params.novaDps);
     this.state.substituted.set(params.chaveOriginal, novaNfse.chaveAcesso);
     // Modela o sistema gerando o evento 105102 (autor=MEmis) que cancela a
