@@ -17,7 +17,7 @@ import {
   type RetryStore,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
-import { type BuildDpsParams, type BuildDpsParamsFor, buildDps } from './build-dps.js';
+import { type BuildDpsParamsFor, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, NFSe } from './domain.js';
@@ -432,22 +432,25 @@ async function getDefaultCepValidator(): Promise<CepValidator> {
  * Passe `nDPS` explícito para override manual (útil para `dryRun` sem queimar
  * um número ou replay determinístico em testes).
  */
-export type EmitirParams<L extends Layout = Layout> = Omit<
-  BuildDpsParamsFor<L>,
-  'nDPS' | 'layout'
-> &
-  EmitOptions & {
-    /**
-     * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
-     * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
-     * um número do counter à toa).
-     *
-     * **Não preencher com zeros à esquerda** — o `Id` da DPS é composto a partir
-     * desta string, então `'1'` e `'00001'` produzem `Id`s distintos para o mesmo
-     * número sequencial.
-     */
-    readonly nDPS?: string;
-  };
+export type EmitirParams<L extends Layout = Layout> =
+  // Distributivo em `L`: `EmitirParams<Layout>` é a união dos membros por
+  // layout. Um `Omit` direto sobre a união manteria só as chaves comuns e
+  // perderia os campos exclusivos do nt009 (`ajusteBC`, `ibsCbs`).
+  L extends Layout
+    ? Omit<BuildDpsParamsFor<L>, 'nDPS' | 'layout'> &
+        EmitOptions & {
+          /**
+           * Override manual do `nDPS`. Quando presente, o `DpsCounter` não é
+           * consultado. Obrigatório em `dryRun` (sem isso o preview consumiria
+           * um número do counter à toa).
+           *
+           * **Não preencher com zeros à esquerda** — o `Id` da DPS é composto a
+           * partir desta string, então `'1'` e `'00001'` produzem `Id`s
+           * distintos para o mesmo número sequencial.
+           */
+          readonly nDPS?: string;
+        }
+    : never;
 
 /**
  * Resultado discriminado de `emitSeguro`.
@@ -485,8 +488,7 @@ export async function emitSeguro<L extends Layout>(
   params: EmitirParams<L>,
 ): Promise<EmitirResult | DpsDryRunResult> {
   const isTransient = deps.isTransient ?? defaultIsTransient;
-  const montarDps = (nDPS: string): DPS =>
-    buildDps({ ...params, layout: deps.layout, nDPS } as BuildDpsParams);
+  const montarDps = (nDPS: string): DPS => buildDps({ ...params, layout: deps.layout, nDPS });
 
   // 1. Monta DPS com nDPS placeholder para validação (XSD não distingue
   //    valor específico — só valida contra pattern [1-9][0-9]{0,14}).

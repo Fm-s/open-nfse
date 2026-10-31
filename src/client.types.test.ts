@@ -8,6 +8,7 @@ import { NfseClient } from './client.js';
 import { dpsNt009Completa } from './nfse/__fixtures__/dps-nt009.js';
 import { buildDps } from './nfse/build-dps.js';
 import type { DPS, DpsNt004, DpsNt009 } from './nfse/domain.js';
+import type { EmitirParams } from './nfse/emit.js';
 import { OpcaoSimplesNacional, RegimeEspecialTributacao } from './nfse/enums.js';
 import { NfseClientFake, type NfseClientLike } from './testing/index.js';
 
@@ -90,5 +91,37 @@ describe('NfseClient<L> — tipos', () => {
       new NfseClientFake({});
     };
     void _naoCompila;
+  });
+
+  it('EmitirParams distribui por layout: nt009 aceita ajusteBC/ibsCbs, nt004 rejeita', () => {
+    const ajusteBC = { issqn: { percentual: 10 } } as const;
+    const ibsCbs = { classificacao: { CST: '000', cClassTrib: '000001' } } as const;
+
+    const p9: EmitirParams<'nt009'> = { ...paramsBase, ajusteBC, ibsCbs };
+    expect(p9.ajusteBC?.issqn).toEqual({ percentual: 10 });
+    expectTypeOf<EmitirParams<'nt009'>>().toHaveProperty('ajusteBC');
+    expectTypeOf<EmitirParams<'nt009'>>().toHaveProperty('ibsCbs');
+    // A união (EmitirParams<Layout>) mantém o membro nt009 com seus campos.
+    const pUniao: EmitirParams = { ...paramsBase, ajusteBC, ibsCbs };
+    expect('ajusteBC' in pUniao).toBe(true);
+
+    const c4 = new NfseClient({ ...baseConfig, layout: 'nt004' });
+    const c9 = new NfseClient({ ...baseConfig, layout: 'nt009' });
+    expect(c9.layout).toBe('nt009');
+
+    const _naoCompila = () => {
+      // @ts-expect-error ajusteBC não existe no layout nt004
+      const p4: EmitirParams<'nt004'> = { ...paramsBase, ajusteBC };
+      void p4;
+      // @ts-expect-error ibsCbs não existe no layout nt004
+      void c4.emitir({ ...paramsBase, ibsCbs, dryRun: true });
+    };
+    void _naoCompila;
+
+    const _compila = () => {
+      void c9.emitir({ ...paramsBase, ajusteBC, ibsCbs, dryRun: true });
+      void new NfseClientFake({ layout: 'nt009' }).emitir({ ...paramsBase, ajusteBC, ibsCbs });
+    };
+    void _compila;
   });
 });

@@ -110,16 +110,24 @@ export { validateCnpj, validateCpf } from './fiscal/validate-cpf-cnpj.js';
 export type { LogContext, Logger } from './logging.js';
 export { noopLogger } from './logging.js';
 export type {
+  AjusteBCInput,
+  BemMovelInput,
   BuildDpsParams,
   BuildDpsParamsBase,
   BuildDpsParamsFor,
   BuildDpsParamsNt004,
   BuildDpsParamsNt009,
+  ClassificacaoIbsCbsInput,
+  DestinatarioInput,
+  DocumentoAjusteBCInput,
   EmitenteInput,
   EnderecoBr,
+  IbsCbsInput,
+  ImovelInput,
   RegimeTributario,
   ServicoInput,
   TomadorInput,
+  UnidadeImobiliariaInput,
   ValoresInput,
 } from './nfse/build-dps.js';
 export { buildDps } from './nfse/build-dps.js';

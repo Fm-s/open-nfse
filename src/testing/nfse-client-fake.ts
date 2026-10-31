@@ -18,7 +18,7 @@ import {
   InvalidDpsIdError,
   NotFoundError,
 } from '../index.js';
-import { type BuildDpsParams, buildDps } from '../nfse/build-dps.js';
+import { buildDps } from '../nfse/build-dps.js';
 import type { DPS, DpsFor, NFSe } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
 import type {
@@ -83,7 +83,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   }
 
   private montarDps(params: EmitirParams<L>, nDPS: string): DPS {
-    return buildDps({ ...params, layout: this.layout, nDPS } as BuildDpsParams);
+    return buildDps({ ...params, layout: this.layout, nDPS });
   }
 
   // -------------------------------------------------------------------------

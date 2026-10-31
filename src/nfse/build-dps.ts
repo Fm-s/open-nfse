@@ -1,15 +1,23 @@
-import { RuleViolationError } from '../errors/validation.js';
+import { LayoutMismatchError, RuleViolationError } from '../errors/validation.js';
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import { DEFAULT_VER_APLIC } from '../version.js';
 import type {
+  DocAjusteBCNt009,
   DpsFor,
   Endereco,
   IdentificadorPessoa,
   InfDPSNt004,
   InfDPSNt009,
+  InfoAjusteBCNt009,
   InfoPessoaNt004,
   InfoPrestador,
   RegTrib,
+  RtcDocumentoReferenciado,
+  RtcInfoDest,
+  RtcInfoIbsCbsNt009,
+  RtcInfoImovelNt009,
+  RtcInfoTribIbsCbsNt009,
+  RtcUnidadeImobiliariaNt009,
   Serv,
   TribMunicipal,
   TribTotal,
@@ -17,12 +25,23 @@ import type {
 } from './domain.js';
 import { buildDpsId } from './dps-id.js';
 import type {
+  IndicadorFinal,
   IndicadorTotalTributos,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
+  TipoAjusteBCLocImoveis,
   TipoAmbienteDps,
+  TipoEnteGovernamental,
+  TipoOperacao,
 } from './enums.js';
-import { FinalidadeNFSe, OpcaoSimplesNacional, TipoRetISSQN, TipoTribISSQN } from './enums.js';
+import {
+  FinalidadeNFSe,
+  IndicadorDestinatario,
+  OpcaoSimplesNacional,
+  TipoAjusteBC,
+  TipoRetISSQN,
+  TipoTribISSQN,
+} from './enums.js';
 import { assertLayout, type Layout } from './layout.js';
 
 /** Regime tributário do emitente. Casa com os grupos do `TCRegTrib`. */
@@ -191,10 +210,157 @@ export interface BuildDpsParamsNt004 extends BuildDpsParamsBase {
   readonly layout: 'nt004';
 }
 
+/**
+ * Documento que fundamenta um ajuste da base de cálculo (`TCDocAjusteBC`,
+ * layout nt009). Vira um `valores/vAjusteBC/documentos/docAjusteBC`.
+ */
+export interface DocumentoAjusteBCInput {
+  /** Tipo de ajuste (`tpAjusteBC`). */
+  readonly tipo: TipoAjusteBC;
+  /**
+   * Descrição do ajuste (`xTpAjusteBC`). Obrigatória quando `tipo` é
+   * `OutrasDeducoesIssqn` (99) ou `OutrosReembolsos` (199) — E0465 — e proibida
+   * nos demais tipos — E0464.
+   */
+  readonly descricao?: string;
+  /** Valor total do documento (`vTotDoc`). */
+  readonly valorTotal: number;
+  /**
+   * Valor do ajuste aplicado (`vAjusteAplic`). Não pode exceder `valorTotal`
+   * (E0469) nem `valores.vServ` (E0467).
+   */
+  readonly valorAplicado: number;
+  /** Data de emissão do documento (`dtEmiDoc`). Não pode ser anterior a `dataCompetencia` (E0472). */
+  readonly dataEmissao?: Date;
+  /** Data de competência do documento (`dtCompDoc`). */
+  readonly dataCompetencia?: Date;
+  /** `xs:choice` `dFeNacional` | `docFiscalOutro` | `docOutro`. */
+  readonly documento: RtcDocumentoReferenciado;
+  /** Fornecedor do documento (`fornec`). */
+  readonly fornecedor?: TomadorInput;
+}
+
+/**
+ * Ajuste da base de cálculo (`valores/vAjusteBC`, layout nt009) — substitui a
+ * dedução/redução (`vDedRed`) do nt004. O ajuste do ISSQN e a lista de
+ * documentos são independentes e podem coexistir. A lib não calcula nada:
+ * os valores vão como informados.
+ */
+export interface AjusteBCInput {
+  /**
+   * Ajuste da BC do ISSQN: `percentual` → `pAjusteBCISSQN` (`> 0` e `<= 100`,
+   * E0453) ou `valor` → `vAjusteBCISSQN`.
+   */
+  readonly issqn?: { readonly percentual: number } | { readonly valor: number };
+  /** Documentos de ajuste (1 a 1000 no XSD; lista vazia equivale a omitir). */
+  readonly documentos?: readonly DocumentoAjusteBCInput[];
+}
+
+/**
+ * Situação/classificação tributária do IBS/CBS (`IBSCBS/valores/trib`). Os
+ * opcionais formam o grupo `gIBSCBS`, gerado só quando algum é informado.
+ */
+export interface ClassificacaoIbsCbsInput {
+  /** CST do IBS/CBS (3 dígitos, `TSRTCCodSitTrib`) — não é o enum `CST` de PIS/COFINS. */
+  readonly CST: string;
+  /** Código de classificação tributária (6 dígitos, `TSRTCCodClassTrib`). */
+  readonly cClassTrib: string;
+  /** Código de crédito presumido (2 dígitos, `TSRTCCodCredPres`). */
+  readonly cCredPres?: string;
+  /** Tributação regular (`gTribRegular`). */
+  readonly tributacaoRegular?: { readonly CSTReg: string; readonly cClassTribReg: string };
+  /** Diferimento em percentual (`gDif`). */
+  readonly diferimento?: {
+    readonly pDifUF: number;
+    readonly pDifMun: number;
+    readonly pDifCBS: number;
+  };
+}
+
+/**
+ * Destinatário do serviço (`IBSCBS/dest`), quando distinto do tomador. Mesma
+ * forma de {@link TomadorInput}; `inscricaoMunicipal` não existe em
+ * `TCRTCInfoDest` e não é serializada.
+ */
+export type DestinatarioInput = TomadorInput;
+
+/** Unidade imobiliária (`IBSCBS/imovel/gUnidImob`). */
+export interface UnidadeImobiliariaInput {
+  /** Inscrição imobiliária fiscal (`inscImobFisc`). */
+  readonly inscricaoImobiliaria?: string;
+  /** `xs:choice`: código CIB ou endereço nacional do imóvel. */
+  readonly identificacao:
+    | { readonly cCIB: string }
+    | {
+        readonly endereco: {
+          readonly cep: string;
+          readonly logradouro: string;
+          readonly numero: string;
+          readonly complemento?: string;
+          readonly bairro?: string;
+        };
+      };
+  /** Parcelas não integrantes da BC do IBS/CBS na locação (`gAjusteBCLocImoveis`). */
+  readonly ajustesBC?: readonly {
+    readonly tipo: TipoAjusteBCLocImoveis;
+    readonly descricao?: string;
+    readonly valor: number;
+  }[];
+}
+
+/** Operação com bem imóvel, exceto obras (`IBSCBS/imovel`). */
+export interface ImovelInput {
+  /** Código IBGE do município do imóvel (`cMun`). */
+  readonly codMunicipio: string;
+  /** Locação, cessão ou arrendamento (`gLocacao`). */
+  readonly locacao?: {
+    readonly pCopropriedade: number;
+    readonly vTotOper: number;
+    readonly vDescIncondTot?: number;
+    readonly vDescCondTot?: number;
+    readonly dVencOrig?: Date;
+  };
+  /** Unidades imobiliárias (0 a 99; lista vazia equivale a omitir). */
+  readonly unidades?: readonly UnidadeImobiliariaInput[];
+}
+
+/** Bem móvel objeto de locação (`IBSCBS/bensMoveis`). */
+export interface BemMovelInput {
+  /** NCM do bem (8 dígitos). */
+  readonly ncm: string;
+  readonly descricao: string;
+  /** Quantidade (1 a 3 dígitos, `TSNum3Dig`) — string, como os demais `TSNum*`. */
+  readonly quantidade: string;
+}
+
+/**
+ * Grupo IBS/CBS da DPS (`IBSCBS`, layout nt009). `indDest` é derivado:
+ * `destinatario` presente → `DestinatarioDistinto` + `dest`; ausente →
+ * `TomadorEhDestinatario`. A lib não calcula tributo nenhum.
+ */
+export interface IbsCbsInput {
+  readonly classificacao: ClassificacaoIbsCbsInput;
+  readonly indFinal?: IndicadorFinal;
+  /** Código indicador da operação (`cIndOp`, 6 dígitos). */
+  readonly cIndOp?: string;
+  readonly tpOper?: TipoOperacao;
+  /** Chaves das NFS-e referenciadas (`gRefNFSe/refNFSe`; lista vazia equivale a omitir). */
+  readonly nfseReferenciadas?: readonly string[];
+  readonly tpEnteGov?: TipoEnteGovernamental;
+  readonly destinatario?: DestinatarioInput;
+  readonly imovel?: ImovelInput;
+  /** Bens móveis (0 a 1000; lista vazia equivale a omitir). */
+  readonly bensMoveis?: readonly BemMovelInput[];
+}
+
 /** Parâmetros de `buildDps` para o layout `nt009` (NT 009 release 1). */
 export interface BuildDpsParamsNt009 extends BuildDpsParamsBase {
   /** Layout da DPS. Obrigatório — sem default. */
   readonly layout: 'nt009';
+  /** Ajuste da base de cálculo (`valores/vAjusteBC`). */
+  readonly ajusteBC?: AjusteBCInput;
+  /** Grupo IBS/CBS (`IBSCBS`). */
+  readonly ibsCbs?: IbsCbsInput;
 }
 
 /** Parâmetros de `buildDps` — discriminados por `layout` (obrigatório). */
@@ -214,11 +380,24 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  * Cobre o caso comum (prestador brasileiro, serviço único, tomador BR opcional)
  * preenchendo todo o boilerplate do layout RTC v1.01.
  *
- * Para cenários avançados — exterior, obra, atvEvento, dedução/redução, IBSCBS —
- * construa `InfDPSNt004` manualmente (todos os tipos da RTC estão exportados).
+ * No layout `nt009`, `ajusteBC` (ajuste da base de cálculo) e `ibsCbs` (grupo
+ * IBS/CBS, imóvel, bens móveis) também são montados aqui — sem cálculo de
+ * tributo, com as regras de rejeição fechadas do Anexo I checadas antes.
+ *
+ * Para cenários avançados — exterior, obra, atvEvento, dedução/redução e
+ * IBSCBS no nt004 — construa `InfDPSNt004`/`InfDPSNt009` manualmente (todos os
+ * tipos da RTC estão exportados).
  */
 export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout']> {
   const layout = assertLayout((params as { readonly layout?: unknown }).layout);
+  if (layout === 'nt004') {
+    // Fora do sistema de tipos (JS, cast): os inputs do nt009 não têm destino
+    // no nt004 — rejeita em vez de descartar em silêncio.
+    const extra = params as BuildDpsParams & { readonly [K in 'ajusteBC' | 'ibsCbs']?: unknown };
+    for (const field of ['ajusteBC', 'ibsCbs'] as const) {
+      if (extra[field] !== undefined) throw new LayoutMismatchError('nt004', 'nt004', field);
+    }
+  }
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
   assertValoresConsistency(params.valores, params.emitente.regime);
@@ -235,6 +414,8 @@ export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout'
   if (!params.skipCpfCnpjValidation) {
     assertIdentifiersDv(params);
   }
+  const nt009 = layout === 'nt009' ? (params as BuildDpsParamsNt009) : undefined;
+  if (nt009?.ajusteBC) assertAjusteBCNt009(nt009.ajusteBC, params.valores.vServ);
 
   const dhEmi = params.dhEmi ?? new Date();
   const dCompet = params.dCompet ?? new Date();
@@ -272,11 +453,18 @@ export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout'
     valores,
   };
 
-  if (layout === 'nt009') {
-    // nt009: mesmos campos + `finNFSe` obrigatório (só "Regular" na release 1).
-    // A ordem de serialização (finNFSe após cMotivoEmisTI, cNBS antes de
-    // xDescServ) é responsabilidade do serializer.
-    const infDPS: InfDPSNt009 = { ...comum, finNFSe: FinalidadeNFSe.Regular };
+  if (nt009) {
+    // nt009: mesmos campos + `finNFSe` obrigatório (só "Regular" na release 1)
+    // + os grupos de alto nível do nt009 (ajuste de BC e IBS/CBS). A ordem de
+    // serialização (finNFSe após cMotivoEmisTI, cNBS antes de xDescServ) é
+    // responsabilidade do serializer.
+    const vAjusteBC = nt009.ajusteBC && buildAjusteBCNt009(nt009.ajusteBC);
+    const infDPS: InfDPSNt009 = {
+      ...comum,
+      finNFSe: FinalidadeNFSe.Regular,
+      valores: { ...valores, ...(vAjusteBC ? { vAjusteBC } : {}) },
+      ...(nt009.ibsCbs ? { IBSCBS: buildIbsCbsNt009(nt009.ibsCbs) } : {}),
+    };
     return { layout, versao: '1.01', infDPS } as DpsFor<P['layout']>;
   }
   const infDPS: InfDPSNt004 = comum;
@@ -305,10 +493,8 @@ function buildInfoPrestador(emit: EmitenteInput): InfoPrestador {
 }
 
 function buildInfoPessoa(tomador: TomadorInput): InfoPessoaNt004 {
-  const identificador: IdentificadorPessoa =
-    'CNPJ' in tomador.documento ? { CNPJ: tomador.documento.CNPJ } : { CPF: tomador.documento.CPF };
   return {
-    identificador,
+    identificador: toIdentificador(tomador.documento),
     ...(tomador.inscricaoMunicipal ? { IM: tomador.inscricaoMunicipal } : {}),
     xNome: tomador.nome,
     ...(tomador.endereco ? { end: toEndereco(tomador.endereco) } : {}),
@@ -325,6 +511,201 @@ function toEndereco(e: EnderecoBr): Endereco {
     ...(e.complemento ? { xCpl: e.complemento } : {}),
     xBairro: e.bairro,
   };
+}
+
+function toIdentificador(doc: TomadorInput['documento']): IdentificadorPessoa {
+  return 'CNPJ' in doc ? { CNPJ: doc.CNPJ } : { CPF: doc.CPF };
+}
+
+function nonEmpty<T>(xs: readonly T[] | undefined): readonly T[] | undefined {
+  return xs && xs.length > 0 ? xs : undefined;
+}
+
+/** `AjusteBCInput` → `valores/vAjusteBC`; `undefined` quando nada é informado. */
+function buildAjusteBCNt009(a: AjusteBCInput): InfoAjusteBCNt009 | undefined {
+  const docs = nonEmpty(a.documentos);
+  if (!a.issqn && !docs) return undefined;
+  return {
+    ...(a.issqn
+      ? {
+          ajusteIssqn:
+            'percentual' in a.issqn
+              ? { pAjusteBCISSQN: a.issqn.percentual }
+              : { vAjusteBCISSQN: a.issqn.valor },
+        }
+      : {}),
+    ...(docs ? { documentos: { docAjusteBC: docs.map(buildDocAjusteBCNt009) } } : {}),
+  };
+}
+
+function buildDocAjusteBCNt009(d: DocumentoAjusteBCInput): DocAjusteBCNt009 {
+  return {
+    tpAjusteBC: d.tipo,
+    ...(d.descricao !== undefined ? { xTpAjusteBC: d.descricao } : {}),
+    vTotDoc: d.valorTotal,
+    vAjusteAplic: d.valorAplicado,
+    ...(d.dataEmissao ? { dtEmiDoc: d.dataEmissao } : {}),
+    ...(d.dataCompetencia ? { dtCompDoc: d.dataCompetencia } : {}),
+    documento: d.documento,
+    // InfoPessoaNt004 ⊂ InfoPessoaNt009 (no nt009 só `xNome` ficou opcional).
+    ...(d.fornecedor ? { fornec: buildInfoPessoa(d.fornecedor) } : {}),
+  };
+}
+
+/** `IbsCbsInput` → `IBSCBS`. `indDest` é derivado da presença de `destinatario`. */
+function buildIbsCbsNt009(i: IbsCbsInput): RtcInfoIbsCbsNt009 {
+  const refs = nonEmpty(i.nfseReferenciadas);
+  const bens = nonEmpty(i.bensMoveis);
+  return {
+    ...(i.indFinal !== undefined ? { indFinal: i.indFinal } : {}),
+    ...(i.cIndOp !== undefined ? { cIndOp: i.cIndOp } : {}),
+    ...(i.tpOper !== undefined ? { tpOper: i.tpOper } : {}),
+    ...(refs ? { gRefNFSe: { refNFSe: [...refs] } } : {}),
+    ...(i.tpEnteGov !== undefined ? { tpEnteGov: i.tpEnteGov } : {}),
+    indDest: i.destinatario
+      ? IndicadorDestinatario.DestinatarioDistinto
+      : IndicadorDestinatario.TomadorEhDestinatario,
+    ...(i.destinatario ? { dest: buildDestNt009(i.destinatario) } : {}),
+    ...(i.imovel ? { imovel: buildImovelNt009(i.imovel) } : {}),
+    ...(bens
+      ? {
+          bensMoveis: bens.map((b) => ({
+            cNCMBemMovel: b.ncm,
+            xNCMBemMovel: b.descricao,
+            qtdNCMBemMovel: b.quantidade,
+          })),
+        }
+      : {}),
+    valores: { trib: buildTribIbsCbsNt009(i.classificacao) },
+  };
+}
+
+function buildDestNt009(d: DestinatarioInput): RtcInfoDest {
+  // TCRTCInfoDest não tem IM: `inscricaoMunicipal` não é serializada.
+  return {
+    identificador: toIdentificador(d.documento),
+    xNome: d.nome,
+    ...(d.endereco ? { end: toEndereco(d.endereco) } : {}),
+    ...(d.fone ? { fone: d.fone } : {}),
+    ...(d.email ? { email: d.email } : {}),
+  };
+}
+
+function buildTribIbsCbsNt009(c: ClassificacaoIbsCbsInput): RtcInfoTribIbsCbsNt009 {
+  const temGrupo =
+    c.cCredPres !== undefined || c.tributacaoRegular !== undefined || c.diferimento !== undefined;
+  return {
+    CST: c.CST,
+    cClassTrib: c.cClassTrib,
+    ...(temGrupo
+      ? {
+          gIBSCBS: {
+            ...(c.cCredPres !== undefined ? { cCredPres: c.cCredPres } : {}),
+            ...(c.tributacaoRegular ? { gTribRegular: c.tributacaoRegular } : {}),
+            ...(c.diferimento ? { gDif: c.diferimento } : {}),
+          },
+        }
+      : {}),
+  };
+}
+
+function buildImovelNt009(i: ImovelInput): RtcInfoImovelNt009 {
+  const unidades = nonEmpty(i.unidades);
+  return {
+    cMun: i.codMunicipio,
+    ...(i.locacao ? { gLocacao: i.locacao } : {}),
+    ...(unidades ? { gUnidImob: unidades.map(buildUnidadeImobiliariaNt009) } : {}),
+  };
+}
+
+function buildUnidadeImobiliariaNt009(u: UnidadeImobiliariaInput): RtcUnidadeImobiliariaNt009 {
+  const ajustes = nonEmpty(u.ajustesBC);
+  const id = u.identificacao;
+  return {
+    ...(u.inscricaoImobiliaria !== undefined ? { inscImobFisc: u.inscricaoImobiliaria } : {}),
+    identificacao:
+      'cCIB' in id
+        ? { cCIB: id.cCIB }
+        : {
+            end: {
+              CEP: id.endereco.cep,
+              xLgr: id.endereco.logradouro,
+              nro: id.endereco.numero,
+              ...(id.endereco.complemento ? { xCpl: id.endereco.complemento } : {}),
+              ...(id.endereco.bairro ? { xBairro: id.endereco.bairro } : {}),
+            },
+          },
+    ...(ajustes
+      ? {
+          gAjusteBCLocImoveis: ajustes.map((a) => ({
+            tpAjusteBCLocImoveis: a.tipo,
+            ...(a.descricao !== undefined ? { xTpAjusteBCLocImoveis: a.descricao } : {}),
+            vAjusteBCLocImoveis: a.valor,
+          })),
+        }
+      : {}),
+  };
+}
+
+/** Tipos de ajuste de BC que exigem (e são os únicos que admitem) `xTpAjusteBC`. */
+const TIPOS_AJUSTE_BC_COM_DESCRICAO: ReadonlySet<TipoAjusteBC> = new Set([
+  TipoAjusteBC.OutrasDeducoesIssqn,
+  TipoAjusteBC.OutrosReembolsos,
+]);
+
+/** Dia (AAAA-MM-DD) no fuso de Brasília — a mesma data que `TSData` serializa. */
+function diaBrt(d: Date): string {
+  return new Date(d.getTime() - 3 * 60 * 60_000).toISOString().slice(0, 10);
+}
+
+/**
+ * Regras de rejeição fechadas do ajuste de BC (Anexo I 20261020), checáveis
+ * offline antes de montar a DPS.
+ */
+function assertAjusteBCNt009(a: AjusteBCInput, vServ: number): void {
+  if (a.issqn && 'percentual' in a.issqn) {
+    const p = a.issqn.percentual;
+    if (!(p > 0 && p <= 100)) {
+      throw new RuleViolationError(
+        `ajusteBC.issqn.percentual=${p} deve ser maior que 0 e menor ou igual a 100 — per E0453`,
+        'E0453',
+      );
+    }
+  }
+  for (const [i, d] of (a.documentos ?? []).entries()) {
+    const at = `ajusteBC.documentos[${i}]`;
+    const exigeDescricao = TIPOS_AJUSTE_BC_COM_DESCRICAO.has(d.tipo);
+    if (d.descricao !== undefined && !exigeDescricao) {
+      throw new RuleViolationError(
+        `${at}.descricao só pode ser informada quando tipo é 99 ou 199 (atual: ${d.tipo}) — per E0464`,
+        'E0464',
+      );
+    }
+    if (d.descricao === undefined && exigeDescricao) {
+      throw new RuleViolationError(
+        `${at}.descricao é obrigatória quando tipo é 99 ou 199 (atual: ${d.tipo}) — per E0465`,
+        'E0465',
+      );
+    }
+    if (d.dataEmissao && d.dataCompetencia && diaBrt(d.dataEmissao) < diaBrt(d.dataCompetencia)) {
+      throw new RuleViolationError(
+        `${at}.dataEmissao não pode ser anterior a dataCompetencia — per E0472`,
+        'E0472',
+      );
+    }
+    if (d.valorAplicado > vServ) {
+      throw new RuleViolationError(
+        `${at}.valorAplicado=${d.valorAplicado} não pode exceder o valor do serviço (vServ=${vServ}) — per E0467`,
+        'E0467',
+      );
+    }
+    if (d.valorAplicado > d.valorTotal) {
+      throw new RuleViolationError(
+        `${at}.valorAplicado=${d.valorAplicado} não pode exceder o valor do documento (valorTotal=${d.valorTotal}) — per E0469`,
+        'E0469',
+      );
+    }
+  }
 }
 
 function buildServ(serv: ServicoInput, cMunDefault: string): Serv {
