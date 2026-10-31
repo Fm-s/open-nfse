@@ -23,7 +23,7 @@ import {
 } from '../index.js';
 import { buildDps } from '../nfse/build-dps.js';
 import { REGEX_CHAVE_ACESSO } from '../nfse/chave-acesso.js';
-import type { DPS, DpsFor, NFSe } from '../nfse/domain.js';
+import type { DPS, DpsFor, NFSe, NfseFor } from '../nfse/domain.js';
 import type {
   DpsDryRunResult,
   EmitirParams,
@@ -100,8 +100,9 @@ export class NfseClientFake<L extends Layout = Layout> {
     this.seed = new FakeSeed(this.state);
   }
 
-  private montarDps(params: EmitirParams<L>, nDPS: string): DPS {
-    return buildDps({ ...params, layout: this.layout, nDPS });
+  private montarDps(params: EmitirParams<L>, nDPS: string): DpsFor<L> {
+    // buildDps com layout = L devolve a DPS de L.
+    return buildDps({ ...params, layout: this.layout, nDPS }) as DpsFor<L>;
   }
 
   // -------------------------------------------------------------------------
@@ -197,8 +198,8 @@ export class NfseClientFake<L extends Layout = Layout> {
   // -------------------------------------------------------------------------
 
   async emitir(params: EmitirParams<L> & { dryRun: true }): Promise<DpsDryRunResult>;
-  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
-  async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
+  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult<L>>;
+  async emitir(params: EmitirParams<L>): Promise<EmitirResult<L> | DpsDryRunResult> {
     assertParamsLayout(this.layout, params);
     // Como o emitSeguro: monta (e valida) a DPS com o nDPS placeholder/explícito
     // antes de tocar no sequencial ou na falha programada — esta simula o POST,
@@ -231,7 +232,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options?: EmitOptions & { dryRun?: false },
-  ): Promise<NfseEmitResult>;
+  ): Promise<NfseEmitResult<L>>;
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options: EmitOptions & { dryRun: true },
@@ -239,7 +240,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options?: EmitOptions,
-  ): Promise<NfseEmitResult | DpsDryRunResult> {
+  ): Promise<NfseEmitResult<L> | DpsDryRunResult> {
     this.guardsDpsPronta(dps, options?.skipCpfCnpjValidation);
     if (options?.dryRun) {
       return {
@@ -258,10 +259,10 @@ export class NfseClientFake<L extends Layout = Layout> {
   async emitirEmLote(
     dpsList: readonly DpsFor<L>[],
     _options?: EmitLoteOptions,
-  ): Promise<EmitLoteResult> {
+  ): Promise<EmitLoteResult<L>> {
     // Como o real: o lote inteiro é checado antes do primeiro "envio".
     for (const dps of dpsList) assertSameLayout(this.layout, dps);
-    const items: EmitLoteItem[] = [];
+    const items: EmitLoteItem<L>[] = [];
     let successCount = 0;
     let failureCount = 0;
     for (const dps of dpsList) {
@@ -306,7 +307,7 @@ export class NfseClientFake<L extends Layout = Layout> {
     return { status: 'ok', evento };
   }
 
-  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
+  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult<L>> {
     assertSameLayout(this.layout, params.novaDps);
     // Mesmos guards do real (E0078, TSMotivo, TSChaveNFSe, E0042) +
     // `infDPS.subst` auto-preenchido. O layout é preservado.
@@ -495,15 +496,16 @@ export class NfseClientFake<L extends Layout = Layout> {
   }
 
   /** "Autoriza" a DPS: sintetiza chave + NFS-e e registra como emitida. */
-  private registrarNfse(dps: DPS): NfseEmitResult {
+  private registrarNfse(dps: DpsFor<L>): NfseEmitResult<L> {
     const ident = dps.infDPS.prest.identificador;
     const cnpj = 'CNPJ' in ident ? ident.CNPJ : '00000000000000';
     const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, cnpj, dps.infDPS.Id);
-    const result: NfseEmitResult = {
+    const result: NfseEmitResult<L> = {
       chaveAcesso,
       idDps: dps.infDPS.Id,
       xmlNfse: `<NFSe versao="1.01"><infNFSe Id="NFS${chaveAcesso}"/></NFSe>`,
-      nfse: synthNfse(dps, chaveAcesso, this.ambiente),
+      // synthNfse preserva o layout da DPS.
+      nfse: synthNfse(dps, chaveAcesso, this.ambiente) as NfseFor<L>,
       alertas: [],
       tipoAmbiente: this.ambiente,
       versaoAplicativo: 'NfseClientFake/0.6',

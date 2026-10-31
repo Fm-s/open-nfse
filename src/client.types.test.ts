@@ -211,6 +211,35 @@ describe('NfseClient<L> — tipos', () => {
     void _tipos;
   });
 
+  it('NfseClientFake<L> e NfseClientLike<L> estreitam os resultados como o real', () => {
+    const fake = new NfseClientFake({ layout: 'nt009' });
+    const like: NfseClientLike<'nt009'> = fake;
+    const dpsNt009 = dpsNt009Completa();
+    const substParams = {
+      chaveOriginal: '21113002200574753000100000000000146726037032711025',
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Substituição por erro de digitação',
+    };
+    expect(like.layout).toBe('nt009');
+
+    // Só checagem de tipos — nunca invocado.
+    const _tipos = async () => {
+      for (const c of [fake, like]) {
+        const r = await c.emitir(paramsBase);
+        if (r.status === 'ok') expectTypeOf(r.nfse.nfse).toEqualTypeOf<NfseNt009>();
+        expectTypeOf((await c.emitirDpsPronta(dpsNt009)).nfse).toEqualTypeOf<NfseNt009>();
+        const lote = await c.emitirEmLote([dpsNt009]);
+        for (const item of lote.items) {
+          expectTypeOf(item.dps).toEqualTypeOf<DpsNt009>();
+          if (item.status === 'success') expectTypeOf(item.result.nfse).toEqualTypeOf<NfseNt009>();
+        }
+        const s = await c.substituir({ ...substParams, novaDps: dpsNt009 });
+        if (s.status === 'ok') expectTypeOf(s.novaNfse.nfse).toEqualTypeOf<NfseNt009>();
+      }
+    };
+    void _tipos;
+  });
+
   it('ParseNfseXmlOptions é exportado pela entrada pública', () => {
     expectTypeOf<Parameters<typeof parseNfseXml>[1]>().toEqualTypeOf<
       ParseNfseXmlOptions | undefined

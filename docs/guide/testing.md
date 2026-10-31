@@ -36,7 +36,7 @@ new PedidoService(new NfseClient({ layout: 'nt004', ambiente, certificado }));
 new PedidoService(new NfseClientFake({ layout: 'nt004' }));
 ```
 
-Com o layout no tipo, um campo exclusivo do outro layout (ex.: `ibsCbs`/`ajusteBC` do `nt009` num serviço `nt004`) é erro de compilação, e um cliente de outro layout não pode ser injetado. Use `NfseClientLike` sem argumento só em serviços que apenas leem (`fetchByChave`, `fetchByNsu`, …): nele, `emitir` aceita os params dos dois layouts e o erro só aparece em runtime (`LayoutMismatchError`).
+Com o layout no tipo, um campo exclusivo do outro layout (ex.: `ibsCbs`/`ajusteBC` do `nt009` num serviço `nt004`) é erro de compilação, e um cliente de outro layout não pode ser injetado. Os resultados também saem estreitados nos dois clientes: em `NfseClientLike<'nt009'>`, `emitir`/`emitirDpsPronta`/`emitirEmLote`/`substituir` devolvem `NfseNt009`. Use `NfseClientLike` sem argumento só em serviços que apenas leem (`fetchByChave`, `fetchByNsu`, …): nele, `emitir` aceita os params dos dois layouts e o erro só aparece em runtime (`LayoutMismatchError`).
 
 ## API de seed — pré-populando estado
 
