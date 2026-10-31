@@ -4,6 +4,7 @@ import { StatusDistribuicao, TipoDocumento } from '../dfe/types.js';
 import { NotFoundError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import {
+  InvalidCnpjError,
   InvalidLayoutError,
   LayoutMismatchError,
   RuleViolationError,
@@ -529,6 +530,63 @@ describe('NfseClientFake.cancelar / substituir — mesmos guards offline do real
       });
     },
   );
+});
+
+describe('NfseClientFake — DV de CPF/CNPJ na DPS pronta (paridade com emitDpsPronta/substituir)', () => {
+  function dpsComCnpjInvalido() {
+    const dps = buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '5' });
+    return {
+      ...dps,
+      infDPS: {
+        ...dps.infDPS,
+        prest: { ...dps.infDPS.prest, identificador: { CNPJ: '00574753000199' } },
+      },
+    };
+  }
+
+  it('emitirDpsPronta / emitirEmLote / substituir lançam InvalidCnpjError antes da falha programada', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'rejection', codigo: 'E1', descricao: 'x' });
+    const dps = dpsComCnpjInvalido();
+    await expect(fake.emitirDpsPronta(dps)).rejects.toBeInstanceOf(InvalidCnpjError);
+    await expect(fake.emitirDpsPronta(dps, { dryRun: true })).rejects.toBeInstanceOf(
+      InvalidCnpjError,
+    );
+    const lote = await fake.emitirEmLote([dps]);
+    expect(lote.items[0]).toMatchObject({ status: 'failure' });
+    if (lote.items[0]?.status === 'failure') {
+      expect(lote.items[0].error).toBeInstanceOf(InvalidCnpjError);
+    }
+    await expect(
+      fake.substituir({
+        chaveOriginal: synthChaveAcesso(1, '', dps.infDPS.Id),
+        novaDps: dps,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      }),
+    ).rejects.toBeInstanceOf(InvalidCnpjError);
+    expect(fake.emittedChaves).toEqual([]);
+    // A falha programada segue intacta.
+    await expect(
+      fake.emitirDpsPronta(buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '6' })),
+    ).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
+  it('skipCpfCnpjValidation desliga o guard, como no real', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const dps = dpsComCnpjInvalido();
+    await expect(fake.emitirDpsPronta(dps, { skipCpfCnpjValidation: true })).resolves.toMatchObject(
+      { idDps: dps.infDPS.Id },
+    );
+    const r = await fake.substituir({
+      chaveOriginal: synthChaveAcesso(1, '', dps.infDPS.Id),
+      novaDps: { ...dps, infDPS: { ...dps.infDPS, nDPS: '7' } },
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Correção de valor do serviço',
+      skipCpfCnpjValidation: true,
+    });
+    expect(r.status).toBe('ok');
+  });
 });
 
 describe('synthChaveAcesso com idDps', () => {

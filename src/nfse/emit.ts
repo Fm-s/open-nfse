@@ -517,7 +517,11 @@ export async function emitMany<L extends Layout = Layout>(
   return { items, successCount, failureCount, skippedCount };
 }
 
-function runIdentifierValidation(dps: DPS): void {
+/**
+ * DV de todo CPF/CNPJ da DPS (prestador, tomador, intermediário…). Exportada
+ * (interna à lib) para o `NfseClientFake` rodar o mesmo guard.
+ */
+export function runIdentifierValidation(dps: DPS): void {
   for (const { type, value } of collectIdentifiersFromDps(dps)) {
     if (type === 'CNPJ') validateCnpj(value);
     else validateCpf(value);

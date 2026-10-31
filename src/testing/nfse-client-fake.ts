@@ -35,6 +35,7 @@ import type {
   EmitOptions,
   NfseEmitResult,
 } from '../nfse/emit.js';
+import { runIdentifierValidation } from '../nfse/emit.js';
 import {
   assertLayout,
   assertNoForeignLayoutFields,
@@ -68,10 +69,12 @@ const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
  *  - Oferece API de seed (`fake.seed.*`) e simulação de falhas
  *    (`fake.failNextEmit`, `fake.failNextCancel`).
  *  - **Executa os mesmos guards offline** do real — os de `buildDps`
- *    (CPF/CNPJ, regras de negócio, layout) em `emitir` e os de
- *    `cancelar`/`substituir` (motivo, `TSMotivo`, E0078) — antes de consumir a
- *    falha programada (que simula o POST), assim o consumidor testa o caminho
- *    de validação sem mock adicional. Não roda a validação XSD nem a de CEP.
+ *    (CPF/CNPJ, regras de negócio, layout) em `emitir`, DV de CPF/CNPJ e
+ *    layout em `emitirDpsPronta`/`emitirEmLote`/`substituir`, os de
+ *    `cancelar` (motivo, `TSMotivo`, chave, `verAplic`) e os de `substituir`
+ *    (`TSMotivo`, E0078, `TSChaveNFSe`, E0042) — antes de consumir a falha
+ *    programada (que simula o POST), assim o consumidor testa o caminho de
+ *    validação sem mock adicional. Não roda a validação XSD nem a de CEP.
  *
  * Estrutural-compatível com `NfseClient` — se você tipar suas dependências
  * como `NfseClientLike`, pode injetar qualquer um.
@@ -282,6 +285,8 @@ export class NfseClientFake<L extends Layout = Layout> {
     assertSameLayout(this.layout, dps);
     // Paridade com o real (buildDpsXml): campo do outro layout → LayoutMismatchError.
     assertNoForeignLayoutFields(dps);
+    // Paridade com o real: DV de CPF/CNPJ antes do dry-run e da falha programada.
+    if (!options?.skipCpfCnpjValidation) runIdentifierValidation(dps);
     if (options?.dryRun) {
       return {
         dryRun: true,
@@ -391,7 +396,10 @@ export class NfseClientFake<L extends Layout = Layout> {
     // Mesmos guards do real (E0078, TSMotivo) + `infDPS.subst` auto-preenchido.
     // O layout é preservado, então a DPS continua sendo do layout `L`.
     const novaDps = prepararSubstituicao(params) as DpsFor<L>;
-    const novaNfse = await this.emitirDpsPronta(novaDps);
+    const novaNfse = await this.emitirDpsPronta(
+      novaDps,
+      params.skipCpfCnpjValidation ? { skipCpfCnpjValidation: true } : undefined,
+    );
     this.state.substituted.set(params.chaveOriginal, novaNfse.chaveAcesso);
     // Modela o sistema gerando o evento 105102 (autor=MEmis) que cancela a
     // original — o contribuinte não posta esse evento.
