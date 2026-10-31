@@ -71,6 +71,61 @@ export class ReceitaRejectionError extends OpenNfseError {
   }
 }
 
+export interface UnreadableAuthorizedNfseErrorOptions {
+  readonly chaveAcesso: string;
+  readonly idDps: string;
+  /**
+   * XML da NFS-e autorizada, quando a lib chegou a obtê-lo. Ausente só na
+   * reconciliação do replay quando o `GET /nfse/{chave}` falha de forma
+   * permanente depois de o `GET /dps/{id}` confirmar a NFS-e.
+   */
+  readonly xmlNfse?: string;
+  readonly alertas?: readonly MensagemProcessamento[];
+  readonly tipoAmbiente?: TipoAmbiente;
+  readonly versaoAplicativo?: string;
+  readonly dataHoraProcessamento?: Date;
+  /** O que impediu a leitura: erro do parser, `LayoutMismatchError`, falha do GET… */
+  readonly cause: unknown;
+}
+
+/**
+ * A Receita **autorizou** a NFS-e (há `chaveAcesso`), mas a lib não conseguiu
+ * transformar a resposta no DTO `NFSe` — XML que o parser rejeita, NFS-e de
+ * layout diferente do da DPS enviada, ou (na reconciliação do replay) o XML não
+ * pôde ser baixado. **Não é uma falha de emissão**: a nota existe e o `nDPS`
+ * foi consumido. **Não reemita** — persista `chaveAcesso`/`xmlNfse` e trate o
+ * parsing à parte (`fetchByChave(chaveAcesso)` depois de atualizar a lib, por
+ * exemplo).
+ *
+ * Nunca é transiente (`defaultIsTransient` → `false`) e nunca vai para o
+ * `RetryStore`: o parsing roda fora do caminho de retry, então nem um
+ * `isTransient` custom a classifica. A causa original fica em `cause`.
+ */
+export class UnreadableAuthorizedNfseError extends OpenNfseError {
+  readonly chaveAcesso: string;
+  readonly idDps: string;
+  readonly xmlNfse: string | undefined;
+  readonly alertas: readonly MensagemProcessamento[];
+  readonly tipoAmbiente: TipoAmbiente | undefined;
+  readonly versaoAplicativo: string | undefined;
+  readonly dataHoraProcessamento: Date | undefined;
+
+  constructor(options: UnreadableAuthorizedNfseErrorOptions) {
+    const motivo = options.cause instanceof Error ? options.cause.message : String(options.cause);
+    super(
+      `NFS-e ${options.chaveAcesso} autorizada (DPS ${options.idDps}), mas a resposta não pôde ser interpretada: ${motivo}. Não reemita — a nota existe.`,
+      { cause: options.cause },
+    );
+    this.chaveAcesso = options.chaveAcesso;
+    this.idDps = options.idDps;
+    this.xmlNfse = options.xmlNfse;
+    this.alertas = options.alertas ?? [];
+    this.tipoAmbiente = options.tipoAmbiente;
+    this.versaoAplicativo = options.versaoAplicativo;
+    this.dataHoraProcessamento = options.dataHoraProcessamento;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Factories — traduzem corpos brutos do SEFIN Nacional em erros tipados.
 // ---------------------------------------------------------------------------

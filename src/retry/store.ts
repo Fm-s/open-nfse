@@ -14,15 +14,19 @@ interface PendingBase {
   /**
    * Layout do documento/cliente que gerou o pendente. Preenchido nas entradas
    * novas; **ausente** em entradas persistidas antes do suporte a layouts
-   * (≤ 0.11) — o replay não depende dele (re-POSTa o XML assinado como está).
+   * (≤ 0.11). O replay re-POSTa o XML assinado como está (não converte); uma
+   * emissão de layout diferente do cliente gera `warn`
+   * `nfse.replay.layout_divergente`. Drene o store antes de trocar de layout.
    */
   readonly layout?: Layout;
   /**
    * XML **assinado** (XMLDSig) pronto para re-POST sem re-assinatura.
    * `replayPendingEvents` envia este XML diretamente ao SEFIN; persistir
-   * XML sem assinatura causa rejeição imediata na retentativa. SEFIN
-   * deduplica via `infDPS.Id` (emissão) ou `chave + tipoEvento`
-   * (eventos), então retentar é idempotente quando o XML é íntegro.
+   * XML sem assinatura causa rejeição imediata na retentativa. O re-POST
+   * reusa o mesmo `infDPS.Id` (emissão) / `chave + tipoEvento` (eventos),
+   * então não gera documento novo. Uma emissão que o SEFIN já autorizou volta
+   * como rejeição (E0014; E1235 após virada de layout) — o replay a
+   * reconcilia via `GET /dps/{id}` antes de descartar a entrada.
    */
   readonly xmlAssinado: string;
   readonly firstAttemptAt: Date;
@@ -52,10 +56,14 @@ interface PendingBase {
   };
 }
 
-/** Emissão pendente — SEFIN deduplica via `infDPS.Id` em retries. */
+/**
+ * Emissão pendente. O replay re-POSTa o XML com o mesmo `infDPS.Id`; numa
+ * rejeição permanente, consulta `GET /dps/{idDps}` para saber se a NFS-e já
+ * existe antes de remover a entrada.
+ */
 export interface PendingEmission extends PendingBase {
   readonly kind: 'emission';
-  /** `infDPS.Id` (45 chars). Chave de idempotência server-side. */
+  /** `infDPS.Id` (45 chars). Usado na reconciliação via `GET /dps/{id}`. */
   readonly idDps: string;
   /** CNPJ do emitente, para introspecção/filtros. */
   readonly emitenteCnpj: string;

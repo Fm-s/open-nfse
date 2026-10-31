@@ -5,10 +5,13 @@ import {
   type MensagemProcessamento,
   ReceitaRejectionError,
   receitaRejectionFromPostError,
+  UnreadableAuthorizedNfseError,
 } from '../errors/receita.js';
+import { LayoutMismatchError } from '../errors/validation.js';
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import type { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
+import type { Logger } from '../logging.js';
 import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
@@ -20,8 +23,9 @@ import { defaultIsTransient } from '../retry/transient.js';
 import { type BuildDpsParamsFor, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
-import type { DPS, NFSe } from './domain.js';
+import type { DPS, DpsFor, NfseFor } from './domain.js';
 import { type DpsCounter, MissingDpsCounterError } from './dps-counter.js';
+import type { DpsStatusResult } from './fetch-dps-status.js';
 import { assertParamsLayout, assertSameLayout, type Layout } from './layout.js';
 import { parseNfseXml } from './parse-xml.js';
 import { signDpsXml } from './sign-xml.js';
@@ -67,13 +71,18 @@ export interface DpsDryRunResult {
   readonly xmlDpsGZipB64: string;
 }
 
-/** Resultado do POST /nfse síncrono. */
-export interface NfseEmitResult {
+/**
+ * Resultado do POST /nfse síncrono. `L` estreita `nfse` ao layout do cliente
+ * (`NfseClient<'nt009'>` → `NfseNt009`); sem argumento é a união `NFSe`. O
+ * estreitamento é checado em runtime: uma NFS-e retornada de outro layout que
+ * a DPS enviada vira `UnreadableAuthorizedNfseError` (nunca um DTO mal tipado).
+ */
+export interface NfseEmitResult<L extends Layout = Layout> {
   readonly dryRun?: false;
   readonly chaveAcesso: string;
   readonly idDps: string;
   readonly xmlNfse: string;
-  readonly nfse: NFSe;
+  readonly nfse: NfseFor<L>;
   readonly alertas: readonly MensagemProcessamento[];
   readonly tipoAmbiente: TipoAmbiente;
   readonly versaoAplicativo: string;
@@ -110,28 +119,35 @@ type SefinPostBody = SefinPostSuccessBody | SefinPostErrorBody;
  *
  * `expectedLayout` (passado pelo `NfseClient`) rejeita com
  * `LayoutMismatchError` uma DPS de outro layout antes de qualquer trabalho.
+ * `logger` recebe os `warn` do parser (`nfse.parse.unexpected_field`).
+ *
+ * NFS-e autorizada cuja resposta não pode ser interpretada →
+ * `UnreadableAuthorizedNfseError` (carrega `chaveAcesso`/`xmlNfse`; não reemita).
  */
-export async function emitDpsPronta(
+export async function emitDpsPronta<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  dps: DPS,
+  dps: DpsFor<L>,
   options: EmitOptions & { dryRun: true },
   expectedLayout?: Layout,
+  logger?: Logger,
 ): Promise<DpsDryRunResult>;
-export async function emitDpsPronta(
+export async function emitDpsPronta<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  dps: DPS,
+  dps: DpsFor<L>,
   options?: EmitOptions & { dryRun?: false },
   expectedLayout?: Layout,
-): Promise<NfseEmitResult>;
-export async function emitDpsPronta(
+  logger?: Logger,
+): Promise<NfseEmitResult<L>>;
+export async function emitDpsPronta<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  dps: DPS,
+  dps: DpsFor<L>,
   options?: EmitOptions,
   expectedLayout?: Layout,
-): Promise<NfseEmitResult | DpsDryRunResult> {
+  logger?: Logger,
+): Promise<NfseEmitResult<L> | DpsDryRunResult> {
   if (expectedLayout !== undefined) assertSameLayout(expectedLayout, dps);
   // Pré-validações, em ordem de custo crescente: primeiro as sync baratas
   // (CPF/CNPJ DV), depois as locais pesadas (XSD contra a RTC v1.01), por
@@ -159,7 +175,7 @@ export async function emitDpsPronta(
     { acceptedStatuses: [400] },
   );
 
-  return parsePostResponseOrThrow(body);
+  return toEmitResult(successBodyOrThrow(body), dps.layout as L, logger);
 }
 
 /**
@@ -169,19 +185,21 @@ export async function emitDpsPronta(
  * Rejeição permanente continua lançando. É o caminho usado por `substituir`
  * (a DPS já vem pronta, com `nDPS` explícito — não há counter envolvido).
  */
-export async function emitDpsProntaSeguro(
+export async function emitDpsProntaSeguro<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  dps: DPS,
+  dps: DpsFor<L>,
   deps: {
     readonly retryStore: RetryStore | undefined;
     readonly retryPolicy: RetryPolicy;
     readonly isTransient?: (err: unknown) => boolean;
     /** Layout do cliente: DPS de outro layout → `LayoutMismatchError` antes de qualquer trabalho. */
     readonly expectedLayout?: Layout;
+    /** Recebe os `warn` do parser da NFS-e retornada. */
+    readonly logger?: Logger;
   },
   options?: Omit<EmitOptions, 'dryRun'>,
-): Promise<EmitirResult> {
+): Promise<EmitirResult<L>> {
   if (deps.expectedLayout !== undefined) assertSameLayout(deps.expectedLayout, dps);
   const isTransient = deps.isTransient ?? defaultIsTransient;
 
@@ -198,13 +216,16 @@ export async function emitDpsProntaSeguro(
   const xmlSigned = signDpsXml(xmlUnsigned, certificate);
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
 
+  // O parsing da NFS-e fica FORA deste try: depois de um 201 a nota existe, e
+  // nenhuma falha de leitura pode cair no caminho transiente/RetryStore.
+  let success: SefinPostSuccessBody;
   try {
     const body = await httpClient.post<SefinPostBody>(
       '/nfse',
       { dpsXmlGZipB64 },
       { acceptedStatuses: [400] },
     );
-    return { status: 'ok', nfse: parsePostResponseOrThrow(body) };
+    success = successBodyOrThrow(body);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isTransient(error)) {
@@ -239,6 +260,7 @@ export async function emitDpsProntaSeguro(
     }
     throw error;
   }
+  return { status: 'ok', nfse: toEmitResult(success, dps.layout as L, deps.logger) };
 }
 
 function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
@@ -249,14 +271,15 @@ function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
 }
 
 /**
- * Interpreta a resposta do `POST /nfse`: corpo de sucesso → `NfseEmitResult`;
- * 400 com corpo de rejeição → lança `ReceitaRejectionError` (regra de negócio).
- * Corpo de erro irreconhecível cai num `ReceitaRejectionError('UNKNOWN')` com o
- * JSON bruto. Único ponto de verdade — `emitDpsPronta`, `emitSeguro` e
- * `replayEmission` compartilham este parsing (antes era copy-paste divergente).
+ * Classifica a resposta do `POST /nfse`: corpo de sucesso → devolvido (o
+ * parsing da NFS-e é feito à parte por `toEmitResult`, fora do caminho de
+ * retry); 400 com corpo de rejeição → lança `ReceitaRejectionError` (regra de
+ * negócio). Corpo de erro irreconhecível cai num `ReceitaRejectionError('UNKNOWN')`
+ * com o JSON bruto. Único ponto de verdade — `emitDpsPronta`, `emitSeguro` e
+ * `replayEmission` compartilham esta classificação.
  */
-function parsePostResponseOrThrow(body: SefinPostBody): NfseEmitResult {
-  if (isSuccessBody(body)) return toEmitResult(body);
+function successBodyOrThrow(body: SefinPostBody): SefinPostSuccessBody {
+  if (isSuccessBody(body)) return body;
   const rejection = receitaRejectionFromPostError(body);
   if (rejection) throw rejection;
   throw new ReceitaRejectionError({
@@ -269,18 +292,56 @@ function parsePostResponseOrThrow(body: SefinPostBody): NfseEmitResult {
   });
 }
 
-function toEmitResult(body: SefinPostSuccessBody): NfseEmitResult {
-  const xmlNfse = gzipBase64DecodeToText(body.nfseXmlGZipB64);
-  return {
+/**
+ * Converte o corpo de sucesso (NFS-e **já autorizada**) em `NfseEmitResult`.
+ * Qualquer falha ao decodificar/parsear o XML — ou NFS-e de layout diferente de
+ * `expectedLayout` (o da DPS enviada) — vira `UnreadableAuthorizedNfseError`
+ * com `chaveAcesso`/`idDps`/`xmlNfse`, para o caller nunca tratar uma nota
+ * existente como emissão falha. `expectedLayout` omitido (replay: o store pode
+ * ter pendentes de outro layout) devolve a união.
+ */
+function toEmitResult<L extends Layout>(
+  body: SefinPostSuccessBody,
+  expectedLayout: L | undefined,
+  logger: Logger | undefined,
+): NfseEmitResult<L> {
+  const meta = {
     chaveAcesso: body.chaveAcesso,
     idDps: body.idDps,
-    xmlNfse,
-    nfse: parseNfseXml(xmlNfse),
     alertas: (body.alertas ?? []).flatMap(normalizeAlerta),
     tipoAmbiente: body.tipoAmbiente === 1 ? TipoAmbiente.Producao : TipoAmbiente.Homologacao,
     versaoAplicativo: body.versaoAplicativo,
     dataHoraProcessamento: new Date(body.dataHoraProcessamento),
   };
+  let xmlNfse: string | undefined;
+  try {
+    xmlNfse = gzipBase64DecodeToText(body.nfseXmlGZipB64);
+    const nfse = parseNfseXml(xmlNfse, logger ? { logger } : undefined);
+    if (expectedLayout !== undefined && nfse.layout !== expectedLayout) {
+      throw new LayoutMismatchError(expectedLayout, nfse.layout);
+    }
+    // Estreitamento checado logo acima (ou L = Layout quando não há expectativa).
+    return { ...meta, xmlNfse, nfse: nfse as NfseFor<L> };
+  } catch (cause) {
+    throw unreadableAuthorizedNfse(
+      { ...meta, ...(xmlNfse !== undefined ? { xmlNfse } : {}), cause },
+      logger,
+    );
+  }
+}
+
+/** Monta o `UnreadableAuthorizedNfseError` e o registra em `error` (a nota existe). */
+export function unreadableAuthorizedNfse(
+  options: ConstructorParameters<typeof UnreadableAuthorizedNfseError>[0],
+  logger: Logger | undefined,
+): UnreadableAuthorizedNfseError {
+  const error = new UnreadableAuthorizedNfseError(options);
+  logger?.error('nfse.emit.authorized_unreadable', {
+    chaveAcesso: error.chaveAcesso,
+    idDps: error.idDps,
+    error: error.cause instanceof Error ? error.cause.message : String(error.cause),
+  });
+  return error;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,13 +370,28 @@ export interface EmitLoteOptions {
   readonly cepValidator?: CepValidator;
 }
 
-export type EmitLoteItem =
-  | { readonly status: 'success'; readonly dps: DPS; readonly result: NfseEmitResult }
-  | { readonly status: 'failure'; readonly dps: DPS; readonly error: Error }
-  | { readonly status: 'skipped'; readonly dps: DPS };
+/**
+ * Item do lote. `success_unreadable` = NFS-e **autorizada** cuja resposta não
+ * pôde ser interpretada (`error.chaveAcesso`/`error.xmlNfse`) — não é falha,
+ * não reemita.
+ */
+export type EmitLoteItem<L extends Layout = Layout> =
+  | {
+      readonly status: 'success';
+      readonly dps: DpsFor<L>;
+      readonly result: NfseEmitResult<L>;
+    }
+  | {
+      readonly status: 'success_unreadable';
+      readonly dps: DpsFor<L>;
+      readonly error: UnreadableAuthorizedNfseError;
+    }
+  | { readonly status: 'failure'; readonly dps: DpsFor<L>; readonly error: Error }
+  | { readonly status: 'skipped'; readonly dps: DpsFor<L> };
 
-export interface EmitLoteResult {
-  readonly items: readonly EmitLoteItem[];
+export interface EmitLoteResult<L extends Layout = Layout> {
+  readonly items: readonly EmitLoteItem<L>[];
+  /** Notas autorizadas: itens `success` **e** `success_unreadable`. */
   readonly successCount: number;
   readonly failureCount: number;
   readonly skippedCount: number;
@@ -326,15 +402,16 @@ const DEFAULT_CONCURRENCY = 4;
 /**
  * `expectedLayout` (passado pelo `NfseClient`) checa **o lote inteiro** antes
  * do primeiro envio: um único item de outro layout rejeita tudo com
- * `LayoutMismatchError`.
+ * `LayoutMismatchError`. `logger` recebe os `warn` do parser de cada NFS-e.
  */
-export async function emitMany(
+export async function emitMany<L extends Layout = Layout>(
   httpClient: HttpClient,
   certificate: A1Certificate,
-  dpsList: readonly DPS[],
+  dpsList: readonly DpsFor<L>[],
   options?: EmitLoteOptions,
   expectedLayout?: Layout,
-): Promise<EmitLoteResult> {
+  logger?: Logger,
+): Promise<EmitLoteResult<L>> {
   if (expectedLayout !== undefined) {
     for (const dps of dpsList) assertSameLayout(expectedLayout, dps);
   }
@@ -351,7 +428,7 @@ export async function emitMany(
       : {}),
     ...(options?.cepValidator !== undefined ? { cepValidator: options.cepValidator } : {}),
   };
-  const items: EmitLoteItem[] = new Array(dpsList.length);
+  const items: EmitLoteItem<L>[] = new Array(dpsList.length);
   let nextIndex = 0;
   let aborted = false;
 
@@ -360,11 +437,23 @@ export async function emitMany(
       if (aborted) return;
       const i = nextIndex++;
       if (i >= dpsList.length) return;
-      const dps = dpsList[i] as DPS;
+      const dps = dpsList[i] as DpsFor<L>;
       try {
-        const result = await emitDpsPronta(httpClient, certificate, dps, perEmitOptions);
+        const result = await emitDpsPronta<L>(
+          httpClient,
+          certificate,
+          dps,
+          perEmitOptions,
+          undefined,
+          logger,
+        );
         items[i] = { status: 'success', dps, result };
       } catch (cause) {
+        // Autorizada, mas ilegível: a nota existe — não é falha nem aborta o lote.
+        if (cause instanceof UnreadableAuthorizedNfseError) {
+          items[i] = { status: 'success_unreadable', dps, error: cause };
+          continue;
+        }
         const error = cause instanceof Error ? cause : new Error(String(cause));
         items[i] = { status: 'failure', dps, error };
         if (stopOnError) aborted = true;
@@ -376,14 +465,14 @@ export async function emitMany(
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   for (let i = 0; i < dpsList.length; i++) {
-    if (!items[i]) items[i] = { status: 'skipped', dps: dpsList[i] as DPS };
+    if (!items[i]) items[i] = { status: 'skipped', dps: dpsList[i] as DpsFor<L> };
   }
 
   let successCount = 0;
   let failureCount = 0;
   let skippedCount = 0;
   for (const item of items) {
-    if (item.status === 'success') successCount++;
+    if (item.status === 'success' || item.status === 'success_unreadable') successCount++;
     else if (item.status === 'failure') failureCount++;
     else skippedCount++;
   }
@@ -457,14 +546,15 @@ export type EmitirParams<L extends Layout = Layout> =
  *
  * - `ok` — autorizada, `nfse` contém a NFS-e parseada.
  * - `retry_pending` — erro transiente (rede/timeout/5xx); salvo no
- *   `RetryStore` para replay idempotente via `replayPendingEvents`.
+ *   `RetryStore` para replay via `replayPendingEvents`.
  *
  * Erros **permanentes** (rejeição de regra fiscal, validação local) lançam
  * exceção — o caller sabe que o nDPS foi consumido mas a nota foi
- * definitivamente rejeitada.
+ * definitivamente rejeitada. Exceção à parte: `UnreadableAuthorizedNfseError`
+ * = nota **autorizada** cuja resposta não pôde ser interpretada (não reemita).
  */
-export type EmitirResult =
-  | { readonly status: 'ok'; readonly nfse: NfseEmitResult }
+export type EmitirResult<L extends Layout = Layout> =
+  | { readonly status: 'ok'; readonly nfse: NfseEmitResult<L> }
   | {
       readonly status: 'retry_pending';
       readonly pending: PendingEmission;
@@ -478,6 +568,8 @@ interface EmitSeguroDeps {
   readonly retryStore: RetryStore | undefined;
   readonly retryPolicy: RetryPolicy;
   readonly isTransient?: (err: unknown) => boolean;
+  /** Recebe os `warn` do parser da NFS-e retornada. */
+  readonly logger?: Logger;
 }
 
 /**
@@ -486,7 +578,7 @@ interface EmitSeguroDeps {
 export async function emitSeguro<L extends Layout>(
   deps: EmitSeguroDeps & { readonly layout: L },
   params: EmitirParams<L>,
-): Promise<EmitirResult | DpsDryRunResult> {
+): Promise<EmitirResult<L> | DpsDryRunResult> {
   assertParamsLayout(deps.layout, params);
   const isTransient = deps.isTransient ?? defaultIsTransient;
   const montarDps = (nDPS: string): DPS => buildDps({ ...params, layout: deps.layout, nDPS });
@@ -534,7 +626,10 @@ export async function emitSeguro<L extends Layout>(
   const xmlSigned = signDpsXml(xmlUnsigned, deps.certificate);
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSigned);
 
-  // 6. POST. Transiente → retryStore. Permanente → throw.
+  // 6. POST. Transiente → retryStore. Permanente → throw. O parsing da NFS-e
+  //    fica FORA do try: após um 201 a nota existe, e falha de leitura nunca
+  //    pode virar retry_pending (nem com um isTransient custom).
+  let success: SefinPostSuccessBody;
   try {
     const body = await deps.httpClient.post<SefinPostBody>(
       '/nfse',
@@ -542,8 +637,8 @@ export async function emitSeguro<L extends Layout>(
       { acceptedStatuses: [400] },
     );
 
-    // Sucesso → ok; 400 com corpo de rejeição → throw permanente.
-    return { status: 'ok', nfse: parsePostResponseOrThrow(body) };
+    // Sucesso → segue; 400 com corpo de rejeição → throw permanente.
+    success = successBodyOrThrow(body);
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isTransient(error)) {
@@ -577,15 +672,21 @@ export async function emitSeguro<L extends Layout>(
     }
     throw error;
   }
+  return { status: 'ok', nfse: toEmitResult(success, deps.layout, deps.logger) };
 }
 
 /**
  * Replay de uma emissão pendente — re-POSTa o XML assinado diretamente em
- * `/nfse`. SEFIN deduplica via `infDPS.Id`, então retentar é idempotente.
+ * `/nfse`. Uma DPS já convertida em NFS-e volta como rejeição permanente
+ * (E0014 — série/número já existe), não como sucesso: quem decide é o
+ * `replayPendingEvents`, que reconcilia via `GET /dps/{id}` +
+ * `fetchEmissionByDpsStatus`. Resposta 201 ilegível →
+ * `UnreadableAuthorizedNfseError`.
  */
 export async function replayEmission(
   httpClient: HttpClient,
   xmlSignedDps: string,
+  logger?: Logger,
 ): Promise<NfseEmitResult> {
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSignedDps);
   const body = await httpClient.post<SefinPostBody>(
@@ -593,7 +694,43 @@ export async function replayEmission(
     { dpsXmlGZipB64 },
     { acceptedStatuses: [400] },
   );
-  return parsePostResponseOrThrow(body);
+  return toEmitResult<Layout>(successBodyOrThrow(body), undefined, logger);
+}
+
+interface SefinNfseGetBody {
+  readonly tipoAmbiente: 1 | 2;
+  readonly versaoAplicativo: string;
+  readonly dataHoraProcessamento: string;
+  readonly chaveAcesso: string;
+  readonly nfseXmlGZipB64: string;
+}
+
+/**
+ * Reconciliação do replay: dado o `GET /dps/{id}` que confirmou a NFS-e,
+ * baixa-a (`GET /nfse/{chave}`) e monta o mesmo `NfseEmitResult` de uma
+ * emissão (`alertas` vazio — o GET não os devolve). XML ilegível →
+ * `UnreadableAuthorizedNfseError`; erros HTTP propagam.
+ */
+export async function fetchEmissionByDpsStatus(
+  httpClient: HttpClient,
+  status: DpsStatusResult,
+  logger?: Logger,
+): Promise<NfseEmitResult> {
+  const raw = await httpClient.get<SefinNfseGetBody>(
+    `/nfse/${encodeURIComponent(status.chaveAcesso)}`,
+  );
+  return toEmitResult<Layout>(
+    {
+      tipoAmbiente: raw.tipoAmbiente,
+      versaoAplicativo: raw.versaoAplicativo,
+      dataHoraProcessamento: raw.dataHoraProcessamento,
+      idDps: status.idDps,
+      chaveAcesso: raw.chaveAcesso,
+      nfseXmlGZipB64: raw.nfseXmlGZipB64,
+    },
+    undefined,
+    logger,
+  );
 }
 
 function pickStr(obj: Record<string, unknown>, ...keys: string[]): string | undefined {

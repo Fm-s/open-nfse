@@ -49,11 +49,13 @@ export type {
   RawNfsePostErrorBody,
   RawResponseErroBody,
   ReceitaRejectionErrorOptions,
+  UnreadableAuthorizedNfseErrorOptions,
 } from './errors/receita.js';
 export {
   ReceitaRejectionError,
   receitaRejectionFromPostError,
   receitaRejectionFromResponseErro,
+  UnreadableAuthorizedNfseError,
 } from './errors/receita.js';
 export type { XsdViolation } from './errors/validation.js';
 export {

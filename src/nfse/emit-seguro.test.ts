@@ -4,9 +4,11 @@ import forge from 'node-forge';
 import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { A1Certificate } from '../certificate/types.js';
+import { UnreadableAuthorizedNfseError } from '../errors/receita.js';
 import { InvalidLayoutError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
+import type { Logger } from '../logging.js';
 import { createDefaultRetryPolicy } from '../retry/policy.js';
 import {
   createInMemoryRetryStore,
@@ -453,5 +455,72 @@ describe('emitSeguro', () => {
 
     // next call would be 12 — verify by consuming one more
     expect(await counter.next({ emitenteCnpj: '00574753000100', serie: '1' })).toBe('12');
+  });
+
+  function mockPostOkComXml(xml: string) {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, {
+        tipoAmbiente: 2,
+        versaoAplicativo: 'v',
+        dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
+        idDps: 'DPS211130020057475300010000001000000000000001',
+        chaveAcesso: CHAVE,
+        nfseXmlGZipB64: gzipBase64Encode(xml),
+      });
+  }
+
+  it('201 com NFS-e ilegível: lança UnreadableAuthorizedNfseError com a chave — nunca retry_pending, mesmo com isTransient permissivo', async () => {
+    const ilegivel = SAMPLE_XML.replace(/<nNFSe>[^<]*<\/nNFSe>/, '');
+    mockPostOkComXml(ilegivel);
+    const counter = createInMemoryDpsCounter();
+    const retryStore = createInMemoryRetryStore();
+    const err = await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: counter,
+        retryStore,
+        retryPolicy: createDefaultRetryPolicy(),
+        isTransient: () => true,
+        layout: 'nt004',
+      },
+      baseParams(),
+    ).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(err).toMatchObject({
+      chaveAcesso: CHAVE,
+      idDps: 'DPS211130020057475300010000001000000000000001',
+      xmlNfse: ilegivel,
+    });
+    expect(await retryStore.list()).toHaveLength(0);
+    // O nDPS foi consumido (a nota existe): o próximo do counter é o 2.
+    expect(await counter.next({ emitenteCnpj: '00574753000100', serie: '1' })).toBe('2');
+  });
+
+  it('repassa o logger ao parser da NFS-e retornada (nfse.parse.unexpected_field)', async () => {
+    mockPostOkComXml(
+      SAMPLE_XML.replace('<vLiq>', '<vCalcAjusteBCISSQN>1.00</vCalcAjusteBCISSQN><vLiq>'),
+    );
+    const warn = vi.fn();
+    const logger: Logger = { debug() {}, info() {}, warn, error() {} };
+    const r = await emitSeguro(
+      {
+        httpClient,
+        certificate: cert,
+        dpsCounter: createInMemoryDpsCounter(),
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+        layout: 'nt004',
+        logger,
+      },
+      baseParams(),
+    );
+    expect(r).toMatchObject({ status: 'ok' });
+    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+      layout: 'nt004',
+      field: 'vCalcAjusteBCISSQN',
+    });
   });
 });

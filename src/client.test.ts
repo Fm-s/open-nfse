@@ -5,15 +5,19 @@ import forge from 'node-forge';
 import { MockAgent } from 'undici';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente, TipoAmbiente } from './ambiente.js';
-import { ClientClosedError, NfseClient } from './client.js';
+import type { CepInfo, CepValidator } from './cep/types.js';
+import type { CertificateProvider } from './certificate/types.js';
+import { ClientClosedError, NfseClient, type NfseClientConfig } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
-import { ForbiddenError } from './errors/http.js';
+import { ForbiddenError, ServerError } from './errors/http.js';
+import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from './errors/receita.js';
 import {
   InvalidChaveAcessoError,
   InvalidLayoutError,
   LayoutMismatchError,
 } from './errors/validation.js';
-import { gzipBase64Encode } from './http/encoding.js';
+import { gzipBase64DecodeToText, gzipBase64Encode } from './http/encoding.js';
+import type { Logger } from './logging.js';
 import { dpsNt009Completa } from './nfse/__fixtures__/dps-nt009.js';
 import { buildDps } from './nfse/build-dps.js';
 import { buildDpsXml } from './nfse/build-xml.js';
@@ -24,10 +28,45 @@ import {
   RegimeEspecialTributacao,
 } from './nfse/enums.js';
 import { parseNfseXml } from './nfse/parse-xml.js';
+import { validateDpsXml } from './nfse/validate-xml.js';
 import { createInMemoryRetryStore } from './retry/store.js';
 
 const CHAVE = '21113002200574753000100000000000146726037032711025';
 const XML_SAMPLE = readFileSync(join(__dirname, '..', 'specs', 'samples', `${CHAVE}.xml`), 'utf-8');
+const NFSE_NT009_XML = readFileSync(
+  join(__dirname, 'nfse', '__fixtures__', 'nfse-nt009-sintetica.xml'),
+  'utf-8',
+);
+
+/** Corpo 201 do `POST /nfse` com a NFS-e `xml`. */
+function successBody(xml: string, idDps = 'DPS211130010057475300010000001000000000000001') {
+  return {
+    tipoAmbiente: 2,
+    versaoAplicativo: 'SefinNacional_1.7.0',
+    dataHoraProcessamento: '2026-12-01T12:00:00-03:00',
+    idDps,
+    chaveAcesso: CHAVE,
+    nfseXmlGZipB64: gzipBase64Encode(xml),
+  };
+}
+
+const cepStub: CepValidator = { validate: async (cep) => ({ cep }) as CepInfo };
+
+/** Params nt004 de `emitir` sem `nDPS` (o counter fornece), sem CEP. */
+const paramsEmitir = {
+  emitente: {
+    cnpj: '00574753000100',
+    codMunicipio: '2111300',
+    regime: {
+      opSimpNac: OpcaoSimplesNacional.NaoOptante,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
+    },
+  },
+  serie: '1',
+  servico: { cTribNac: '250101', cNBS: '123456789', descricao: 'Teste' },
+  valores: { vServ: 100, pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
+  skipCepValidation: true,
+} as const;
 
 function gerarPfxTeste(senha: string): Buffer {
   const keys = forge.pki.rsa.generateKeyPair(2048);
@@ -1095,5 +1134,343 @@ describe('NfseClient — layout', () => {
     const r = await clientNt004.emitir({ ...paramsBase, dryRun: true });
     expect(r.xmlDpsAssinado).not.toContain('finNFSe');
     await clientNt004.close();
+  });
+
+  it('emitir com layout divergente (chamador JS) lança LayoutMismatchError antes de carregar o certificado', async () => {
+    let loads = 0;
+    const certificado: CertificateProvider = {
+      async load() {
+        loads++;
+        throw new Error('KMS fora do ar');
+      },
+    };
+    const client = new NfseClient({ ...baseConfig(), certificado, layout: 'nt004' });
+    await expect(
+      client.emitir({ ...paramsBase, layout: 'nt009', dryRun: true } as never),
+    ).rejects.toMatchObject({ name: 'LayoutMismatchError', expected: 'nt004', received: 'nt009' });
+    // Input exclusivo do nt009 num cliente nt004 também falha antes do I/O do certificado.
+    await expect(
+      client.emitir({ ...paramsBase, ajusteBC: { issqn: { percentual: 10 } } } as never),
+    ).rejects.toMatchObject({ name: 'LayoutMismatchError', field: 'ajusteBC' });
+    expect(loads).toBe(0);
+  });
+
+  it('emitirDpsPronta e emitirEmLote num cliente nt009 enviam a DPS nt009 (XSD nt009) e devolvem NFS-e nt009', async () => {
+    const enviados: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      mockAgent
+        .get('https://sefin.producaorestrita.nfse.gov.br')
+        .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+        .reply((opts) => {
+          const { dpsXmlGZipB64 } = JSON.parse(opts.body as string) as { dpsXmlGZipB64: string };
+          enviados.push(gzipBase64DecodeToText(dpsXmlGZipB64));
+          return { statusCode: 201, data: successBody(NFSE_NT009_XML) };
+        });
+    }
+    const client = new NfseClient({ ...baseConfig(), layout: 'nt009', cepValidator: cepStub });
+    const r = await client.emitirDpsPronta(dpsNt009Completa());
+    expect(r.nfse.layout).toBe('nt009');
+    expect(r.nfse.infNFSe.DPS.infDPS.finNFSe).toBe('0');
+
+    const d1 = dpsNt009Completa();
+    const lote = await client.emitirEmLote([d1, { ...d1, infDPS: { ...d1.infDPS, nDPS: '2' } }]);
+    expect(lote.successCount).toBe(2);
+    expect(enviados).toHaveLength(3);
+    for (const xml of enviados) {
+      expect(xml).toContain('<finNFSe>0</finNFSe>');
+      await expect(validateDpsXml(xml, { layout: 'nt009' })).resolves.toBeUndefined();
+    }
+    await client.close();
+  });
+});
+
+describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e reconciliação do replay', () => {
+  const senha = 'senha';
+  let pfx: Buffer;
+  let mockAgent: MockAgent;
+  const SEFIN = 'https://sefin.producaorestrita.nfse.gov.br';
+  // infDPS.Id válido (TSIdDPS) — o replay consulta GET /dps/{id} com ele.
+  const ID_DPS = 'DPS211130020057475300010000001000000000000001';
+  const XML_ILEGIVEL = XML_SAMPLE.replace(/<nNFSe>[^<]*<\/nNFSe>/, '');
+  const XML_CAMPO_ESTRANHO = XML_SAMPLE.replace(
+    '<vLiq>',
+    '<vCalcAjusteBCISSQN>1.00</vCalcAjusteBCISSQN><vLiq>',
+  );
+
+  beforeAll(() => {
+    pfx = gerarPfxTeste(senha);
+  });
+  beforeEach(() => {
+    mockAgent = new MockAgent();
+    mockAgent.disableNetConnect();
+  });
+  afterEach(async () => {
+    await mockAgent.close();
+  });
+
+  function recordingLogger() {
+    const warns: [string, unknown][] = [];
+    const errors: [string, unknown][] = [];
+    const logger: Logger = {
+      debug() {},
+      info() {},
+      warn: (m, c) => {
+        warns.push([m, c]);
+      },
+      error: (m, c) => {
+        errors.push([m, c]);
+      },
+    };
+    return { logger, warns, errors };
+  }
+
+  function client(extra: Partial<NfseClientConfig<'nt004'>> = {}): NfseClient<'nt004'> {
+    return new NfseClient({
+      layout: 'nt004',
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      ...extra,
+    });
+  }
+
+  async function storeComEmissao(layout?: 'nt004' | 'nt009') {
+    const store = createInMemoryRetryStore();
+    await store.save({
+      id: `emission:${ID_DPS}`,
+      kind: 'emission',
+      ...(layout ? { layout } : {}),
+      idDps: ID_DPS,
+      emitenteCnpj: '00574753000100',
+      serie: '1',
+      nDPS: '1',
+      xmlAssinado: `<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="${ID_DPS}"/></DPS>`,
+      firstAttemptAt: new Date('2026-11-30T23:59:00Z'),
+      lastAttemptAt: new Date('2026-11-30T23:59:00Z'),
+      attempts: 1,
+      lastError: { message: 'timeout', errorName: 'TimeoutError', transient: true },
+    });
+    return store;
+  }
+
+  function replyPost(status: number, body: object) {
+    mockAgent
+      .get(SEFIN)
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(status, body);
+  }
+
+  function replyDpsStatus(status: number, body: object = {}) {
+    mockAgent
+      .get(SEFIN)
+      .intercept({ path: `/SefinNacional/dps/${ID_DPS}`, method: 'GET' })
+      .reply(
+        status,
+        status === 200
+          ? {
+              tipoAmbiente: 2,
+              versaoAplicativo: 'v',
+              dataHoraProcessamento: '2026-11-30T23:59:30-03:00',
+              idDps: ID_DPS,
+              chaveAcesso: CHAVE,
+            }
+          : body,
+      );
+  }
+
+  function replyNfseGet(status: number, xml = XML_SAMPLE) {
+    mockAgent
+      .get(SEFIN)
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE}`, method: 'GET' })
+      .reply(
+        status,
+        status === 200
+          ? {
+              tipoAmbiente: 2,
+              versaoAplicativo: 'v',
+              dataHoraProcessamento: '2026-11-30T23:59:30-03:00',
+              chaveAcesso: CHAVE,
+              nfseXmlGZipB64: gzipBase64Encode(xml),
+            }
+          : {},
+      );
+  }
+
+  const rejeicao = (codigo: string) => ({ erros: [{ codigo, descricao: `rejeição ${codigo}` }] });
+
+  it('emitir: 201 ilegível lança UnreadableAuthorizedNfseError (chave/xml) e não persiste nada', async () => {
+    replyPost(201, successBody(XML_ILEGIVEL, ID_DPS));
+    const store = createInMemoryRetryStore();
+    const c = client({ retryStore: store, dpsCounter: createInMemoryDpsCounter() });
+    const err = await c.emitir(paramsEmitir).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(err).toMatchObject({ chaveAcesso: CHAVE, idDps: ID_DPS, xmlNfse: XML_ILEGIVEL });
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('substituir: 201 ilegível lança UnreadableAuthorizedNfseError e não persiste nada', async () => {
+    replyPost(201, successBody(XML_ILEGIVEL, ID_DPS));
+    const store = createInMemoryRetryStore();
+    const c = client({ retryStore: store });
+    const err = await c
+      .substituir({
+        chaveOriginal: CHAVE,
+        novaDps: buildDps({ ...paramsEmitir, nDPS: '2', layout: 'nt004' }),
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Substituição por erro de digitação',
+      })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('repassa o logger do cliente ao parser em emitir, emitirDpsPronta, emitirEmLote e substituir', async () => {
+    for (let i = 0; i < 4; i++) replyPost(201, successBody(XML_CAMPO_ESTRANHO, ID_DPS));
+    const { logger, warns } = recordingLogger();
+    const c = client({ logger, dpsCounter: createInMemoryDpsCounter() });
+    const dps = buildDps({ ...paramsEmitir, nDPS: '7', layout: 'nt004' });
+    await c.emitir(paramsEmitir);
+    await c.emitirDpsPronta(dps);
+    await c.emitirEmLote([dps]);
+    await c.substituir({
+      chaveOriginal: CHAVE,
+      novaDps: dps,
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Substituição por erro de digitação',
+    });
+    const parseWarns = warns.filter(([m]) => m === 'nfse.parse.unexpected_field');
+    expect(parseWarns).toHaveLength(4);
+    await c.close();
+  });
+
+  it('replay: re-POST autorizado mas ilegível → success_emission_unreadable (com a chave) e entrada removida', async () => {
+    replyPost(201, successBody(XML_ILEGIVEL, ID_DPS));
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission_unreadable');
+    if (item?.status !== 'success_emission_unreadable') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(item.error.chaveAcesso).toBe(CHAVE);
+    expect(item.error.xmlNfse).toBe(XML_ILEGIVEL);
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: repassa o logger ao parser da NFS-e re-POSTada', async () => {
+    replyPost(201, successBody(XML_CAMPO_ESTRANHO, ID_DPS));
+    const { logger, warns } = recordingLogger();
+    const c = client({ retryStore: await storeComEmissao(), logger });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission');
+    expect(warns).toContainEqual([
+      'nfse.parse.unexpected_field',
+      { layout: 'nt004', field: 'vCalcAjusteBCISSQN' },
+    ]);
+    await c.close();
+  });
+
+  it('replay: rejeição permanente (E0014) + GET /dps mostra NFS-e gerada → success_emission reconciliado com a chave', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200);
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission');
+    if (item?.status !== 'success_emission') throw new Error('status inesperado');
+    expect(item.emission.chaveAcesso).toBe(CHAVE);
+    expect(item.emission.idDps).toBe(ID_DPS);
+    expect(item.emission.xmlNfse).toBe(XML_SAMPLE);
+    expect(item.emission.nfse.infNFSe.chaveAcesso).toBe(CHAVE);
+    expect(item.reconciledFrom).toBeInstanceOf(ReceitaRejectionError);
+    expect(item.reconciledFrom).toMatchObject({ codigo: 'E0014' });
+    expect(await store.list()).toHaveLength(0);
+    mockAgent.assertNoPendingInterceptors();
+    await c.close();
+  });
+
+  it('replay: rejeição de schema na virada (E1235) + GET /dps 404 → failed_permanent com a rejeição, entrada removida', async () => {
+    replyPost(400, rejeicao('E1235'));
+    replyDpsStatus(404, { erro: { codigo: 'E404', descricao: 'não encontrada' } });
+    const store = await storeComEmissao('nt004');
+    const c = new NfseClient({
+      layout: 'nt009',
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: store,
+    });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('failed_permanent');
+    if (item?.status !== 'failed_permanent') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(ReceitaRejectionError);
+    expect(item.error).toMatchObject({ codigo: 'E1235' });
+    expect(await store.list()).toHaveLength(0);
+    mockAgent.assertNoPendingInterceptors();
+    await c.close();
+  });
+
+  it('replay: rejeição permanente + GET /dps transiente → still_pending, entrada mantida (não deleta sem saber)', async () => {
+    replyPost(400, rejeicao('E1235'));
+    replyDpsStatus(503);
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('still_pending');
+    if (item?.status !== 'still_pending') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(ServerError);
+    const stored = await store.list();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]?.attempts).toBe(2);
+    await c.close();
+  });
+
+  it('replay: GET /dps confirma a NFS-e mas GET /nfse falha transiente → still_pending, entrada mantida', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(503);
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('still_pending');
+    expect(await store.list()).toHaveLength(1);
+    await c.close();
+  });
+
+  it('replay: GET /dps confirma a NFS-e mas o XML baixado é ilegível → success_emission_unreadable com a chave', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200, XML_ILEGIVEL);
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission_unreadable');
+    if (item?.status !== 'success_emission_unreadable') throw new Error('status inesperado');
+    expect(item.error).toMatchObject({ chaveAcesso: CHAVE, idDps: ID_DPS, xmlNfse: XML_ILEGIVEL });
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: entrada de emissão de outro layout que o cliente gera warn nfse.replay.layout_divergente', async () => {
+    replyPost(201, successBody(XML_SAMPLE, ID_DPS));
+    const { logger, warns } = recordingLogger();
+    const c = new NfseClient({
+      layout: 'nt009',
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx, password: senha },
+      dispatcher: mockAgent,
+      retryStore: await storeComEmissao('nt004'),
+      logger,
+    });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission');
+    expect(warns).toContainEqual([
+      'nfse.replay.layout_divergente',
+      { id: `emission:${ID_DPS}`, entryLayout: 'nt004', clientLayout: 'nt009' },
+    ]);
+    await c.close();
   });
 });

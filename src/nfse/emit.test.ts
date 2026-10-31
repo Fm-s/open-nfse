@@ -6,13 +6,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TipoAmbiente } from '../ambiente.js';
 import type { CepInfo, CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
-import { ReceitaRejectionError } from '../errors/receita.js';
-import { InvalidCepError, InvalidCnpjError, LayoutMismatchError } from '../errors/validation.js';
+import { OpenNfseError } from '../errors/base.js';
+import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from '../errors/receita.js';
+import {
+  InvalidCepError,
+  InvalidCnpjError,
+  InvalidXmlError,
+  LayoutMismatchError,
+  ValidationError,
+} from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
-import { gzipBase64Encode } from '../http/encoding.js';
+import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
+import type { Logger } from '../logging.js';
+import { createDefaultRetryPolicy } from '../retry/policy.js';
+import { createInMemoryRetryStore } from '../retry/store.js';
+import { defaultIsTransient } from '../retry/transient.js';
 import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
-import { emitDpsPronta, emitMany } from './emit.js';
+import { emitDpsPronta, emitDpsProntaSeguro, emitMany } from './emit.js';
+import { validateDpsXml } from './validate-xml.js';
 
 const SAMPLE_PATH = join(
   __dirname,
@@ -603,5 +615,244 @@ describe('emitMany', () => {
     expect(out.successCount).toBe(0);
     expect(out.failureCount).toBe(0);
     expect(out.skippedCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resposta 201 ilegível (NFS-e autorizada) + layout nt009 no caminho emitDpsPronta
+// ---------------------------------------------------------------------------
+
+const NFSE_NT009_XML = readFileSync(
+  join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'),
+  'utf-8',
+);
+const CHAVE_SAMPLE = '21113002200574753000100000000000146726037032711025';
+/** NFS-e autorizada que o parser não consegue ler (`<nNFSe>` obrigatório ausente). */
+const SAMPLE_XML_ILEGIVEL = SAMPLE_XML.replace(/<nNFSe>[^<]*<\/nNFSe>/, '');
+
+function successBody(xml: string, idDps = 'DPS211130010057475300010000001000000000000001') {
+  return {
+    tipoAmbiente: 2 as const,
+    versaoAplicativo: 'SefinNacional_1.7.0',
+    dataHoraProcessamento: '2026-12-01T12:00:00-03:00',
+    idDps,
+    chaveAcesso: CHAVE_SAMPLE,
+    nfseXmlGZipB64: gzipBase64Encode(xml),
+    alertas: [{ codigo: 'A001', descricao: 'Alerta' }],
+  };
+}
+
+function recordingLogger(): Logger & { readonly warns: [string, unknown][] } {
+  const warns: [string, unknown][] = [];
+  return {
+    warns,
+    debug() {},
+    info() {},
+    warn(message, context) {
+      warns.push([message, context]);
+    },
+    error() {},
+  };
+}
+
+const cepStub: CepValidator = { validate: async (cep) => ({ cep }) as CepInfo };
+
+describe('emissão — NFS-e autorizada com resposta ilegível', () => {
+  const baseUrl = 'https://sefin.example.test/SefinNacional';
+  let mockAgent: MockAgent;
+  let httpClient: HttpClient;
+  let cert: A1Certificate;
+
+  beforeEach(() => {
+    mockAgent = new MockAgent();
+    mockAgent.disableNetConnect();
+    httpClient = new HttpClient({ baseUrl, dispatcher: mockAgent });
+    cert = selfSignedCert();
+  });
+  afterEach(async () => {
+    await mockAgent.close();
+  });
+
+  function replyPost(body: object) {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, body);
+  }
+
+  it('emitDpsPronta: 201 com NFS-e que o parser rejeita → UnreadableAuthorizedNfseError com chave/idDps/xml', async () => {
+    replyPost(successBody(SAMPLE_XML_ILEGIVEL));
+    const err = await emitDpsPronta(httpClient, cert, minimalDps()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(err).toBeInstanceOf(OpenNfseError);
+    // Não é validação local (nDPS não consumido) nem transiente (não vai ao RetryStore).
+    expect(err).not.toBeInstanceOf(ValidationError);
+    expect(defaultIsTransient(err)).toBe(false);
+    const e = err as UnreadableAuthorizedNfseError;
+    expect(e.chaveAcesso).toBe(CHAVE_SAMPLE);
+    expect(e.idDps).toBe('DPS211130010057475300010000001000000000000001');
+    expect(e.xmlNfse).toBe(SAMPLE_XML_ILEGIVEL);
+    expect(e.alertas).toEqual([{ codigo: 'A001', descricao: 'Alerta' }]);
+    expect(e.cause).toBeInstanceOf(InvalidXmlError);
+    expect(e.message).toContain(CHAVE_SAMPLE);
+  });
+
+  it('emitDpsPronta: NFS-e retornada de outro layout que a DPS enviada → UnreadableAuthorizedNfseError (cause LayoutMismatchError)', async () => {
+    replyPost(successBody(NFSE_NT009_XML));
+    const err = await emitDpsPronta(httpClient, cert, minimalDps()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    const e = err as UnreadableAuthorizedNfseError;
+    expect(e.chaveAcesso).toBe(CHAVE_SAMPLE);
+    expect(e.cause).toBeInstanceOf(LayoutMismatchError);
+    expect(e.cause).toMatchObject({ expected: 'nt004', received: 'nt009' });
+  });
+
+  it('emitDpsPronta: repassa o logger ao parser (nfse.parse.unexpected_field)', async () => {
+    const comCampoEstranho = SAMPLE_XML.replace(
+      '<vLiq>',
+      '<vCalcAjusteBCISSQN>1.00</vCalcAjusteBCISSQN><vLiq>',
+    );
+    expect(comCampoEstranho).not.toBe(SAMPLE_XML);
+    replyPost(successBody(comCampoEstranho));
+    const logger = recordingLogger();
+    const r = await emitDpsPronta(httpClient, cert, minimalDps(), undefined, undefined, logger);
+    expect(r.chaveAcesso).toBe(CHAVE_SAMPLE);
+    expect(logger.warns).toContainEqual([
+      'nfse.parse.unexpected_field',
+      { layout: 'nt004', field: 'vCalcAjusteBCISSQN' },
+    ]);
+  });
+
+  it('emitMany: item autorizado com resposta ilegível vira success_unreadable (conta como sucesso, não aborta o lote)', async () => {
+    replyPost(successBody(SAMPLE_XML_ILEGIVEL));
+    replyPost(successBody(SAMPLE_XML));
+    const base = minimalDps();
+    const lote = [base, { ...base, infDPS: { ...base.infDPS, nDPS: '2' } }];
+    const out = await emitMany(httpClient, cert, lote, { concurrency: 1, stopOnError: true });
+    expect(out.items.map((i) => i.status)).toEqual(['success_unreadable', 'success']);
+    expect(out.successCount).toBe(2);
+    expect(out.failureCount).toBe(0);
+    expect(out.skippedCount).toBe(0);
+    const [primeiro] = out.items;
+    if (primeiro?.status !== 'success_unreadable') throw new Error('esperava success_unreadable');
+    expect(primeiro.error).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(primeiro.error.chaveAcesso).toBe(CHAVE_SAMPLE);
+  });
+
+  it('emitMany: repassa o logger ao parser de cada item', async () => {
+    replyPost(
+      successBody(
+        SAMPLE_XML.replace('<vLiq>', '<vCalcAjusteBCISSQN>1.00</vCalcAjusteBCISSQN><vLiq>'),
+      ),
+    );
+    const logger = recordingLogger();
+    const out = await emitMany(httpClient, cert, [minimalDps()], undefined, undefined, logger);
+    expect(out.successCount).toBe(1);
+    expect(logger.warns.map(([m]) => m)).toContain('nfse.parse.unexpected_field');
+  });
+
+  it('emitDpsProntaSeguro: resposta ilegível lança e nunca persiste no RetryStore (nem com isTransient permissivo)', async () => {
+    replyPost(successBody(SAMPLE_XML_ILEGIVEL));
+    const retryStore = createInMemoryRetryStore();
+    const err = await emitDpsProntaSeguro(httpClient, cert, minimalDps(), {
+      retryStore,
+      retryPolicy: createDefaultRetryPolicy(),
+      isTransient: () => true,
+    }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+    expect(await retryStore.list()).toHaveLength(0);
+  });
+});
+
+describe('emissão nt009 — emitDpsPronta / emitMany / emitDpsProntaSeguro', () => {
+  const baseUrl = 'https://sefin.example.test/SefinNacional';
+  let mockAgent: MockAgent;
+  let httpClient: HttpClient;
+  let cert: A1Certificate;
+
+  beforeEach(() => {
+    mockAgent = new MockAgent();
+    mockAgent.disableNetConnect();
+    httpClient = new HttpClient({ baseUrl, dispatcher: mockAgent });
+    cert = selfSignedCert();
+  });
+  afterEach(async () => {
+    await mockAgent.close();
+  });
+
+  function replyPostNt009(capture?: (xml: string) => void) {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply((opts) => {
+        const { dpsXmlGZipB64 } = JSON.parse(opts.body as string) as { dpsXmlGZipB64: string };
+        capture?.(gzipBase64DecodeToText(dpsXmlGZipB64));
+        return { statusCode: 201, data: successBody(NFSE_NT009_XML) };
+      });
+  }
+
+  it('emitDpsPronta dryRun valida a DPS nt009 contra o XSD nt009 (finNFSe presente)', async () => {
+    const r = await emitDpsPronta(
+      httpClient,
+      cert,
+      dpsNt009Completa(),
+      { dryRun: true, cepValidator: cepStub },
+      'nt009',
+    );
+    expect(r.xmlDpsAssinado).toContain('<finNFSe>0</finNFSe>');
+    await expect(validateDpsXml(r.xmlDpsAssinado, { layout: 'nt009' })).resolves.toBeUndefined();
+  });
+
+  it('emitDpsPronta envia a DPS nt009 e devolve a NFS-e nt009 parseada', async () => {
+    let enviado: string | undefined;
+    replyPostNt009((xml) => {
+      enviado = xml;
+    });
+    const r = await emitDpsPronta(
+      httpClient,
+      cert,
+      dpsNt009Completa(),
+      { cepValidator: cepStub },
+      'nt009',
+    );
+    expect(r.nfse.layout).toBe('nt009');
+    expect(r.chaveAcesso).toBe(CHAVE_SAMPLE);
+    expect(enviado).toContain('<finNFSe>0</finNFSe>');
+    await expect(validateDpsXml(enviado as string, { layout: 'nt009' })).resolves.toBeUndefined();
+  });
+
+  it('emitMany emite um lote nt009 (XSD nt009) com sucesso', async () => {
+    replyPostNt009();
+    replyPostNt009();
+    const d1 = dpsNt009Completa();
+    const d2 = { ...d1, infDPS: { ...d1.infDPS, nDPS: '2' } };
+    const out = await emitMany(httpClient, cert, [d1, d2], { cepValidator: cepStub }, 'nt009');
+    expect(out.successCount).toBe(2);
+    expect(out.failureCount).toBe(0);
+    for (const item of out.items) {
+      if (item.status !== 'success') throw new Error(`esperava success, veio ${item.status}`);
+      expect(item.result.nfse.layout).toBe('nt009');
+    }
+  });
+
+  it('emitDpsProntaSeguro (caminho do substituir) valida e envia a DPS nt009', async () => {
+    let enviado: string | undefined;
+    replyPostNt009((xml) => {
+      enviado = xml;
+    });
+    const r = await emitDpsProntaSeguro(
+      httpClient,
+      cert,
+      dpsNt009Completa(),
+      {
+        retryStore: undefined,
+        retryPolicy: createDefaultRetryPolicy(),
+        expectedLayout: 'nt009',
+      },
+      { cepValidator: cepStub },
+    );
+    expect(r.status).toBe('ok');
+    if (r.status === 'ok') expect(r.nfse.nfse.layout).toBe('nt009');
+    await expect(validateDpsXml(enviado as string, { layout: 'nt009' })).resolves.toBeUndefined();
   });
 });

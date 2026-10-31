@@ -8,9 +8,13 @@ import { NfseClient } from './client.js';
 import { type ParseNfseXmlOptions, parseNfseXml } from './index.js';
 import { dpsNt009Completa } from './nfse/__fixtures__/dps-nt009.js';
 import { type BuildDpsParams, buildDps } from './nfse/build-dps.js';
-import type { DPS, DpsNt004, DpsNt009 } from './nfse/domain.js';
-import type { EmitirParams } from './nfse/emit.js';
-import { OpcaoSimplesNacional, RegimeEspecialTributacao } from './nfse/enums.js';
+import type { DPS, DpsNt004, DpsNt009, NFSe, NfseNt004, NfseNt009 } from './nfse/domain.js';
+import type { EmitirParams, EmitLoteResult, NfseEmitResult } from './nfse/emit.js';
+import {
+  JustificativaSubstituicao,
+  OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
+} from './nfse/enums.js';
 import { NfseClientFake, type NfseClientLike } from './testing/index.js';
 
 const baseConfig = {
@@ -155,6 +159,56 @@ describe('NfseClient<L> — tipos', () => {
       void new NfseClientFake({ layout: 'nt009' }).emitir({ ...paramsBase, ajusteBC, ibsCbs });
     };
     void _compila;
+  });
+
+  it('resultados de emissão são estreitados pelo layout do cliente (NfseFor<L>)', () => {
+    const c4 = new NfseClient({ ...baseConfig, layout: 'nt004' });
+    const c9 = new NfseClient({ ...baseConfig, layout: 'nt009' });
+    const cU: NfseClient = c9;
+    const dpsNt009 = dpsNt009Completa();
+    const dpsNt004 = buildDps({ ...paramsBase, layout: 'nt004' });
+    const substParams = {
+      chaveOriginal: '21113002200574753000100000000000146726037032711025',
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Substituição por erro de digitação',
+    };
+    expect(cU.layout).toBe('nt009');
+
+    // Só checagem de tipos — nunca invocado.
+    const _tipos = async () => {
+      const r9 = await c9.emitir(paramsBase);
+      if (r9.status === 'ok') {
+        expectTypeOf(r9.nfse.nfse).toEqualTypeOf<NfseNt009>();
+        const dps: DpsNt009 = r9.nfse.nfse.infNFSe.DPS;
+        void dps;
+      }
+      const r4 = await c4.emitir(paramsBase);
+      if (r4.status === 'ok') expectTypeOf(r4.nfse.nfse).toEqualTypeOf<NfseNt004>();
+
+      expectTypeOf(await c9.emitirDpsPronta(dpsNt009)).toEqualTypeOf<NfseEmitResult<'nt009'>>();
+      expectTypeOf(await c4.emitirDpsPronta(dpsNt004)).toEqualTypeOf<NfseEmitResult<'nt004'>>();
+
+      const lote = await c9.emitirEmLote([dpsNt009]);
+      expectTypeOf(lote).toEqualTypeOf<EmitLoteResult<'nt009'>>();
+      for (const item of lote.items) {
+        expectTypeOf(item.dps).toEqualTypeOf<DpsNt009>();
+        if (item.status === 'success') expectTypeOf(item.result.nfse).toEqualTypeOf<NfseNt009>();
+      }
+
+      const s9 = await c9.substituir({ ...substParams, novaDps: dpsNt009 });
+      if (s9.status === 'ok') expectTypeOf(s9.novaNfse.nfse).toEqualTypeOf<NfseNt009>();
+
+      // Cliente sem layout literal: a união.
+      const rU = await cU.emitirDpsPronta(dpsNt004);
+      expectTypeOf(rU.nfse).toEqualTypeOf<NFSe>();
+      // NfseEmitResult sem argumento continua a união (compatível com a 0.11).
+      expectTypeOf<NfseEmitResult['nfse']>().toEqualTypeOf<NFSe>();
+      // ReplayItem não é estreitado: o store pode ter pendentes de outro layout.
+      const [item] = await c9.replayPendingEvents();
+      if (item?.status === 'success_emission')
+        expectTypeOf(item.emission.nfse).toEqualTypeOf<NFSe>();
+    };
+    void _tipos;
   });
 
   it('ParseNfseXmlOptions é exportado pela entrada pública', () => {

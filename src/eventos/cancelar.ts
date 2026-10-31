@@ -1,6 +1,7 @@
 import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
+import type { Logger } from '../logging.js';
 import type { DPS, DpsFor, Substituicao } from '../nfse/domain.js';
 import { type EmitOptions, emitDpsProntaSeguro, type NfseEmitResult } from '../nfse/emit.js';
 import {
@@ -169,9 +170,11 @@ export interface SubstituirParams<L extends Layout = Layout> extends Omit<EmitOp
  *   (dedup por `infDPS.Id`). Nada foi alterado no SEFIN ainda.
  *
  * Rejeição **permanente** (regra fiscal / validação local) **lança** exceção.
+ * `UnreadableAuthorizedNfseError` = substituta **autorizada** cuja resposta não
+ * pôde ser interpretada (não reemita). `L` estreita `novaNfse` ao layout.
  */
-export type SubstituirResult =
-  | { readonly status: 'ok'; readonly novaNfse: NfseEmitResult }
+export type SubstituirResult<L extends Layout = Layout> =
+  | { readonly status: 'ok'; readonly novaNfse: NfseEmitResult<L> }
   | {
       readonly status: 'retry_pending';
       readonly pending: PendingEmission;
@@ -181,7 +184,8 @@ export type SubstituirResult =
 /**
  * `layout` (opcional; o `NfseClient` passa o seu): quando presente, `novaDps`
  * de outro layout é rejeitada com `LayoutMismatchError` antes de qualquer
- * trabalho; valor desconhecido → `InvalidLayoutError`.
+ * trabalho; valor desconhecido → `InvalidLayoutError`. `logger` (opcional)
+ * recebe os `warn` do parser da NFS-e substituta.
  */
 export async function substituir<L extends Layout = Layout>(
   httpClient: HttpClient,
@@ -189,7 +193,8 @@ export async function substituir<L extends Layout = Layout>(
   retryPolicy: RetryPolicy,
   params: SubstituirParams<L>,
   layout?: L,
-): Promise<SubstituirResult> {
+  logger?: Logger,
+): Promise<SubstituirResult<L>> {
   // Chamador JS: layout desconhecido → InvalidLayoutError (não um LayoutMismatchError enganoso).
   if (layout !== undefined) assertLayout(layout);
   // O <subst> efetivamente enviado: o da DPS (se presente, precisa concordar com
@@ -234,15 +239,17 @@ export async function substituir<L extends Layout = Layout>(
     ...(params.cepValidator ? { cepValidator: params.cepValidator } : {}),
   };
 
-  const r = await emitDpsProntaSeguro(
+  const r = await emitDpsProntaSeguro<L>(
     httpClient,
     certificate,
-    dpsComSubst,
+    // ensureSubstPopulated preserva o layout de `novaDps` (DpsFor<L>).
+    dpsComSubst as DpsFor<L>,
     {
       retryStore: params.retryStore,
       retryPolicy,
       ...(params.isTransient ? { isTransient: params.isTransient } : {}),
       ...(layout !== undefined ? { expectedLayout: layout } : {}),
+      ...(logger ? { logger } : {}),
     },
     emitOptions,
   );

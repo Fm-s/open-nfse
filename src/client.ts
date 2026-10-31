@@ -8,7 +8,8 @@ import { type GerarDanfseOptions, gerarDanfse as gerarDanfseLocal } from './danf
 import { fetchByNsu as fetchByNsuInternal } from './dfe/fetch-by-nsu.js';
 import type { FetchByNsuOptions, NsuQueryResult } from './dfe/types.js';
 import { OpenNfseError } from './errors/base.js';
-import { NetworkError, ServerError, TimeoutError } from './errors/http.js';
+import { NetworkError, NotFoundError, ServerError, TimeoutError } from './errors/http.js';
+import { UnreadableAuthorizedNfseError } from './errors/receita.js';
 import {
   type CancelarParams,
   type CancelarResult,
@@ -22,6 +23,7 @@ import { postEvento } from './eventos/post-evento.js';
 import { signPedRegEventoXml } from './eventos/sign-event.js';
 import { HttpClient } from './http/client.js';
 import { type Logger, noopLogger } from './logging.js';
+import { type BuildDpsParams, buildDps } from './nfse/build-dps.js';
 import type { DpsFor, NFSe } from './nfse/domain.js';
 import type { DpsCounter } from './nfse/dps-counter.js';
 import {
@@ -34,8 +36,10 @@ import {
   emitDpsPronta as emitDpsProntaInternal,
   emitMany as emitManyInternal,
   emitSeguro,
+  fetchEmissionByDpsStatus,
   type NfseEmitResult,
   replayEmission,
+  unreadableAuthorizedNfse,
 } from './nfse/emit.js';
 import { fetchByChave as fetchByChaveInternal } from './nfse/fetch-by-chave.js';
 import {
@@ -43,7 +47,7 @@ import {
   existsDpsStatus as existsDpsStatusInternal,
   fetchDpsStatus as fetchDpsStatusInternal,
 } from './nfse/fetch-dps-status.js';
-import { assertLayout, assertSameLayout, type Layout } from './nfse/layout.js';
+import { assertLayout, assertParamsLayout, assertSameLayout, type Layout } from './nfse/layout.js';
 import type { NfseQueryResult } from './nfse/types.js';
 import {
   createInMemoryParametrosCache,
@@ -66,18 +70,54 @@ import type {
   ConsultaRetencoesResult,
 } from './parametros-municipais/types.js';
 import { createDefaultRetryPolicy, makeSafePolicy, type RetryPolicy } from './retry/policy.js';
-import { isPendingEmission, type RetryStore } from './retry/store.js';
+import {
+  isPendingEmission,
+  type PendingEmission,
+  type PendingEvent,
+  type RetryStore,
+} from './retry/store.js';
 import { defaultIsTransient } from './retry/transient.js';
 
+/**
+ * Resultado de cada entrada em `replayPendingEvents`.
+ *
+ * - `success` — evento aceito.
+ * - `success_emission` — emissão autorizada. Com `reconciledFrom` preenchido,
+ *   o re-POST foi rejeitado de forma permanente (ex.: E0014 — série/número já
+ *   existe; E1235 — schema, após a virada de layout), mas `GET /dps/{id}`
+ *   confirmou que a DPS **já tinha** virado NFS-e; `emission` foi montado a
+ *   partir de `GET /nfse/{chave}` (`alertas` vazio). `reconciledFrom` é a
+ *   rejeição do re-POST.
+ * - `success_emission_unreadable` — NFS-e **autorizada** cuja resposta não pôde
+ *   ser interpretada; `error` (`UnreadableAuthorizedNfseError`) carrega
+ *   `chaveAcesso`/`idDps`/`xmlNfse`. A entrada sai do store. Não reemita.
+ * - `still_pending` — falha transiente (do re-POST ou da reconciliação); a
+ *   entrada fica no store.
+ * - `failed_permanent` — rejeição permanente e nenhuma NFS-e gerada a partir
+ *   da DPS (`GET /dps/{id}` → 404), ou a reconciliação não pôde ser feita
+ *   (falha permanente da consulta, logada em `nfse.replay.reconcile_failed`).
+ *   A entrada sai do store; `error` é a rejeição do re-POST.
+ */
 export type ReplayItem =
   | { readonly id: string; readonly status: 'success'; readonly evento: EventoResult }
   | {
       readonly id: string;
       readonly status: 'success_emission';
       readonly emission: NfseEmitResult;
+      /** Rejeição permanente do re-POST que disparou a reconciliação via `GET /dps/{id}`. */
+      readonly reconciledFrom?: Error;
+    }
+  | {
+      readonly id: string;
+      readonly status: 'success_emission_unreadable';
+      readonly error: UnreadableAuthorizedNfseError;
     }
   | { readonly id: string; readonly status: 'still_pending'; readonly error: Error }
   | { readonly id: string; readonly status: 'failed_permanent'; readonly error: Error };
+
+function toError(err: unknown): Error {
+  return err instanceof Error ? err : new Error(String(err));
+}
 
 function dropInternal(r: EventoResult & { xmlAssinado: string }): EventoResult {
   const { xmlAssinado: _drop, ...rest } = r;
@@ -276,7 +316,13 @@ export class NfseClient<L extends Layout = Layout> {
    *
    * Lança em falhas permanentes (rejeição fiscal, validação offline). Nesses
    * casos o `nDPS` foi consumido mas a nota foi definitivamente rejeitada —
-   * o caller loga e segue.
+   * o caller loga e segue. Exceção: `UnreadableAuthorizedNfseError` = a nota
+   * foi **autorizada** mas a resposta não pôde ser interpretada — persista
+   * `chaveAcesso`/`xmlNfse` do erro e **não reemita**.
+   *
+   * Os guards puros (layout divergente vindo de chamador JS, inputs exclusivos
+   * do outro layout, regras do `buildDps`) rodam antes de qualquer I/O —
+   * inclusive o carregamento do certificado.
    *
    * **Não envolva esta chamada num retry loop próprio para 429 / 5xx.** Cada
    * `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta
@@ -288,8 +334,14 @@ export class NfseClient<L extends Layout = Layout> {
    * use `emitirDpsPronta(dps)`.
    */
   async emitir(params: EmitirParams<L> & { dryRun: true }): Promise<DpsDryRunResult>;
-  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
-  async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
+  async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult<L>>;
+  async emitir(params: EmitirParams<L>): Promise<EmitirResult<L> | DpsDryRunResult> {
+    // Como emitirDpsPronta/emitirEmLote/substituir: layout antes de qualquer
+    // I/O (o provider de certificado pode ser um KMS remoto). O buildDps
+    // descartável aplica também os guards do builder — inclusive `ajusteBC`/
+    // `ibsCbs` num cliente nt004 — sem tocar rede nem counter.
+    assertParamsLayout(this.layout, params);
+    buildDps({ ...params, layout: this.layout, nDPS: params.nDPS ?? '1' } as BuildDpsParams);
     const state = await this.ensureState();
     const cepValidator = params.cepValidator ?? this.cepValidator;
     const mergedParams: EmitirParams<L> = {
@@ -303,6 +355,7 @@ export class NfseClient<L extends Layout = Layout> {
       retryStore: this.retryStore,
       retryPolicy: this.retryPolicy,
       layout: this.layout,
+      logger: this.logger,
     };
     if (mergedParams.dryRun === true) {
       return emitSeguro(deps, { ...mergedParams, dryRun: true });
@@ -321,7 +374,7 @@ export class NfseClient<L extends Layout = Layout> {
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options?: EmitOptions & { dryRun?: false },
-  ): Promise<NfseEmitResult>;
+  ): Promise<NfseEmitResult<L>>;
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options: EmitOptions & { dryRun: true },
@@ -329,25 +382,27 @@ export class NfseClient<L extends Layout = Layout> {
   async emitirDpsPronta(
     dps: DpsFor<L>,
     options?: EmitOptions,
-  ): Promise<NfseEmitResult | DpsDryRunResult> {
+  ): Promise<NfseEmitResult<L> | DpsDryRunResult> {
     assertSameLayout(this.layout, dps);
     const state = await this.ensureState();
     const merged = this.mergeEmitOptions(options);
     if (options?.dryRun === true) {
-      return emitDpsProntaInternal(
+      return emitDpsProntaInternal<L>(
         state.sefin,
         state.certificate,
         dps,
         { ...merged, dryRun: true },
         this.layout,
+        this.logger,
       );
     }
-    return emitDpsProntaInternal(
+    return emitDpsProntaInternal<L>(
       state.sefin,
       state.certificate,
       dps,
       { ...merged, dryRun: false },
       this.layout,
+      this.logger,
     );
   }
 
@@ -372,11 +427,15 @@ export class NfseClient<L extends Layout = Layout> {
    * Todas as DPS precisam ser do layout do cliente: um único item de outro
    * layout rejeita o lote inteiro com `LayoutMismatchError` antes do primeiro
    * envio.
+   *
+   * Item `success_unreadable`: NFS-e **autorizada** cuja resposta não pôde ser
+   * interpretada (`error.chaveAcesso`/`error.xmlNfse`) — conta em
+   * `successCount`, não aborta o lote (`stopOnError`) e não deve ser reemitida.
    */
   async emitirEmLote(
     dpsList: readonly DpsFor<L>[],
     options?: EmitLoteOptions,
-  ): Promise<EmitLoteResult> {
+  ): Promise<EmitLoteResult<L>> {
     for (const dps of dpsList) assertSameLayout(this.layout, dps);
     const state = await this.ensureState();
     const mergedCepValidator = options?.cepValidator ?? this.cepValidator;
@@ -392,7 +451,14 @@ export class NfseClient<L extends Layout = Layout> {
         : {}),
       ...(mergedCepValidator !== undefined ? { cepValidator: mergedCepValidator } : {}),
     };
-    return emitManyInternal(state.sefin, state.certificate, dpsList, merged, this.layout);
+    return emitManyInternal<L>(
+      state.sefin,
+      state.certificate,
+      dpsList,
+      merged,
+      this.layout,
+      this.logger,
+    );
   }
 
   private mergeEmitOptions(options: EmitOptions | undefined): EmitOptions {
@@ -459,7 +525,7 @@ export class NfseClient<L extends Layout = Layout> {
    * Rejeição **permanente** (regra fiscal) lança exceção. `novaDps` de outro
    * layout → `LayoutMismatchError` antes de qualquer envio.
    */
-  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
+  async substituir(params: SubstituirParams<L>): Promise<SubstituirResult<L>> {
     assertSameLayout(this.layout, params.novaDps);
     const state = await this.ensureState();
     const retryStore = params.retryStore ?? this.retryStore;
@@ -473,17 +539,41 @@ export class NfseClient<L extends Layout = Layout> {
       this.retryPolicy,
       merged,
       this.layout,
+      this.logger,
     );
   }
 
   /**
-   * Re-POSTs each `PendingEvent` in the store. SEFIN deduplication on
-   * `infDPS.Id` (emissão) ou `chave + tipoEvento` (eventos)
-   * garante idempotência: itens já processados retornam o mesmo resultado
-   * ou uma rejeição determinística. Em sucesso, o item é removido do store.
-   * Em falha transiente, permanece com `lastAttemptAt`/`notBefore`/`attempts`
-   * atualizados. Em falha permanente, também é removido e o erro é
-   * retornado no item.
+   * Re-POSTa cada `PendingEvent` do store (ver `ReplayItem` para os status).
+   * Em sucesso, o item é removido do store. Em falha transiente, permanece com
+   * `lastAttemptAt`/`notBefore`/`attempts` atualizados. Entradas com
+   * `notBefore` no futuro são puladas sem aparecer no resultado.
+   *
+   * **Emissões — reconciliação antes de deletar.** Uma DPS que o SEFIN já
+   * converteu em NFS-e (o POST original deu timeout depois do commit) não
+   * volta como sucesso no re-POST, e sim como rejeição permanente: E0014
+   * (série/número já existe) ou, depois de uma virada de layout, E1235 (schema
+   * — o XML `nt004` persistido não valida no `nt009`). Por isso, numa rejeição
+   * permanente de emissão a lib consulta `GET /dps/{idDps}` antes de remover a
+   * entrada:
+   * - NFS-e encontrada → baixa-a (`GET /nfse/{chave}`) e devolve
+   *   `success_emission` com `reconciledFrom` = a rejeição;
+   * - 404 → `failed_permanent` (nenhuma NFS-e saiu dessa DPS; reemitir é
+   *   seguro);
+   * - falha transiente na consulta → `still_pending` (a entrada fica; nunca se
+   *   deleta sem saber);
+   * - outra falha permanente na consulta → `failed_permanent` com a rejeição
+   *   original + `warn` `nfse.replay.reconcile_failed`.
+   *
+   * Resposta 201 (ou NFS-e baixada na reconciliação) que o parser não consegue
+   * ler → `success_emission_unreadable` com `UnreadableAuthorizedNfseError`
+   * (a nota existe; a entrada sai do store). Os `warn` do parser
+   * (`nfse.parse.unexpected_field`) vão para o `logger` do cliente.
+   *
+   * **Layout.** O XML é re-POSTado como foi assinado — a lib não converte
+   * entre layouts. Uma emissão com `entry.layout` diferente do layout do
+   * cliente gera `warn` `nfse.replay.layout_divergente`. Drene o store com o
+   * cliente do layout antigo **antes** da virada (ver guia de migração 0.12).
    *
    * **Contrato: single-threaded.** Esta função NÃO é segura para execução
    * concorrente — dois processos chamando-a ao mesmo tempo veriam a mesma
@@ -514,102 +604,214 @@ export class NfseClient<L extends Layout = Layout> {
       if (entry.notBefore && entry.notBefore > now) {
         continue; // not yet eligible — skip silently, will reappear next sweep
       }
+      if (isPendingEmission(entry)) {
+        results.push(await this.replayEmissionEntry(state, store, entry));
+        continue;
+      }
       try {
-        if (isPendingEmission(entry)) {
-          // Re-POST direto em /nfse — SEFIN deduplica via infDPS.Id
-          const r = await replayEmission(state.sefin, entry.xmlAssinado);
-          await store.delete(entry.id);
-          results.push({ id: entry.id, status: 'success_emission', emission: r });
-        } else {
-          // Evento de cancelamento/substituição — re-POST no endpoint de eventos.
-          // Defensivo: entradas persistidas em 0.7.2/0.7.3 podem ter sido
-          // gravadas com XML não-assinado (bug corrigido em 0.8.0). Detectamos
-          // e re-assinamos para não perder a operação — re-assinar é seguro
-          // porque SEFIN deduplica por (chave + tipoEvento)
-          // independente da assinatura.
-          let xmlToPost = entry.xmlAssinado;
-          if (!isEventoXmlSigned(xmlToPost)) {
-            this.logger.warn(
-              'Pending event entry sem XMLDSig — re-assinando antes do replay (provavelmente dado legado de v0.7.x; pré-fix). Considere drenar o RetryStore antes de atualizar para evitar este caminho.',
+        // Evento de cancelamento/substituição — re-POST no endpoint de eventos.
+        // Defensivo: entradas persistidas em 0.7.2/0.7.3 podem ter sido
+        // gravadas com XML não-assinado (bug corrigido em 0.8.0). Detectamos
+        // e re-assinamos para não perder a operação — re-assinar é seguro
+        // porque SEFIN deduplica por (chave + tipoEvento)
+        // independente da assinatura.
+        let xmlToPost = entry.xmlAssinado;
+        if (!isEventoXmlSigned(xmlToPost)) {
+          this.logger.warn(
+            'Pending event entry sem XMLDSig — re-assinando antes do replay (provavelmente dado legado de v0.7.x; pré-fix). Considere drenar o RetryStore antes de atualizar para evitar este caminho.',
+            {
+              id: entry.id,
+              chaveNfse: entry.chaveNfse,
+              tipoEvento: entry.tipoEvento,
+            },
+          );
+          try {
+            xmlToPost = signPedRegEventoXml(xmlToPost, state.certificate);
+          } catch (signErr) {
+            // Re-sign failed (malformed legacy XML, cert problem, etc.).
+            // Continue with the unsigned bytes — SEFIN will reject as a
+            // permanent signature error and the catch below will delete
+            // the entry. This is no worse than pre-rescue behavior; the
+            // error log gives the consumer a chance to investigate the
+            // specific entry before it disappears.
+            this.logger.error(
+              'Re-assinatura do XML legado falhou — POSTando bytes originais; SEFIN provavelmente rejeitará como permanente e a entrada será deletada do RetryStore.',
               {
                 id: entry.id,
-                chaveNfse: entry.chaveNfse,
-                tipoEvento: entry.tipoEvento,
+                signError: signErr instanceof Error ? signErr.message : String(signErr),
+                signErrorName: signErr instanceof Error ? signErr.name : 'unknown',
               },
             );
-            try {
-              xmlToPost = signPedRegEventoXml(xmlToPost, state.certificate);
-            } catch (signErr) {
-              // Re-sign failed (malformed legacy XML, cert problem, etc.).
-              // Continue with the unsigned bytes — SEFIN will reject as a
-              // permanent signature error and the catch below will delete
-              // the entry. This is no worse than pre-rescue behavior; the
-              // error log gives the consumer a chance to investigate the
-              // specific entry before it disappears.
-              this.logger.error(
-                'Re-assinatura do XML legado falhou — POSTando bytes originais; SEFIN provavelmente rejeitará como permanente e a entrada será deletada do RetryStore.',
-                {
-                  id: entry.id,
-                  signError: signErr instanceof Error ? signErr.message : String(signErr),
-                  signErrorName: signErr instanceof Error ? signErr.name : 'unknown',
-                },
-              );
-            }
           }
-          const r = await postEvento(state.sefin, state.certificate, entry.chaveNfse, xmlToPost, {
-            xmlJaAssinado: true,
-          });
-          await store.delete(entry.id);
-          results.push({ id: entry.id, status: 'success', evento: dropInternal(r) });
         }
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        const transient = entry.lastError.transient && isRetryableError(error);
-        if (!transient) {
-          await store.delete(entry.id);
-        } else {
-          // Always refresh `lastAttemptAt` so observability/audit queries
-          // reflect the most recent attempt. Increment `attempts` so policies
-          // doing exponential/linear backoff see the right count. Recompute
-          // `notBefore` from the fresh error — when the policy returns
-          // `undefined` (NetworkError, TimeoutError, generic 5xx without a
-          // Retry-After header), preserve the previous `notBefore` (which
-          // is necessarily in the past at this point). Same id, idempotent
-          // save.
-          const newAttemptAt = new Date();
-          // Defesa contra entry.attempts corrompido (NaN/Infinity/negativo
-          // vindo de um RetryStore que não respeitou o contrato do tipo).
-          // Se inválido, tratamos como "primeira tentativa registrada" (= 1)
-          // e o incremento abaixo leva para 2.
-          const prevAttempts =
-            typeof entry.attempts === 'number' &&
-            Number.isFinite(entry.attempts) &&
-            entry.attempts >= 1
-              ? entry.attempts
-              : 1;
-          const newAttempts = prevAttempts + 1;
-          // firstAttemptAt pode estar undefined em entrada corrompida —
-          // fallback para o `now` atual para que o RetryContext não
-          // propague undefined para policies customizadas.
-          const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt, {
-            attempt: newAttempts,
-            firstAttemptAt: entry.firstAttemptAt ?? newAttemptAt,
-          });
-          await store.save({
-            ...entry,
-            lastAttemptAt: newAttemptAt,
-            attempts: newAttempts,
-            ...(newNotBefore ? { notBefore: newNotBefore } : {}),
-          });
-        }
-        results.push({
-          id: entry.id,
-          status: transient ? 'still_pending' : 'failed_permanent',
-          error,
+        const r = await postEvento(state.sefin, state.certificate, entry.chaveNfse, xmlToPost, {
+          xmlJaAssinado: true,
         });
+        await store.delete(entry.id);
+        results.push({ id: entry.id, status: 'success', evento: dropInternal(r) });
+      } catch (err) {
+        const error = toError(err);
+        if (entry.lastError.transient && isRetryableError(error)) {
+          await this.keepPending(store, entry, error);
+          results.push({ id: entry.id, status: 'still_pending', error });
+        } else {
+          await store.delete(entry.id);
+          results.push({ id: entry.id, status: 'failed_permanent', error });
+        }
       }
     }
     return results;
+  }
+
+  /** Replay de uma emissão pendente — ver `replayPendingEvents`. */
+  private async replayEmissionEntry(
+    state: ClientState,
+    store: RetryStore,
+    entry: PendingEmission,
+  ): Promise<ReplayItem> {
+    if (entry.layout !== undefined && entry.layout !== this.layout) {
+      this.logger.warn('nfse.replay.layout_divergente', {
+        id: entry.id,
+        entryLayout: entry.layout,
+        clientLayout: this.layout,
+      });
+    }
+    let rejection: Error;
+    try {
+      const emission = await replayEmission(state.sefin, entry.xmlAssinado, this.logger);
+      await store.delete(entry.id);
+      return { id: entry.id, status: 'success_emission', emission };
+    } catch (err) {
+      if (err instanceof UnreadableAuthorizedNfseError) {
+        // Autorizada (201) mas ilegível: a nota existe — sai do store.
+        await store.delete(entry.id);
+        return { id: entry.id, status: 'success_emission_unreadable', error: err };
+      }
+      const error = toError(err);
+      if (entry.lastError.transient && isRetryableError(error)) {
+        await this.keepPending(store, entry, error);
+        return { id: entry.id, status: 'still_pending', error };
+      }
+      rejection = error;
+    }
+    return this.reconcileRejectedEmission(state, store, entry, rejection);
+  }
+
+  /**
+   * Rejeição permanente no re-POST de uma emissão: antes de deletar, pergunta
+   * ao SEFIN (`GET /dps/{id}`) se a DPS já virou NFS-e — o caso clássico é o
+   * POST original que deu timeout depois do commit (re-POST → E0014, ou E1235
+   * depois da virada de layout).
+   */
+  private async reconcileRejectedEmission(
+    state: ClientState,
+    store: RetryStore,
+    entry: PendingEmission,
+    rejection: Error,
+  ): Promise<ReplayItem> {
+    let status: DpsStatusResult;
+    try {
+      status = await fetchDpsStatusInternal(state.sefin, entry.idDps);
+    } catch (err) {
+      const lookupError = toError(err);
+      if (lookupError instanceof NotFoundError) {
+        // Nenhuma NFS-e gerada a partir desta DPS: rejeição definitiva.
+        await store.delete(entry.id);
+        return { id: entry.id, status: 'failed_permanent', error: rejection };
+      }
+      if (isRetryableError(lookupError)) {
+        // Sem saber se a nota existe, não deleta.
+        this.logger.warn('nfse.replay.reconcile_pending', {
+          id: entry.id,
+          rejection: rejection.message,
+          error: lookupError.message,
+        });
+        await this.keepPending(store, entry, lookupError);
+        return { id: entry.id, status: 'still_pending', error: lookupError };
+      }
+      this.logger.warn('nfse.replay.reconcile_failed', {
+        id: entry.id,
+        idDps: entry.idDps,
+        rejection: rejection.message,
+        error: lookupError.message,
+        errorName: lookupError.name,
+      });
+      await store.delete(entry.id);
+      return { id: entry.id, status: 'failed_permanent', error: rejection };
+    }
+
+    try {
+      const emission = await fetchEmissionByDpsStatus(state.sefin, status, this.logger);
+      await store.delete(entry.id);
+      this.logger.info('nfse.replay.reconciled', {
+        id: entry.id,
+        chaveAcesso: emission.chaveAcesso,
+        rejection: rejection.message,
+      });
+      return { id: entry.id, status: 'success_emission', emission, reconciledFrom: rejection };
+    } catch (err) {
+      if (err instanceof UnreadableAuthorizedNfseError) {
+        await store.delete(entry.id);
+        return { id: entry.id, status: 'success_emission_unreadable', error: err };
+      }
+      const fetchError = toError(err);
+      if (isRetryableError(fetchError)) {
+        await this.keepPending(store, entry, fetchError);
+        return { id: entry.id, status: 'still_pending', error: fetchError };
+      }
+      // GET /dps confirmou a NFS-e, mas o XML não pôde ser baixado: a nota
+      // existe — reporta com a chave em vez de failed_permanent.
+      const error = unreadableAuthorizedNfse(
+        {
+          chaveAcesso: status.chaveAcesso,
+          idDps: status.idDps,
+          tipoAmbiente: status.tipoAmbiente,
+          versaoAplicativo: status.versaoAplicativo,
+          dataHoraProcessamento: status.dataHoraProcessamento,
+          cause: fetchError,
+        },
+        this.logger,
+      );
+      await store.delete(entry.id);
+      return { id: entry.id, status: 'success_emission_unreadable', error };
+    }
+  }
+
+  /**
+   * Mantém a entrada no store após uma falha transiente no replay.
+   *
+   * Always refresh `lastAttemptAt` so observability/audit queries reflect the
+   * most recent attempt. Increment `attempts` so policies doing
+   * exponential/linear backoff see the right count. Recompute `notBefore`
+   * from the fresh error — when the policy returns `undefined` (NetworkError,
+   * TimeoutError, generic 5xx without a Retry-After header), preserve the
+   * previous `notBefore` (which is necessarily in the past at this point).
+   * Same id, idempotent save.
+   */
+  private async keepPending(store: RetryStore, entry: PendingEvent, error: Error): Promise<void> {
+    const newAttemptAt = new Date();
+    // Defesa contra entry.attempts corrompido (NaN/Infinity/negativo
+    // vindo de um RetryStore que não respeitou o contrato do tipo).
+    // Se inválido, tratamos como "primeira tentativa registrada" (= 1)
+    // e o incremento abaixo leva para 2.
+    const prevAttempts =
+      typeof entry.attempts === 'number' && Number.isFinite(entry.attempts) && entry.attempts >= 1
+        ? entry.attempts
+        : 1;
+    const newAttempts = prevAttempts + 1;
+    // firstAttemptAt pode estar undefined em entrada corrompida —
+    // fallback para o `now` atual para que o RetryContext não
+    // propague undefined para policies customizadas.
+    const newNotBefore = this.retryPolicy.computeNotBefore(error, newAttemptAt, {
+      attempt: newAttempts,
+      firstAttemptAt: entry.firstAttemptAt ?? newAttemptAt,
+    });
+    await store.save({
+      ...entry,
+      lastAttemptAt: newAttemptAt,
+      attempts: newAttempts,
+      ...(newNotBefore ? { notBefore: newNotBefore } : {}),
+    });
   }
 
   // -------------------------------------------------------------------------
