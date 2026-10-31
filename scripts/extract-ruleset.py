@@ -42,6 +42,16 @@ LAYOUTS = {
         },
         # RN columns: (sefin exec, sefin decisao, adn exec, adn decisao, obs)
         "rn_dps_cols": (11, 12, 13, 14, 15),
+        # (header row, col, expected substring) for each rn_dps_cols entry —
+        # a column shift in a future Anexo fails loudly instead of silently
+        # pulling the wrong scenario.
+        "rn_dps_header": (
+            (2, 11, "EMITENTE PRESTADOR"),
+            (2, 12, "cStat = 102"),
+            (1, 13, "ADN NFS-e"),
+            (2, 14, "cStat = 102"),
+            (1, 15, "OBSERVAÇÕES"),
+        ),
         "extra_raw": [],
     },
     "nt009": {
@@ -60,6 +70,13 @@ LAYOUTS = {
         # nt004 key set: prestador scenario + decisao (102) of the first SEFIN
         # triplet and of the ADN triplet. The other scenarios stay lossless in _raw/.
         "rn_dps_cols": (11, 13, 17, 19, 20),
+        "rn_dps_header": (
+            (2, 11, "EMITENTE PRESTADOR"),
+            (2, 13, "cStat = 102"),
+            (2, 17, "ADN NFS-e COM EMITENTE PRESTADOR"),
+            (2, 19, "cStat = 102"),
+            (1, 20, "OBSERVAÇÕES"),
+        ),
         # sheets new in nt009, dumped raw only (no clean sidecar)
         "extra_raw": [
             ("A1", "AJUSTE_BC_REPERCUSSÃO", "anexoI.ajuste-bc-repercussao"),
@@ -199,8 +216,17 @@ def extract_campos(path, sheet, src):
 #   | EFEITO(6) | COD(7) | MSG(8) | NIVEL(9) | SEFIN-exec(10) | SEFIN-dec(11)
 #   | ADN-exec(12) | ADN-dec(13) | OBS(14).  Data starts row 4 (3-row header).
 # --------------------------------------------------------------------------- #
-def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 15)):
+def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 15),
+                      header=()):
     mr, mc, grid = load_grid(path, sheet)
+    assert len(header) in (0, len(cols)), "header checks must cover every rn column"
+    for (hr, hc, expected), col in zip(header, cols):
+        assert hc == col, f"{sheet}: header check col {hc} != rn column {col}"
+        got = flat(grid[hr][hc]) if hc <= mc else None
+        assert got is not None and expected in got, (
+            f"{sheet}: header r{hr}c{hc} should contain {expected!r}, got {got!r} "
+            "-- Anexo column layout changed; update rn_dps_cols"
+        )
     out = []
     for r in range(first_data_row, mr + 1):
         g = lambda c: grid[r][c] if c <= mc else None
@@ -464,7 +490,9 @@ def main():
     write_json(os.path.join(OUT, "emissao.campos.json"), campos_dps)
     summary["emissao.campos"] = len(campos_dps)
 
-    regras_dps = extract_regras_rn(A1, SH["rn_dps"], "AnexoI", cols=CFG["rn_dps_cols"])
+    regras_dps = extract_regras_rn(
+        A1, SH["rn_dps"], "AnexoI", cols=CFG["rn_dps_cols"], header=CFG["rn_dps_header"]
+    )
     regras_recep = extract_regras_recepcao(A1, SH["recep_dps"], "AnexoI")
     write_json(os.path.join(OUT, "emissao.regras.json"),
                {"recepcao": regras_recep, "negocio": regras_dps})
