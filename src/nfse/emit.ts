@@ -1,6 +1,7 @@
 import { TipoAmbiente } from '../ambiente.js';
 import type { CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
+import { NetworkError } from '../errors/http.js';
 import {
   type MensagemProcessamento,
   ReceitaRejectionError,
@@ -170,7 +171,7 @@ export async function emitDpsPronta<L extends Layout = Layout>(
     return { dryRun: true, xmlDpsAssinado: xmlSigned, xmlDpsGZipB64: dpsXmlGZipB64 };
   }
 
-  const body = await httpClient.post<SefinPostBody>(
+  const body = await httpClient.post<SefinPostBody | undefined>(
     '/nfse',
     { dpsXmlGZipB64 },
     { acceptedStatuses: [400] },
@@ -221,7 +222,7 @@ export async function emitDpsProntaSeguro<L extends Layout = Layout>(
   // nenhuma falha de leitura pode cair no caminho transiente/RetryStore.
   let success: SefinPostSuccessBody;
   try {
-    const body = await httpClient.post<SefinPostBody>(
+    const body = await httpClient.post<SefinPostBody | undefined>(
       '/nfse',
       { dpsXmlGZipB64 },
       { acceptedStatuses: [400] },
@@ -272,17 +273,44 @@ function isSuccessBody(body: SefinPostBody): body is SefinPostSuccessBody {
 }
 
 /**
+ * Chave de acesso de um corpo sem a forma completa de sucesso (ex.:
+ * `nfseXmlGZipB64` nulo, ou `ChaveAcesso` em PascalCase por um proxy). Só a
+ * SEFIN atribui chave, e só a uma NFS-e gerada — então o corpo atesta uma
+ * nota autorizada, ainda que ilegível.
+ */
+function chaveAutorizada(body: object): string | undefined {
+  const b = body as Record<string, unknown>;
+  const chave = b.chaveAcesso ?? b.ChaveAcesso;
+  return typeof chave === 'string' && chave.length > 0 ? chave : undefined;
+}
+
+/**
  * Classifica a resposta do `POST /nfse`: corpo de sucesso → devolvido (o
  * parsing da NFS-e é feito à parte por `toEmitResult`, fora do caminho de
  * retry); 400 com corpo de rejeição → lança `ReceitaRejectionError` (regra de
- * negócio). Corpo de erro irreconhecível cai num `ReceitaRejectionError('UNKNOWN')`
- * com o JSON bruto. Único ponto de verdade — `emitDpsPronta`, `emitSeguro` e
- * `replayEmission` compartilham esta classificação.
+ * negócio). Corpo sem mensagens de erro mas com chave de acesso → tratado como
+ * sucesso (a nota existe; o XML ausente vira `UnreadableAuthorizedNfseError`
+ * em `toEmitResult`). Corpo vazio → `NetworkError` (transiente: o resultado é
+ * desconhecido, então `emitSeguro` persiste e o replay reconcilia via
+ * `GET /dps/{id}`). Corpo de erro irreconhecível cai num
+ * `ReceitaRejectionError('UNKNOWN')` com o JSON bruto. Único ponto de verdade
+ * — `emitDpsPronta`, `emitSeguro` e `replayEmission` compartilham esta
+ * classificação.
  */
-function successBodyOrThrow(body: SefinPostBody): SefinPostSuccessBody {
+function successBodyOrThrow(body: SefinPostBody | null | undefined): SefinPostSuccessBody {
+  if (body == null || typeof body !== 'object') {
+    throw new NetworkError(
+      'POST /nfse respondeu sem corpo — a NFS-e pode ter sido gerada; reconcilie por GET /dps/{id}',
+    );
+  }
   if (isSuccessBody(body)) return body;
   const rejection = receitaRejectionFromPostError(body);
   if (rejection) throw rejection;
+  const chave = chaveAutorizada(body);
+  if (chave !== undefined) {
+    // nfseXmlGZipB64 inválido falha na decodificação dentro de toEmitResult.
+    return { ...(body as SefinPostSuccessBody), chaveAcesso: chave };
+  }
   throw new ReceitaRejectionError({
     mensagens: [
       {
@@ -632,7 +660,7 @@ export async function emitSeguro<L extends Layout>(
   //    pode virar retry_pending (nem com um isTransient custom).
   let success: SefinPostSuccessBody;
   try {
-    const body = await deps.httpClient.post<SefinPostBody>(
+    const body = await deps.httpClient.post<SefinPostBody | undefined>(
       '/nfse',
       { dpsXmlGZipB64 },
       { acceptedStatuses: [400] },
@@ -690,7 +718,7 @@ export async function replayEmission(
   logger?: Logger,
 ): Promise<NfseEmitResult> {
   const dpsXmlGZipB64 = gzipBase64Encode(xmlSignedDps);
-  const body = await httpClient.post<SefinPostBody>(
+  const body = await httpClient.post<SefinPostBody | undefined>(
     '/nfse',
     { dpsXmlGZipB64 },
     { acceptedStatuses: [400] },

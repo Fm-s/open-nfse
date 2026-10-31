@@ -7,6 +7,7 @@ import { TipoAmbiente } from '../ambiente.js';
 import type { CepInfo, CepValidator } from '../cep/types.js';
 import type { A1Certificate } from '../certificate/types.js';
 import { OpenNfseError } from '../errors/base.js';
+import { NetworkError } from '../errors/http.js';
 import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from '../errors/receita.js';
 import {
   InvalidCepError,
@@ -749,6 +750,45 @@ describe('emissão — NFS-e autorizada com resposta ilegível', () => {
     const out = await emitMany(httpClient, cert, [minimalDps()], undefined, undefined, logger);
     expect(out.successCount).toBe(1);
     expect(logger.warns.map(([m]) => m)).toContain('nfse.parse.unexpected_field');
+  });
+
+  it.each([
+    ['nfseXmlGZipB64 null', { nfseXmlGZipB64: null }],
+    ['nfseXmlGZipB64 ausente', { nfseXmlGZipB64: undefined }],
+  ])(
+    'emitDpsPronta: 201 com chaveAcesso mas %s → UnreadableAuthorizedNfseError com a chave (não rejeição UNKNOWN)',
+    async (_rotulo, patch) => {
+      replyPost({ ...successBody(SAMPLE_XML), ...patch });
+      const err = await emitDpsPronta(httpClient, cert, minimalDps()).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(UnreadableAuthorizedNfseError);
+      const e = err as UnreadableAuthorizedNfseError;
+      expect(e.chaveAcesso).toBe(CHAVE_SAMPLE);
+      expect(e.xmlNfse).toBeUndefined();
+    },
+  );
+
+  it('emitDpsPronta: 201 com corpo vazio → NetworkError (transiente), não TypeError', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, '');
+    const err = await emitDpsPronta(httpClient, cert, minimalDps()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(defaultIsTransient(err)).toBe(true);
+  });
+
+  it('emitDpsProntaSeguro: 201 com corpo vazio → retry_pending persistido (o replay reconcilia via GET /dps)', async () => {
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply(201, '');
+    const retryStore = createInMemoryRetryStore();
+    const r = await emitDpsProntaSeguro(httpClient, cert, minimalDps(), {
+      retryStore,
+      retryPolicy: createDefaultRetryPolicy(),
+    });
+    expect(r.status).toBe('retry_pending');
+    expect(await retryStore.list()).toHaveLength(1);
   });
 
   it('emitDpsProntaSeguro: resposta ilegível lança e nunca persiste no RetryStore (nem com isTransient permissivo)', async () => {
