@@ -41,6 +41,10 @@ describe('DEFAULT_VER_APLIC', () => {
 describe('toVerAplic', () => {
   it.each([
     ['0.11.0', 'open-nfse/0.11.0'],
+    // Estável usa `open-nfse/` até 10 chars de versão; acima disso, `onfse/`.
+    ['99.99.99', 'open-nfse/99.99.99'],
+    ['100.100.10', 'open-nfse/100.100.10'],
+    ['100.100.100', 'onfse/100.100.100'],
     ['0.12.0-rc.1', 'open-nfse/0.12.0rc1'],
     ['0.12.0-rc.10', 'open-nfse/0.12.0rc10'],
     ['0.12.0-rc.11', 'open-nfse/0.12.0rc11'],

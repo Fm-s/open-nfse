@@ -58,7 +58,8 @@ const PRE_RELEASE_CONVENCIONAL = /^(alpha|beta|rc)\.(0|[1-9]\d*)$/;
  *    duas releases dividirem o mesmo `verAplic`). Como o default é calculado no
  *    load do módulo, uma versão assim quebra a suíte de testes antes do publish.
  *
- * Versão estável (`X.Y.Z`) fica intacta: `open-nfse/X.Y.Z` cabe até `99.99.9`.
+ * Versão estável (`X.Y.Z`) fica intacta e usa `open-nfse/` enquanto tiver até
+ * 10 chars (`99.99.99`, `100.100.10`); acima disso (`100.100.100`) cai em `onfse/`.
  */
 export function toVerAplic(version: string): string {
   const semver = version.split('+', 1)[0] ?? '';
@@ -85,7 +86,9 @@ export function toVerAplic(version: string): string {
 
 /**
  * Valor default de `verAplic` usado pelos builders quando o caller não passa um
- * override: {@link toVerAplic} da versão corrente (`open-nfse/<versão>`, ≤ 20
- * chars do `TSVerAplic`).
+ * override: {@link toVerAplic} da versão corrente — `open-nfse/<versão
+ * compactada>`, ou `onfse/<versão compactada>` quando aquele não cabe nos 20
+ * chars do `TSVerAplic`. Nunca trunca: se nem o prefixo curto couber, o
+ * `RangeError` de {@link toVerAplic} é lançado no load do módulo.
  */
 export const DEFAULT_VER_APLIC = toVerAplic(LIB_VERSION);
