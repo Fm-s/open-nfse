@@ -43,7 +43,7 @@ jq '.[] | select(.preExistente|test("Cancelamento de NFS-e$")) | {req:.requisita
 | `tributos.indop.json` | Catálogo IndOp IBS/CBS | 30 | Anexo C · `IndOp` |
 | `transporte.md` | Narrativa: 2 base URLs, endpoints, envelope, XMLDSig, NSU | — | Manuais contribuinte + OpenAPI |
 | `danfse.md` | Narrativa: layout + QR-code do DANFSe | — | RTC · NT-008 |
-| `_raw/*.json` | Dumps lossless por planilha (procedência) | — | todas acima |
+| `_raw/*.json` | Dumps lossless por planilha (procedência); `hiddenCols` lista as colunas ocultas (substituídas) | — | todas acima |
 
 ## Versões das fontes
 
@@ -57,10 +57,14 @@ Anexo C **v1.01 2026-01-22** · NT-008 **2026-05-05**.
 `ele`: `Raiz` · `G` (grupo) · `E` (elemento) · `A` (atributo) · `ID` · `CE`/`CG` (escolha).
 
 **Regras** (`*.regras.json`) — uma entrada por regra de negócio:
-`seq, caminho, campo, regra, aplic, efeito, codErro, msgErro, nivel, execSefin, execAdn, sefinDecisao, adnDecisao, obs, fonte`.
+`seq, caminho, campo, regra, contexto, aplic, efeito, codErro, msgErro, nivel, execSefin, execAdn, sefinDecisao, adnDecisao, obs, fonte`.
 `efeito`: `Rej.` (rejeita) · `Alerta` · `-`. `execSefin`/`execAdn` (bool): qual motor roda a
 regra (marcador `V` na planilha). `emissao.regras.json` agrupa `{ recepcao, negocio }`; as
-linhas de `recepcao` sem `codErro` são títulos de seção (campo `secao`).
+linhas de `recepcao` sem `codErro` são títulos de seção (campo `secao`). `regra` é sempre o
+texto da própria linha; `contexto` só vem preenchido quando a planilha traz, na coluna D
+mesclada verticalmente, um preâmbulo comum a várias linhas (ex.: definições de `vDR`/`vCalcDR`
+antes de E0427–E0429 e, no nt009, E0433) e a regra da linha na coluna E — nas demais é `null`
+(as `recepcao` não têm o campo).
 
 **Sequência** (`eventos.sequencia.json`) — uma entrada por célula da matriz:
 `preExistenteSeq, preExistente, preExistenteSub, bloco, requisitado, requisitadoCodigo,
@@ -102,7 +106,7 @@ IBGE / países ISO-2** (Anexo A).
 
 Mesmo conjunto de sidecars (`emissao.*`, `eventos.*`, `tributos.indop.json`, `_raw/`) e **as mesmas chaves JSON**, gerado a partir dos Anexos I/II de **Produção Restrita `v1-01-20261020`** (NT 009 release 1) + Anexo C prodrest `20260122`. A raiz de `specs/ruleset/` continua sendo o layout `nt004` (produção atual, `documentacao-atual`). Códigos de assinatura de evento renumerados no nt009 (ex.: E2032 → E1638; E1980–E1991 → E0714–E0718).
 
-Particularidades do Anexo I nt009: a aba `RN DPS_NFS-e 1.01` tem dois trios de colunas SEFIN (prestador / tomador / decisão 102) com cabeçalhos idênticos — `K–M` (K e M **ocultas** na planilha, versão substituída) e `N–P` (visíveis, vigentes) — e um trio ADN (`Q–S`); o sidecar mantém o conjunto de chaves do nt004 usando o cenário **prestador** (`execSefin`/`execAdn`) e a **decisão 102** (`sefinDecisao`/`adnDecisao`) do trio SEFIN visível e do trio ADN — os demais cenários ficam no `_raw/`. O extrator recusa colunas ocultas. Abas novas (`AJUSTE_BC_REPERCUSSÃO`, `RN_RECEP_PED.REG.EVENTO`) só em `_raw/`. A planilha do leiaute ainda lista `finNFSe` sob `IBSCBS/`; o XSD o coloca na raiz de `infDPS` (o XSD prevalece).
+Particularidades do Anexo I nt009: a aba `RN DPS_NFS-e 1.01` tem dois trios de colunas SEFIN (prestador / tomador / decisão 102) com cabeçalhos idênticos — `K–M` (K, L e M **ocultas** na planilha, versão substituída) e `N–P` (visíveis, vigentes) — e um trio ADN (`Q–S`); o sidecar mantém o conjunto de chaves do nt004 usando o cenário **prestador** (`execSefin`/`execAdn`) e a **decisão 102** (`sefinDecisao`/`adnDecisao`) do trio SEFIN visível e do trio ADN — os demais cenários ficam no `_raw/` (use só as colunas visíveis — ex.: o cenário tomador vigente é a coluna `O`, não a `L`; o `hiddenCols` do dump marca `K–M`). O extrator recusa colunas ocultas. Abas novas (`AJUSTE_BC_REPERCUSSÃO`, `RN_RECEP_PED.REG.EVENTO`) só em `_raw/`. A planilha do leiaute ainda lista `finNFSe` sob `IBSCBS/`; o XSD o coloca na raiz de `infDPS` (o XSD prevalece).
 
 ## Regenerar
 

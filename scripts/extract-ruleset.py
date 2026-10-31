@@ -67,10 +67,11 @@ LAYOUTS = {
             "recep_dps": "RN_RECEP_DPS",
         },
         # nt009 Anexo I RN has two SEFIN triplets (prestador / tomador / decisao 102)
-        # with identical headers: K-M (K and M hidden in the sheet — superseded) and
+        # with identical headers: K-M (all three hidden in the sheet — superseded) and
         # N-P (visible, current); ADN is Q-S. The sidecar keeps the nt004 key set:
         # prestador scenario + decisao (102) of the visible SEFIN triplet and of the
-        # ADN triplet. The other scenarios stay lossless in _raw/.
+        # ADN triplet. The other scenarios stay lossless in _raw/ (whose `hiddenCols`
+        # flags K-M as superseded).
         "rn_dps_cols": (14, 16, 17, 19, 20),
         "rn_dps_header": (
             (2, 14, "EMITENTE PRESTADOR"),
@@ -188,6 +189,10 @@ def dump_raw(path, sheet, slug):
         "source": os.path.basename(path),
         "sheet": sheet,
         "dims": {"rows": mr, "cols": mc},
+        # 1-based columns hidden in the sheet: the Receita hides superseded
+        # columns (same header as the current ones) instead of deleting them, so
+        # `cells[c - 1]` for c in hiddenCols is NOT current data.
+        "hiddenCols": sorted(c for c in hidden_columns(path, sheet) if c <= mc),
         "rows": rows,
     }
     write_json(os.path.join(RAW, f"{slug}.json"), payload)
@@ -229,9 +234,12 @@ def extract_campos(path, sheet, src):
 
 
 # --------------------------------------------------------------------------- #
-# RN (business rules):  # | CAMINHO | CAMPO | REGRA(col3) | (col4) | APLIC(5)
+# RN (business rules):  # | CAMINHO | CAMPO | REGRA(col3) | REGRA(col4) | APLIC(5)
 #   | EFEITO(6) | COD(7) | MSG(8) | NIVEL(9) | SEFIN-exec(10) | SEFIN-dec(11)
 #   | ADN-exec(12) | ADN-dec(13) | OBS(14).  Data starts row 4 (3-row header).
+# The REGRA header spans D-E and most rows merge D:E. A few rows instead share a
+# vertically merged D (a definitions preamble, e.g. vDR/vCalcDR before E0427) and
+# carry their own rule in E: then `regra` = E and `contexto` = the D preamble.
 # --------------------------------------------------------------------------- #
 def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 15),
                       header=()):
@@ -255,6 +263,9 @@ def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 
         g = lambda c: grid[r][c] if c <= mc else None
         seq, caminho, campo = g(1), g(2), g(3)
         regra, aplic, efeito, cod, msg = g(4), g(6), g(7), g(8), g(9)
+        contexto = None
+        if g(5) is not None and g(5) != regra:
+            regra, contexto = g(5), regra
         nivel = g(10)
         sefin_exec, sefin_dec, adn_exec, adn_dec, obs = (g(c) for c in cols)
         # a real rule has rule text or a rejection code; otherwise it is a
@@ -267,6 +278,7 @@ def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 
             "caminho": caminho,
             "campo": campo,
             "regra": dash_none(regra),
+            "contexto": dash_none(contexto),
             "aplic": dash_none(aplic),
             "efeito": dash_none(efeito),
             "codErro": dash_none(cod),
