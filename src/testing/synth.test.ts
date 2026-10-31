@@ -14,9 +14,14 @@ import type {
   ValoresNFSeNt009,
 } from '../nfse/domain.js';
 import {
+  CST,
+  FinalidadeNFSe,
+  IndicadorDestinatario,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
+  TipoAjusteBC,
   TipoDedRed,
+  TipoReembolsoRepasse,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -122,7 +127,7 @@ describe('synthNfse — valores (nt004)', () => {
               vRetCSLL: 10,
               // 5 = PIS retido, COFINS/CSLL não retidos.
               piscofins: {
-                CST: '01' as never,
+                CST: CST.TributavelAliquotaBasica,
                 vPis: 6.5,
                 vCofins: 30,
                 tpRetPisCofins: TipoRetPisCofins.PisRetidoCofinsCsllNaoRetido,
@@ -176,6 +181,39 @@ describe('synthNfse — valores (nt004)', () => {
     expect(vDocs).toEqual({ vCalcDR: 150, vBC: 850, pAliqAplic: 2, vISSQN: 17, vLiq: 1000 });
   });
 
+  it('vCalcReeRepRes (Σ gReeRepRes.vlrReeRepRes) também abate a BC do ISSQN (r41)', () => {
+    const base = dpsNt004({ vDescCondIncond: { vDescIncond: 100 } });
+    const doc = {
+      documento: { docOutro: { nDoc: 'REC-1', xDoc: 'Recibo' } },
+      dtEmiDoc: new Date('2026-01-01'),
+      dtCompDoc: new Date('2026-01-01'),
+      tpReeRepRes: TipoReembolsoRepasse.RepasseIntermediacaoImoveis,
+    };
+    const dps: DpsNt004 = {
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        IBSCBS: {
+          finNFSe: FinalidadeNFSe.Regular,
+          cIndOp: '100301',
+          indDest: IndicadorDestinatario.TomadorEhDestinatario,
+          valores: {
+            gReeRepRes: {
+              documentos: [
+                { ...doc, vlrReeRepRes: 100 },
+                { ...doc, vlrReeRepRes: 50 },
+              ],
+            },
+            trib: { gIBSCBS: { CST: '000', cClassTrib: '000001' } },
+          },
+        },
+      },
+    };
+    const v = valoresNt004(synthNfse(dps, CHAVE, TipoAmbiente.Homologacao));
+    // vBC = 1000 − 100 (descIncond) − 150 (vCalcReeRepRes) = 750; vISSQN = 15.
+    expect(v).toEqual({ vBC: 750, pAliqAplic: 2, vISSQN: 15, vLiq: 900 });
+  });
+
   it('nt004 não sintetiza infNFSe.IBSCBS', () => {
     const nfse = synthNfse(dpsNt004(), CHAVE, TipoAmbiente.Homologacao);
     expect(nfse.infNFSe.IBSCBS).toBeUndefined();
@@ -206,6 +244,29 @@ describe('synthNfse — valores (nt009)', () => {
       ),
     );
     expect(v).toEqual({ vBC: 600, pAliqAplic: 2, vISSQN: 12, vLiq: 1000 });
+  });
+
+  it('documento tpAjusteBC 105 (glosa de saúde) não ajusta a BC do ISSQN (AJUSTE_BC_REPERCUSSÃO r18)', () => {
+    const doc = dpsNt009Completa().infDPS.valores.vAjusteBC?.documentos?.docAjusteBC[0];
+    if (!doc) throw new Error('fixture sem docAjusteBC');
+    const v = valoresNt009(
+      synthNfse(
+        dpsNt009({
+          vDescCondIncond: { vDescIncond: 100 },
+          vAjusteBC: {
+            documentos: {
+              docAjusteBC: [
+                { ...doc, tpAjusteBC: TipoAjusteBC.GlosaServicosSaude, vAjusteAplic: 300 },
+              ],
+            },
+          },
+        }),
+        CHAVE,
+        TipoAmbiente.Homologacao,
+      ),
+    );
+    // vBC = 1000 − 100 (descIncond); a glosa só ajusta a BC do IBS/CBS.
+    expect(v).toEqual({ vBC: 900, pAliqAplic: 2, vISSQN: 18, vLiq: 900 });
   });
 
   it('benefício municipal informado (vRedBCBM / pRedBCBM) reduz a BC', () => {

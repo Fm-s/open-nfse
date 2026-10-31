@@ -14,6 +14,7 @@ import type {
 import {
   AmbienteGerador,
   SituacaoNfse,
+  TipoAjusteBC,
   TipoEmissao,
   TipoRetISSQN,
   TipoRetPisCofins,
@@ -250,13 +251,18 @@ function synthValoresNt004(dps: DpsNt004): ValoresNFSeNt004 {
  * `TCValoresNFSe` nt009. Ajuste da BC (r38/r41): `pAjusteBCISSQN` incide
  * sobre `vServ − descIncond`; documentos somam `vAjusteAplic`. No nt009 os
  * dois podem coexistir, e ambos compõem `vCalcAjusteBCISSQN`;
- * `vAjusteBCISSQN` informado só abate.
+ * `vAjusteBCISSQN` informado só abate. Documentos `tpAjusteBC = 105` (glosa
+ * de serviços de saúde) ficam de fora: pela planilha AJUSTE_BC_REPERCUSSÃO
+ * (r18) eles ajustam só a BC do IBS/CBS, nunca a do ISSQN.
  */
 function synthValoresNt009(dps: DpsNt009): ValoresNFSeNt009 {
   const { vServPrest, vDescCondIncond, vAjusteBC } = dps.infDPS.valores;
   const base = vServPrest.vServ - (vDescCondIncond?.vDescIncond ?? 0);
   const ajuste = vAjusteBC?.ajusteIssqn;
-  const docs = vAjusteBC?.documentos?.docAjusteBC ?? [];
+  // AJUSTE_BC_REPERCUSSÃO r18: tpAjusteBC 105 não ajusta a BC do ISSQN.
+  const docs = (vAjusteBC?.documentos?.docAjusteBC ?? []).filter(
+    (d) => d.tpAjusteBC !== TipoAjusteBC.GlosaServicosSaude,
+  );
   const partes = [
     ...(ajuste && 'pAjusteBCISSQN' in ajuste ? [round2((base * ajuste.pAjusteBCISSQN) / 100)] : []),
     ...docs.map((d) => d.vAjusteAplic),
