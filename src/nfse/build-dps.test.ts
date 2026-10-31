@@ -16,6 +16,7 @@ import {
   type DocumentoAjusteBCInput,
 } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
+import type { DPS } from './domain.js';
 import type { EmitirParams } from './emit.js';
 import {
   FinalidadeNFSe,
@@ -524,6 +525,62 @@ describe('buildDps — incidência por serviço (E0532)', () => {
       }),
     ).not.toThrow();
   });
+
+  it('nt004: E0532 cobre só o 99.01.01 (Anexo I 20260209) — 99.03.01 com tribISSQN default passa', () => {
+    expect(() =>
+      buildDps({ ...baseParams(), servico: { ...baseParams().servico, cTribNac: '990301' } }),
+    ).not.toThrow();
+  });
+
+  it('nt009: E0532 cobre todo 99.XX.XX (Anexo I 20261020)', () => {
+    for (const cTribNac of ['990101', '990301', '990401']) {
+      const params: BuildDpsParamsNt009 = {
+        ...baseParams(),
+        layout: 'nt009',
+        servico: { ...baseParams().servico, cTribNac },
+      };
+      expect(() => buildDps(params)).toThrow(expect.objectContaining({ rule: 'E0532' }));
+      expect(() => buildDps(params)).toThrow(/99\.XX\.XX.*per E0532$/);
+      expect(() =>
+        buildDps({
+          ...params,
+          valores: { ...params.valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
+        }),
+      ).not.toThrow();
+    }
+  });
+});
+
+// E0313 — só existe no Anexo I 20261020 (nt009): MEI não informa cTribMun.
+describe('buildDps — cTribMun de MEI (E0313)', () => {
+  const mei = (layout: 'nt004' | 'nt009') =>
+    ({
+      ...baseParams(),
+      layout,
+      emitente: {
+        ...baseParams().emitente,
+        regime: {
+          opSimpNac: OpcaoSimplesNacional.Mei,
+          regEspTrib: RegimeEspecialTributacao.Nenhum,
+        },
+      },
+      servico: { ...baseParams().servico, cTribMun: '001' },
+    }) as const;
+
+  it('nt009: MEI com cTribMun → E0313', () => {
+    expect(() => buildDps(mei('nt009'))).toThrow(expect.objectContaining({ rule: 'E0313' }));
+    expect(() => buildDps(mei('nt009'))).toThrow(/per E0313$/);
+  });
+
+  it('nt009: MEI sem cTribMun e não-MEI com cTribMun passam', () => {
+    const { cTribMun: _, ...servicoSemCTribMun } = mei('nt009').servico;
+    expect(() => buildDps({ ...mei('nt009'), servico: servicoSemCTribMun })).not.toThrow();
+    expect(() => buildDps({ ...mei('nt009'), emitente: baseParams().emitente })).not.toThrow();
+  });
+
+  it('nt004: a regra não existe no Anexo I 20260209 — MEI com cTribMun passa', () => {
+    expect(() => buildDps(mei('nt004'))).not.toThrow();
+  });
 });
 
 describe('buildDps — layout', () => {
@@ -570,34 +627,94 @@ describe('nt009 inputs de alto nível', () => {
     };
   }
 
-  function paramsNt009Completos(): BuildDpsParamsNt009 {
+  const CHAVE_NFSE = '21113002200574753000100000000000146726037032711025';
+  const ENDERECO_FORNECEDOR = {
+    codMunicipio: '2111300',
+    cep: '65020000',
+    logradouro: 'Rua F',
+    numero: '5',
+    bairro: 'Centro',
+  } as const;
+
+  /**
+   * Locação de imóvel (99.03.01) mínima e válida pelas regras fechadas do
+   * Anexo I 20261020: tribISSQN=4 (E0532), cNBS (E0322), gLocacao (E0937),
+   * cIndOp 02XXXX (E0902) com gUnidImob (E0938).
+   */
+  function paramsNt009Locacao(): BuildDpsParamsNt009 {
+    const base = paramsNt009Minimos();
     return {
-      ...paramsNt009Minimos(),
+      ...base,
+      servico: { ...base.servico, cTribNac: '990301' },
+      valores: { ...base.valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
+      ibsCbs: {
+        classificacao: { CST: '000', cClassTrib: '000001' },
+        cIndOp: '020101',
+        imovel: {
+          codMunicipio: '2111300',
+          locacao: { pCopropriedade: 100, vTotOper: 1000 },
+          unidades: [{ identificacao: { cCIB: 'ABC12345' } }],
+        },
+      },
+    };
+  }
+
+  /** Locação de bens móveis (99.04.01): bensMoveis obrigatório (E0963) e só aqui (E0967). */
+  function paramsNt009BensMoveis(): BuildDpsParamsNt009 {
+    const base = paramsNt009Minimos();
+    return {
+      ...base,
+      servico: { ...base.servico, cTribNac: '990401', descricao: 'Locação de bens móveis' },
+      valores: { ...base.valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
+      ibsCbs: {
+        classificacao: { CST: '000', cClassTrib: '000001' },
+        bensMoveis: [
+          { ncm: '94036000', descricao: 'Móveis de madeira', quantidade: '3' },
+          { ncm: '84183000', descricao: 'Congelador', quantidade: '1' },
+        ],
+      },
+    };
+  }
+
+  /**
+   * Todos os inputs de alto nível do nt009 que cabem numa mesma DPS, sem violar
+   * nenhuma regra fechada do Anexo I 20261020 (bensMoveis exige 99.04.01 e
+   * gLocacao exige 99.03 — por isso bens móveis ficam em
+   * {@link paramsNt009BensMoveis}).
+   */
+  function paramsNt009Completos(): BuildDpsParamsNt009 {
+    const locacao = paramsNt009Locacao();
+    return {
+      ...locacao,
       tomador: { documento: { CPF: '01075595363' }, nome: 'Tomador de Teste' },
       ajusteBC: {
         issqn: { percentual: 10 },
         documentos: [
           {
-            tipo: TipoAjusteBC.Materiais,
+            // 102: fora da lista do E0462 (convive com pAjusteBCISSQN) e do
+            // E0479 (admite docOutro); dispensa o E0435 com tribISSQN=4.
+            tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
             valorTotal: 200,
             valorAplicado: 100.5,
             dataEmissao: new Date('2026-11-20T12:00:00Z'),
-            documento: {
-              dFeNacional: {
-                tipoChaveDFe: TipoChaveDFe.Nfse,
-                chaveDFe: '21113002200574753000100000000000146726037032711025',
-              },
+            documento: { docOutro: { nDoc: 'REC-41', xDoc: 'Recibo' } },
+            fornecedor: {
+              documento: { CNPJ: '11222333000181' },
+              nome: 'Fornecedor de Teste',
+              endereco: ENDERECO_FORNECEDOR,
             },
-            fornecedor: { documento: { CNPJ: '11222333000181' }, nome: 'Fornecedor de Teste' },
           },
           {
+            // 199 exige documento fiscal (E0479).
             tipo: TipoAjusteBC.OutrosReembolsos,
             descricao: 'Reembolso de despesas',
             valorTotal: 50,
             valorAplicado: 50,
             dataEmissao: new Date('2026-11-25T12:00:00Z'),
             dataCompetencia: new Date('2026-11-25T12:00:00Z'),
-            documento: { docOutro: { nDoc: 'REC-42', xDoc: 'Recibo' } },
+            documento: {
+              dFeNacional: { tipoChaveDFe: TipoChaveDFe.Nfse, chaveDFe: CHAVE_NFSE },
+            },
           },
         ],
       },
@@ -610,9 +727,10 @@ describe('nt009 inputs de alto nível', () => {
           diferimento: { pDifUF: 10, pDifMun: 10, pDifCBS: 10 },
         },
         indFinal: IndicadorFinal.Sim,
-        cIndOp: '100301',
-        tpOper: TipoOperacao.FornecimentoComPagamentoPosterior,
-        nfseReferenciadas: ['21113002200574753000100000000000146726037032711025'],
+        cIndOp: '020101',
+        // tpEnteGov exige tpOper (E0903); tpOper 3 exige gRefNFSe (E0905).
+        tpOper: TipoOperacao.FornecimentoComPagamentoJaRealizado,
+        nfseReferenciadas: [CHAVE_NFSE],
         tpEnteGov: TipoEnteGovernamental.Municipio,
         destinatario: {
           documento: { CNPJ: '11222333000181' },
@@ -629,16 +747,20 @@ describe('nt009 inputs de alto nível', () => {
         imovel: {
           codMunicipio: '2111300',
           locacao: {
-            pCopropriedade: 100,
+            pCopropriedade: 50,
             vTotOper: 1000,
             vDescIncondTot: 10,
+            vDescCondTot: 30,
             dVencOrig: new Date('2026-12-10T12:00:00Z'),
           },
           unidades: [
             {
               inscricaoImobiliaria: 'IMOB-1',
               identificacao: { cCIB: 'ABC12345' },
-              ajustesBC: [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 150 }],
+              ajustesBC: [
+                { tipo: TipoAjusteBCLocImoveis.Condominio, valor: 150 },
+                { tipo: TipoAjusteBCLocImoveis.Outras, descricao: 'Fundo de reserva', valor: 30 },
+              ],
             },
             {
               identificacao: {
@@ -653,16 +775,35 @@ describe('nt009 inputs de alto nível', () => {
             },
           ],
         },
-        bensMoveis: [
-          { ncm: '94036000', descricao: 'Móveis de madeira', quantidade: '3' },
-          { ncm: '84183000', descricao: 'Congelador', quantidade: '1' },
-        ],
       },
     };
   }
 
+  /** Dia de Brasília à meia-noite — como o parser ancora os campos date-only (`TSData`). */
+  function meiaNoiteBrt(d: Date): Date {
+    const dia = new Date(d.getTime() - 3 * 3_600_000).toISOString().slice(0, 10);
+    return new Date(`${dia}T03:00:00.000Z`);
+  }
+
+  /**
+   * Substitui a `<DPS>` do envelope NFS-e sintético do nt009 pela DPS dada e
+   * parseia (não há entry point só de DPS).
+   */
+  function parseViaEnvelope(dps: DPS): DPS {
+    const envelope = readFileSync(
+      join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'),
+      'utf-8',
+    );
+    expect(envelope).toMatch(/<DPS[\s\S]*<\/DPS>/);
+    const dpsXml = buildDpsXml(dps, { includeXmlDeclaration: false });
+    const nfse = parseNfseXml(envelope.replace(/<DPS[\s\S]*<\/DPS>/, () => dpsXml));
+    return nfse.infNFSe.DPS;
+  }
+
   type DocPatch = { [K in keyof DocumentoAjusteBCInput]?: DocumentoAjusteBCInput[K] | undefined };
-  function docCom(patch: DocPatch): Pick<BuildDpsParamsNt009, 'ajusteBC'> {
+  function docCom(patch: DocPatch): {
+    readonly ajusteBC: { readonly documentos: readonly DocumentoAjusteBCInput[] };
+  } {
     const merged: Record<string, unknown> = {
       tipo: TipoAjusteBC.Materiais,
       valorTotal: 500,
@@ -674,63 +815,69 @@ describe('nt009 inputs de alto nível', () => {
     return { ajusteBC: { documentos: [merged as unknown as DocumentoAjusteBCInput] } };
   }
 
-  it('round-trip: inputs → DPS → XML válido nt009 → parse igual', async () => {
+  /** Campos `TSData` (date-only) do DTO da DPS nt009. */
+  const CAMPOS_DATA = new Set(['dCompet', 'dtEmiDoc', 'dtCompDoc', 'dVencOrig']);
+
+  /** Cópia profunda com os campos date-only ancorados à meia-noite de Brasília. */
+  function comDatasDoParser<T>(v: T, chave = ''): T {
+    if (v instanceof Date) return (CAMPOS_DATA.has(chave) ? meiaNoiteBrt(v) : v) as T;
+    if (Array.isArray(v)) return v.map((x) => comDatasDoParser(x)) as T;
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(
+        Object.entries(v).map(([k, x]) => [k, comDatasDoParser(x, k)]),
+      ) as T;
+    }
+    return v;
+  }
+
+  it.each([
+    ['completos (99.03)', paramsNt009Completos],
+    ['bens móveis (99.04.01)', paramsNt009BensMoveis],
+  ] as const)(
+    'round-trip %s: inputs → DPS → XML válido nt009 → parse igual no DTO',
+    async (_, params) => {
+      const dps = buildDps(params());
+      const xml = buildDpsXml(dps);
+      const result = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
+      expect(result.violations).toEqual([]);
+      expect(result.valid).toBe(true);
+
+      // Igualdade no nível do DTO (não XML × XML re-serializado): um campo que o
+      // serializer deixe de emitir some do parse e quebra a comparação.
+      expect(parseViaEnvelope(dps)).toEqual(comDatasDoParser(dps));
+    },
+  );
+
+  it('buildDps mapeia os inputs completos exatamente nos grupos da RTC', () => {
     const dps = buildDps(paramsNt009Completos());
-    const xml = buildDpsXml(dps);
-    const result = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
-    expect(result.violations).toEqual([]);
-    expect(result.valid).toBe(true);
-    expect(dps.infDPS.IBSCBS?.indDest).toBe(IndicadorDestinatario.DestinatarioDistinto);
-    expect(dps.infDPS.valores.vAjusteBC?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
-
-    // Parse de volta: a DPS gerada substitui a <DPS> do envelope NFS-e sintético
-    // do nt009 e passa pelo parseNfseXml (não há entry point só de DPS).
-    const envelope = readFileSync(
-      join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'),
-      'utf-8',
-    );
-    const dpsXmlSemDecl = buildDpsXml(dps, { includeXmlDeclaration: false });
-    expect(envelope).toMatch(/<DPS[\s\S]*<\/DPS>/);
-    const nfse = parseNfseXml(envelope.replace(/<DPS[\s\S]*<\/DPS>/, () => dpsXmlSemDecl));
-    if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
-    const parsed = nfse.infNFSe.DPS;
-    // Campos date-only voltam ancorados à meia-noite de Brasília; a igualdade
-    // completa é verificada na forma serializada (estável).
-    expect(buildDpsXml(parsed)).toBe(xml);
-    const pv = parsed.infDPS.valores.vAjusteBC;
-    expect(pv?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
-    expect(pv?.documentos?.docAjusteBC.map((d) => d.tpAjusteBC)).toEqual([
-      TipoAjusteBC.Materiais,
-      TipoAjusteBC.OutrosReembolsos,
-    ]);
-    expect(pv?.documentos?.docAjusteBC[1]?.xTpAjusteBC).toBe('Reembolso de despesas');
-    const pIbs = parsed.infDPS.IBSCBS;
-    expect(pIbs?.indDest).toBe(IndicadorDestinatario.DestinatarioDistinto);
-    expect(pIbs?.dest?.identificador).toEqual({ CNPJ: '11222333000181' });
-    expect(pIbs?.dest?.xNome).toBe('Destinatário Ltda');
-    expect(pIbs?.imovel?.gUnidImob).toHaveLength(2);
-    expect(pIbs?.imovel?.gUnidImob?.[0]?.identificacao).toEqual({ cCIB: 'ABC12345' });
-    expect(pIbs?.bensMoveis).toEqual(dps.infDPS.IBSCBS?.bensMoveis);
-    expect(pIbs?.valores.trib.CST).toBe('000');
-    expect(pIbs?.valores.trib).toEqual(dps.infDPS.IBSCBS?.valores.trib);
-
-    // Igualdade no nível do DTO: o mapeamento produz exatamente os grupos da RTC.
+    expect(dps.infDPS.serv.cServ).toEqual({
+      cTribNac: '990301',
+      xDescServ: 'Locação de imóvel',
+      cNBS: '123456789',
+    });
+    expect(dps.infDPS.valores.trib.tribMun.tribISSQN).toBe(TipoTribISSQN.NaoIncidencia);
+    // E0434/E0443: vDescIncond/vDescCond = pCopropriedade × vDesc*Tot (50% de 10 e de 30).
+    expect(dps.infDPS.valores.vDescCondIncond).toEqual({ vDescIncond: 5, vDescCond: 15 });
     expect(dps.infDPS.valores.vAjusteBC).toEqual({
       ajusteIssqn: { pAjusteBCISSQN: 10 },
       documentos: {
         docAjusteBC: [
           {
-            tpAjusteBC: TipoAjusteBC.Materiais,
+            tpAjusteBC: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
             vTotDoc: 200,
             vAjusteAplic: 100.5,
             dtEmiDoc: new Date('2026-11-20T12:00:00Z'),
-            documento: {
-              dFeNacional: {
-                tipoChaveDFe: TipoChaveDFe.Nfse,
-                chaveDFe: '21113002200574753000100000000000146726037032711025',
+            documento: { docOutro: { nDoc: 'REC-41', xDoc: 'Recibo' } },
+            fornec: {
+              identificador: { CNPJ: '11222333000181' },
+              xNome: 'Fornecedor de Teste',
+              end: {
+                localidade: { endNac: { cMun: '2111300', CEP: '65020000' } },
+                xLgr: 'Rua F',
+                nro: '5',
+                xBairro: 'Centro',
               },
             },
-            fornec: { identificador: { CNPJ: '11222333000181' }, xNome: 'Fornecedor de Teste' },
           },
           {
             tpAjusteBC: TipoAjusteBC.OutrosReembolsos,
@@ -739,16 +886,16 @@ describe('nt009 inputs de alto nível', () => {
             vAjusteAplic: 50,
             dtEmiDoc: new Date('2026-11-25T12:00:00Z'),
             dtCompDoc: new Date('2026-11-25T12:00:00Z'),
-            documento: { docOutro: { nDoc: 'REC-42', xDoc: 'Recibo' } },
+            documento: { dFeNacional: { tipoChaveDFe: TipoChaveDFe.Nfse, chaveDFe: CHAVE_NFSE } },
           },
         ],
       },
     });
     expect(dps.infDPS.IBSCBS).toEqual({
       indFinal: IndicadorFinal.Sim,
-      cIndOp: '100301',
-      tpOper: TipoOperacao.FornecimentoComPagamentoPosterior,
-      gRefNFSe: { refNFSe: ['21113002200574753000100000000000146726037032711025'] },
+      cIndOp: '020101',
+      tpOper: TipoOperacao.FornecimentoComPagamentoJaRealizado,
+      gRefNFSe: { refNFSe: [CHAVE_NFSE] },
       tpEnteGov: TipoEnteGovernamental.Municipio,
       indDest: IndicadorDestinatario.DestinatarioDistinto,
       dest: {
@@ -765,9 +912,10 @@ describe('nt009 inputs de alto nível', () => {
       imovel: {
         cMun: '2111300',
         gLocacao: {
-          pCopropriedade: 100,
+          pCopropriedade: 50,
           vTotOper: 1000,
           vDescIncondTot: 10,
+          vDescCondTot: 30,
           dVencOrig: new Date('2026-12-10T12:00:00Z'),
         },
         gUnidImob: [
@@ -776,6 +924,11 @@ describe('nt009 inputs de alto nível', () => {
             identificacao: { cCIB: 'ABC12345' },
             gAjusteBCLocImoveis: [
               { tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Condominio, vAjusteBCLocImoveis: 150 },
+              {
+                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Outras,
+                xTpAjusteBCLocImoveis: 'Fundo de reserva',
+                vAjusteBCLocImoveis: 30,
+              },
             ],
           },
           {
@@ -791,10 +944,6 @@ describe('nt009 inputs de alto nível', () => {
           },
         ],
       },
-      bensMoveis: [
-        { cNCMBemMovel: '94036000', xNCMBemMovel: 'Móveis de madeira', qtdNCMBemMovel: '3' },
-        { cNCMBemMovel: '84183000', xNCMBemMovel: 'Congelador', qtdNCMBemMovel: '1' },
-      ],
       valores: {
         trib: {
           CST: '000',
@@ -807,6 +956,22 @@ describe('nt009 inputs de alto nível', () => {
         },
       },
     });
+  });
+
+  it('bens móveis: buildDps mapeia bensMoveis', () => {
+    expect(buildDps(paramsNt009BensMoveis()).infDPS.IBSCBS?.bensMoveis).toEqual([
+      { cNCMBemMovel: '94036000', xNCMBemMovel: 'Móveis de madeira', qtdNCMBemMovel: '3' },
+      { cNCMBemMovel: '84183000', xNCMBemMovel: 'Congelador', qtdNCMBemMovel: '1' },
+    ]);
+  });
+
+  it('XML dos inputs completos traz os elementos opcionais do IBSCBS e o desconto derivado', () => {
+    const xml = buildDpsXml(buildDps(paramsNt009Completos()));
+    expect(xml).toContain('<indFinal>1</indFinal>');
+    expect(xml).toContain('<tpOper>3</tpOper>');
+    expect(xml).toContain(
+      '<vDescCondIncond><vDescIncond>5</vDescIncond><vDescCond>15</vDescCond></vDescCondIncond>',
+    );
   });
 
   it('sem destinatario → indDest TomadorEhDestinatario e sem dest', async () => {
@@ -901,6 +1066,460 @@ describe('nt009 inputs de alto nível', () => {
     ).not.toThrow();
   });
 
+  it('E0472 usa o dia de Brasília, não o de UTC', () => {
+    // dtEmiDoc 2026-11-19 (23:00 BRT) < dtCompDoc 2026-11-20: rejeita — em UTC
+    // os dois cairiam em 2026-11-20 e passariam.
+    expect(() =>
+      buildDps({
+        ...paramsNt009Minimos(),
+        ...docCom({
+          dataEmissao: new Date('2026-11-20T02:00:00Z'),
+          dataCompetencia: new Date('2026-11-20T12:00:00Z'),
+        }),
+      }),
+    ).toThrow(expect.objectContaining({ rule: 'E0472' }));
+    // Mesmo dia BRT (2026-11-20), dias UTC diferentes (20 × 21): aceito.
+    expect(() =>
+      buildDps({
+        ...paramsNt009Minimos(),
+        ...docCom({
+          dataEmissao: new Date('2026-11-20T12:00:00Z'),
+          dataCompetencia: new Date('2026-11-21T01:00:00Z'),
+        }),
+      }),
+    ).not.toThrow();
+  });
+
+  describe('regras fechadas do Anexo I 20261020 (só nt009)', () => {
+    const MEI = {
+      opSimpNac: OpcaoSimplesNacional.Mei,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
+    };
+    const comRegime = (
+      p: BuildDpsParamsNt009,
+      regime: BuildDpsParamsNt009['emitente']['regime'],
+    ): BuildDpsParamsNt009 => ({ ...p, emitente: { ...p.emitente, regime } });
+    const comServico = (
+      p: BuildDpsParamsNt009,
+      servico: Partial<BuildDpsParamsNt009['servico']>,
+    ): BuildDpsParamsNt009 => ({ ...p, servico: { ...p.servico, ...servico } });
+    const comTribIssqn = (p: BuildDpsParamsNt009, tribISSQN: TipoTribISSQN) => ({
+      ...p,
+      valores: { ...p.valores, tribISSQN },
+    });
+    const comIbsCbs = (
+      p: BuildDpsParamsNt009,
+      patch: Partial<NonNullable<BuildDpsParamsNt009['ibsCbs']>>,
+    ): BuildDpsParamsNt009 => ({
+      ...p,
+      ibsCbs: {
+        classificacao: { CST: '000', cClassTrib: '000001' },
+        ...p.ibsCbs,
+        ...patch,
+      },
+    });
+    const locacaoCom = (
+      locacao: Partial<
+        NonNullable<NonNullable<BuildDpsParamsNt009['ibsCbs']>['imovel']>['locacao']
+      >,
+      ajustesBC?: NonNullable<
+        NonNullable<NonNullable<BuildDpsParamsNt009['ibsCbs']>['imovel']>['unidades']
+      >[number]['ajustesBC'],
+    ): BuildDpsParamsNt009 => {
+      const p = paramsNt009Locacao();
+      return comIbsCbs(p, {
+        imovel: {
+          codMunicipio: '2111300',
+          locacao: { pCopropriedade: 100, vTotOper: 1000, ...locacao },
+          unidades: [{ identificacao: { cCIB: 'ABC12345' }, ...(ajustesBC ? { ajustesBC } : {}) }],
+        },
+      });
+    };
+    const docDFe = (tipoChaveDFe: TipoChaveDFe, xTipoChaveDFe?: string) => ({
+      dFeNacional: {
+        tipoChaveDFe,
+        chaveDFe: CHAVE_NFSE,
+        ...(xTipoChaveDFe !== undefined ? { xTipoChaveDFe } : {}),
+      },
+    });
+    /** Doc 199 com documento fiscal: dispensa E0435/E0445. */
+    const doc199 = (): DocumentoAjusteBCInput => ({
+      tipo: TipoAjusteBC.OutrosReembolsos,
+      descricao: 'Reembolso',
+      valorTotal: 50,
+      valorAplicado: 50,
+      documento: docDFe(TipoChaveDFe.Nfse),
+    });
+
+    it.each<[string, string, () => BuildDpsParamsNt009]>([
+      [
+        'E0322',
+        'ibsCbs sem servico.cNBS',
+        () => {
+          const { cNBS: _, ...servico } = paramsNt009Minimos().servico;
+          return comIbsCbs({ ...paramsNt009Minimos(), servico }, {});
+        },
+      ],
+      [
+        'E0436',
+        'MEI com ajusteBC',
+        () => ({
+          ...comRegime(paramsNt009Minimos(), MEI),
+          ajusteBC: { issqn: { percentual: 10 } },
+        }),
+      ],
+      [
+        'E0435',
+        'tribISSQN=4 com ajusteBC sem doc 101–105/199',
+        () => ({
+          ...comTribIssqn(paramsNt009Minimos(), TipoTribISSQN.NaoIncidencia),
+          ajusteBC: { issqn: { valor: 10 } },
+        }),
+      ],
+      [
+        'E0445',
+        'regEspTrib≠0 com ajusteBC sem doc 101–105/199',
+        () => ({
+          ...comRegime(paramsNt009Minimos(), {
+            opSimpNac: OpcaoSimplesNacional.NaoOptante,
+            regEspTrib: RegimeEspecialTributacao.AtoCooperado,
+          }),
+          ...docCom({}),
+        }),
+      ],
+      [
+        'E0462',
+        'issqn + doc tipo 2',
+        () => ({
+          ...paramsNt009Minimos(),
+          ajusteBC: { issqn: { percentual: 10 }, documentos: docCom({}).ajusteBC.documentos },
+        }),
+      ],
+      [
+        'E0463',
+        'cTribNac 06.01 com doc tipo 2',
+        () => ({ ...comServico(paramsNt009Minimos(), { cTribNac: '060101' }), ...docCom({}) }),
+      ],
+      [
+        'E0470',
+        'dFeNacional tipo Outro sem xTipoChaveDFe',
+        () => ({ ...paramsNt009Minimos(), ...docCom({ documento: docDFe(TipoChaveDFe.Outro) }) }),
+      ],
+      [
+        'E0476',
+        'docFiscalOutro com dtCompDoc ≥ 2026-01-01 (BRT)',
+        () => ({
+          ...paramsNt009Minimos(),
+          ...docCom({
+            documento: {
+              docFiscalOutro: { cMunDocFiscal: '2111300', nDocFiscal: '1', xDocFiscal: 'NF' },
+            },
+            dataCompetencia: new Date('2026-01-01T12:00:00Z'),
+          }),
+        }),
+      ],
+      [
+        'E0479',
+        'tipo 199 com docOutro',
+        () => ({
+          ...paramsNt009Minimos(),
+          ...docCom({ tipo: TipoAjusteBC.OutrosReembolsos, descricao: 'Reembolso' }),
+        }),
+      ],
+      [
+        'E0492',
+        'fornecedor sem endereço',
+        () => ({
+          ...paramsNt009Minimos(),
+          ...docCom({
+            fornecedor: {
+              documento: { CNPJ: '11222333000181' },
+              nome: 'F',
+            } as unknown as DocumentoAjusteBCInput['fornecedor'],
+          }),
+        }),
+      ],
+      [
+        'E0453',
+        'percentual que serializa como 0.00',
+        () => ({ ...paramsNt009Minimos(), ajusteBC: { issqn: { percentual: 0.004 } } }),
+      ],
+      [
+        'E0959',
+        'cClassTrib fora do grupo do CST',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), { classificacao: { CST: '000', cClassTrib: '200001' } }),
+      ],
+      [
+        'E0970',
+        'cClassTribReg fora do grupo do CSTReg',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            classificacao: {
+              CST: '000',
+              cClassTrib: '000001',
+              tributacaoRegular: { CSTReg: '000', cClassTribReg: '200001' },
+            },
+          }),
+      ],
+      [
+        'E0903',
+        'tpEnteGov sem tpOper',
+        () => comIbsCbs(paramsNt009Minimos(), { tpEnteGov: TipoEnteGovernamental.Uniao }),
+      ],
+      [
+        'E0903',
+        'cTribNac 25.05 sem tpOper',
+        () => comIbsCbs(comServico(paramsNt009Minimos(), { cTribNac: '250501' }), {}),
+      ],
+      [
+        'E0905',
+        'tpOper 2 sem gRefNFSe',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            tpEnteGov: TipoEnteGovernamental.Uniao,
+            tpOper: TipoOperacao.RecebimentoPagamentoFornecimentoRealizado,
+          }),
+      ],
+      [
+        'E0906',
+        'gRefNFSe com tpOper 1',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            tpEnteGov: TipoEnteGovernamental.Uniao,
+            tpOper: TipoOperacao.FornecimentoComPagamentoPosterior,
+            nfseReferenciadas: [CHAVE_NFSE],
+          }),
+      ],
+      [
+        'E0906',
+        'gRefNFSe sem tpOper',
+        () => comIbsCbs(paramsNt009Minimos(), { nfseReferenciadas: [CHAVE_NFSE] }),
+      ],
+      [
+        'E0936',
+        'gLocacao fora do 99.03',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            imovel: { codMunicipio: '2111300', locacao: { pCopropriedade: 100, vTotOper: 1000 } },
+          }),
+      ],
+      [
+        'E0937',
+        '99.03 sem gLocacao',
+        () =>
+          comIbsCbs(paramsNt009Locacao(), {
+            imovel: {
+              codMunicipio: '2111300',
+              unidades: [{ identificacao: { cCIB: 'ABC12345' } }],
+            },
+          }),
+      ],
+      [
+        'E0939',
+        'gAjusteBCLocImoveis fora do 99.03',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            imovel: {
+              codMunicipio: '2111300',
+              unidades: [
+                {
+                  identificacao: { cCIB: 'ABC12345' },
+                  ajustesBC: [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 10 }],
+                },
+              ],
+            },
+          }),
+      ],
+      ['E0940', 'pCopropriedade > 100', () => locacaoCom({ pCopropriedade: 150 })],
+      [
+        'E0949',
+        'ajuste de locação tipo 99 sem descrição',
+        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Outras, valor: 10 }]),
+      ],
+      [
+        'E0949',
+        'ajuste de locação tipo ≠ 99 com descrição',
+        () =>
+          locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Condominio, descricao: 'x', valor: 10 }]),
+      ],
+      [
+        'E0966',
+        'ajuste de locação > vTotOper',
+        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 1000.01 }]),
+      ],
+      ['E0431', 'vDescIncond derivado ≥ vServ', () => locacaoCom({ vDescIncondTot: 1000 })],
+      ['E0432', 'vDescCond derivado ≥ vServ', () => locacaoCom({ vDescCondTot: 1200 })],
+      [
+        'E0963',
+        '99.04.01 sem bensMoveis',
+        () => comIbsCbs(paramsNt009BensMoveis(), { bensMoveis: [] }),
+      ],
+      [
+        'E0967',
+        'bensMoveis fora do 99.04.01',
+        () =>
+          comIbsCbs(paramsNt009Minimos(), {
+            bensMoveis: [{ ncm: '94036000', descricao: 'Mesa', quantidade: '1' }],
+          }),
+      ],
+      [
+        'E0974',
+        'quantidade de bem móvel zero',
+        () =>
+          comIbsCbs(paramsNt009BensMoveis(), {
+            bensMoveis: [{ ncm: '94036000', descricao: 'Mesa', quantidade: '000' }],
+          }),
+      ],
+    ])('%s — %s', (code, _, params) => {
+      expect(() => buildDps(params())).toThrow(expect.objectContaining({ rule: code }));
+      expect(() => buildDps(params())).toThrow(new RegExp(`per ${code}$`));
+    });
+
+    it('bases válidas: locação (99.03.01) e bens móveis (99.04.01) passam e validam no XSD', async () => {
+      for (const params of [paramsNt009Locacao(), paramsNt009BensMoveis()]) {
+        const xml = buildDpsXml(buildDps(params));
+        const r = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
+        expect(r.violations).toEqual([]);
+      }
+    });
+
+    it('E0435/E0445: doc 101–105/199 dispensa as regras', () => {
+      const base = paramsNt009Minimos();
+      const ajusteBC = { issqn: { valor: 10 }, documentos: [doc199()] };
+      expect(() =>
+        buildDps({ ...comTribIssqn(base, TipoTribISSQN.NaoIncidencia), ajusteBC }),
+      ).not.toThrow();
+      expect(() =>
+        buildDps({
+          ...comRegime(base, {
+            opSimpNac: OpcaoSimplesNacional.NaoOptante,
+            regEspTrib: RegimeEspecialTributacao.AtoCooperado,
+          }),
+          ajusteBC,
+        }),
+      ).not.toThrow();
+      // E0436 (MEI) não tem exceção.
+      expect(() => buildDps({ ...comRegime(base, MEI), ajusteBC })).toThrow(
+        expect.objectContaining({ rule: 'E0436' }),
+      );
+    });
+
+    it('E0462/E0463/E0470/E0476/E0479: combinações aceitas', () => {
+      const base = paramsNt009Minimos();
+      // issqn + doc 102 (fora da lista do E0462).
+      expect(() =>
+        buildDps({
+          ...base,
+          ajusteBC: {
+            issqn: { percentual: 10 },
+            documentos: docCom({ tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo }).ajusteBC
+              .documentos,
+          },
+        }),
+      ).not.toThrow();
+      // 06.01 com doc 9 (Profissional Parceiro).
+      expect(() =>
+        buildDps({
+          ...comServico(base, { cTribNac: '060101' }),
+          ...docCom({ tipo: TipoAjusteBC.ProfissionalParceiro }),
+        }),
+      ).not.toThrow();
+      // dFeNacional Outro com descrição; 199 com docFiscalOutro de competência 2025
+      // (2026-01-01T02:00Z ainda é 2025-12-31 em Brasília).
+      expect(() =>
+        buildDps({ ...base, ...docCom({ documento: docDFe(TipoChaveDFe.Outro, 'MDF-e') }) }),
+      ).not.toThrow();
+      expect(() =>
+        buildDps({
+          ...base,
+          ...docCom({
+            tipo: TipoAjusteBC.OutrosReembolsos,
+            descricao: 'Reembolso',
+            documento: {
+              docFiscalOutro: { cMunDocFiscal: '2111300', nDocFiscal: '1', xDocFiscal: 'NF' },
+            },
+            dataEmissao: new Date('2026-01-01T02:00:00Z'),
+            dataCompetencia: new Date('2026-01-01T02:00:00Z'),
+          }),
+        }),
+      ).not.toThrow();
+    });
+
+    it('E0905/E0906/E0903: combinações aceitas', () => {
+      const base = paramsNt009Minimos();
+      expect(() =>
+        buildDps(
+          comIbsCbs(base, {
+            tpEnteGov: TipoEnteGovernamental.Uniao,
+            tpOper: TipoOperacao.FornecimentoComPagamentoJaRealizado,
+            nfseReferenciadas: [CHAVE_NFSE],
+          }),
+        ),
+      ).not.toThrow();
+      expect(() =>
+        buildDps(
+          comIbsCbs(comServico(base, { cTribNac: '250501' }), {
+            tpOper: TipoOperacao.FornecimentoRecebimentoConcomitantes,
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it('E0937/E0963 só valem com ibsCbs (E0855 não é aplicado — tolerância CGNFS-e até 31/12/2026)', () => {
+      const { ibsCbs: _l, ...locacaoSemIbsCbs } = paramsNt009Locacao();
+      const { ibsCbs: _b, ...bensSemIbsCbs } = paramsNt009BensMoveis();
+      expect(() => buildDps(locacaoSemIbsCbs)).not.toThrow();
+      expect(() => buildDps(bensSemIbsCbs)).not.toThrow();
+    });
+
+    it('arredondamento: os guards avaliam o valor como será serializado (2 casas)', () => {
+      const base = paramsNt009Minimos(); // vServ 1000
+      // 100.004 → "100.00" (E0453 aceita).
+      expect(() =>
+        buildDps({ ...base, ajusteBC: { issqn: { percentual: 100.004 } } }),
+      ).not.toThrow();
+      // 1000.001 → "1000.00" = vServ (E0467) e = vTotDoc (E0469).
+      expect(() =>
+        buildDps({ ...base, ...docCom({ valorAplicado: 1000.001, valorTotal: 1000 }) }),
+      ).not.toThrow();
+      // pCopropriedade 100.004 → "100.00"; ajuste 1000.004 → "1000.00" = vTotOper.
+      expect(() =>
+        buildDps(
+          locacaoCom({ pCopropriedade: 100.004 }, [
+            { tipo: TipoAjusteBCLocImoveis.Condominio, valor: 1000.004 },
+          ]),
+        ),
+      ).not.toThrow();
+    });
+
+    it('E0434/E0443: vDescIncond/vDescCond derivados de pCopropriedade × vDesc*Tot (2 casas)', async () => {
+      const dps = buildDps(
+        locacaoCom({ pCopropriedade: 33.33, vDescIncondTot: 100, vDescCondTot: 10.01 }),
+      );
+      // 33,33% × 100 = 33,33; 33,33% × 10,01 = 3,336333 → 3,34.
+      expect(dps.infDPS.valores.vDescCondIncond).toEqual({ vDescIncond: 33.33, vDescCond: 3.34 });
+      const xml = buildDpsXml(dps);
+      expect(xml).toContain(
+        '<vServPrest><vServ>1000</vServ></vServPrest><vDescCondIncond><vDescIncond>33.33</vDescIncond><vDescCond>3.34</vDescCond></vDescCondIncond>',
+      );
+      expect(
+        (await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false })).violations,
+      ).toEqual([]);
+
+      // Meio centavo arredonda para cima: 50% × 10,01 = 5,005 → 5,01.
+      expect(
+        buildDps(locacaoCom({ pCopropriedade: 50, vDescIncondTot: 10.01 })).infDPS.valores
+          .vDescCondIncond,
+      ).toEqual({ vDescIncond: 5.01 });
+      // Sem *Tot, ou derivado zero (vDesc* tem de ser > 0 — E0431/E0432), o grupo é omitido.
+      for (const locacao of [{}, { pCopropriedade: 0, vDescIncondTot: 100 }, { vDescCondTot: 0 }]) {
+        const v = buildDps(locacaoCom(locacao)).infDPS.valores;
+        expect('vDescCondIncond' in v).toBe(false);
+      }
+    });
+  });
+
   it('ajusteBC/ibsCbs num params nt004 (fora do sistema de tipos) → LayoutMismatchError', () => {
     expect(() =>
       buildDps({ ...baseParams(), ajusteBC: { issqn: { percentual: 10 } } } as never),
@@ -923,7 +1542,11 @@ describe('nt009 inputs de alto nível', () => {
             valorTotal: 100,
             valorAplicado: 50,
             documento: { docOutro: { nDoc: '1', xDoc: 'Recibo' } },
-            fornecedor: { documento: { CNPJ: cnpj }, nome: 'Fornecedor' },
+            fornecedor: {
+              documento: { CNPJ: cnpj },
+              nome: 'Fornecedor',
+              endereco: ENDERECO_FORNECEDOR,
+            },
           },
         ],
       },
@@ -976,7 +1599,7 @@ describe('nt009 inputs de alto nível', () => {
 
     // Os guards também rodam no caminho do client.
     await expect(
-      client.emitir({ ...params, ajusteBC: { issqn: { percentual: 0 } } }),
+      client.emitir({ ...params, ajusteBC: { ...params.ajusteBC, issqn: { percentual: 0 } } }),
     ).rejects.toMatchObject({ rule: 'E0453' });
   });
 });

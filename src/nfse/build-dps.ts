@@ -1,6 +1,7 @@
 import { LayoutMismatchError, RuleViolationError } from '../errors/validation.js';
 import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import { DEFAULT_VER_APLIC } from '../version.js';
+import { formatDate, formatDecimal } from './build-xml.js';
 import type {
   DocAjusteBCNt009,
   DPS,
@@ -23,6 +24,7 @@ import type {
   Serv,
   TribMunicipal,
   TribTotal,
+  VDescCondIncond,
   VServPrest,
 } from './domain.js';
 import { buildDpsId } from './dps-id.js';
@@ -30,17 +32,18 @@ import type {
   IndicadorFinal,
   IndicadorTotalTributos,
   RegimeApuracaoSimplesNacional,
-  RegimeEspecialTributacao,
-  TipoAjusteBCLocImoveis,
   TipoAmbienteDps,
   TipoEnteGovernamental,
-  TipoOperacao,
 } from './enums.js';
 import {
   FinalidadeNFSe,
   IndicadorDestinatario,
   OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
   TipoAjusteBC,
+  TipoAjusteBCLocImoveis,
+  TipoChaveDFe,
+  TipoOperacao,
   TipoRetISSQN,
   TipoTribISSQN,
 } from './enums.js';
@@ -99,9 +102,11 @@ export interface ServicoInput {
   /** Código nacional do serviço (LC 116 + Anexo). */
   readonly cTribNac: string;
   /**
-   * Código NBS do serviço. Opcional — apesar da NT04 declarar o elemento sem
-   * `minOccurs`, a SEFIN não rejeita DPS sem `cNBS`. Quando omitido, o
-   * `<cNBS>` não é serializado.
+   * Código NBS do serviço. Opcional no XSD (`minOccurs="0"`), mas
+   * **obrigatório quando a DPS leva o grupo IBS/CBS** (`ibsCbs`, layout
+   * `nt009`): a SEFIN rejeita com E0322, e `buildDps` lança
+   * `RuleViolationError` antes de montar a DPS. Quando omitido, o `<cNBS>`
+   * não é serializado.
    */
   readonly cNBS?: string;
   readonly descricao: string;
@@ -240,8 +245,11 @@ export interface DocumentoAjusteBCInput {
   readonly dataCompetencia?: Date;
   /** `xs:choice` `dFeNacional` | `docFiscalOutro` | `docOutro`. */
   readonly documento: RtcDocumentoReferenciado;
-  /** Fornecedor do documento (`fornec`). */
-  readonly fornecedor?: TomadorInput;
+  /**
+   * Fornecedor do documento (`fornec`). Identificado por CPF/CNPJ, exige o
+   * endereço nacional (E0492).
+   */
+  readonly fornecedor?: TomadorInput & { readonly endereco: EnderecoBr };
 }
 
 /**
@@ -316,7 +324,17 @@ export interface UnidadeImobiliariaInput {
 export interface ImovelInput {
   /** Código IBGE do município do imóvel (`cMun`). */
   readonly codMunicipio: string;
-  /** Locação, cessão ou arrendamento (`gLocacao`). */
+  /**
+   * Locação, cessão ou arrendamento (`gLocacao`) — só no subitem 99.03, onde é
+   * obrigatória (E0936/E0937). `pCopropriedade` em percentual (0 a 100, E0940).
+   *
+   * `vDescIncondTot`/`vDescCondTot` são os descontos totais da locação; o
+   * `buildDps` deriva deles os descontos da DPS (`valores/vDescCondIncond`),
+   * como exigem E0434/E0443: `vDescIncond = pCopropriedade/100 × vDescIncondTot`
+   * (idem `vDescCond`), em 2 casas com meio centavo para cima. Desconto
+   * derivado zero não é emitido; derivado `>= vServ` lança (E0431/E0432).
+   * Fora da locação, `buildDps` não emite descontos.
+   */
   readonly locacao?: {
     readonly pCopropriedade: number;
     readonly vTotOper: number;
@@ -333,7 +351,7 @@ export interface BemMovelInput {
   /** NCM do bem (8 dígitos). */
   readonly ncm: string;
   readonly descricao: string;
-  /** Quantidade (1 a 3 dígitos, `TSNum3Dig`) — string, como os demais `TSNum*`. */
+  /** Quantidade (1 a 3 dígitos, `TSNum3Dig`, maior que zero — E0974) — string, como os demais `TSNum*`. */
   readonly quantidade: string;
 }
 
@@ -353,7 +371,10 @@ export interface IbsCbsInput {
   readonly tpEnteGov?: TipoEnteGovernamental;
   readonly destinatario?: DestinatarioInput;
   readonly imovel?: ImovelInput;
-  /** Bens móveis (0 a 1000; lista vazia equivale a omitir). */
+  /**
+   * Bens móveis (0 a 1000; lista vazia equivale a omitir) — só no cTribNac
+   * 99.04.01, onde são obrigatórios (E0963/E0967).
+   */
   readonly bensMoveis?: readonly BemMovelInput[];
 }
 
@@ -386,7 +407,9 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  *
  * No layout `nt009`, `ajusteBC` (ajuste da base de cálculo) e `ibsCbs` (grupo
  * IBS/CBS, imóvel, bens móveis) também são montados aqui — sem cálculo de
- * tributo, com as regras de rejeição fechadas do Anexo I checadas antes.
+ * tributo. As regras de rejeição **fechadas** do Anexo I 20261020 (que
+ * dependem só dos inputs) são checadas antes; as que dependem de cadastro,
+ * parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN.
  *
  * Para cenários avançados — exterior, obra, atvEvento, dedução/redução e
  * IBSCBS no nt004 — construa `InfDPSNt004`/`InfDPSNt009` manualmente (todos os
@@ -418,21 +441,12 @@ export function buildDps(params: BuildDpsParams): DPS {
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
   assertValoresConsistency(params.valores, params.emitente.regime, params.layout);
-  // E0532 — o serviço 99.01.01 não tem incidência de ISSQN: exige tribISSQN=4.
-  if (
-    params.servico.cTribNac === '990101' &&
-    (params.valores.tribISSQN ?? DEFAULT_TRIB_ISSQN) !== TipoTribISSQN.NaoIncidencia
-  ) {
-    throw new RuleViolationError(
-      "o serviço 99.01.01 não tem incidência de ISSQN: tribISSQN deve ser '4' (Não Incidência) — per E0532",
-      'E0532',
-    );
-  }
+  assertIncidenciaPorServico(params);
   if (!params.skipCpfCnpjValidation) {
     assertIdentifiersDv(params);
   }
-  if (params.layout === 'nt009' && params.ajusteBC) {
-    assertAjusteBCNt009(params.ajusteBC, params.valores.vServ);
+  if (params.layout === 'nt009') {
+    assertRegrasNt009(params);
   }
 
   const dhEmi = params.dhEmi ?? new Date();
@@ -482,10 +496,16 @@ export function buildDps(params: BuildDpsParams): DPS {
       // serialização (finNFSe após cMotivoEmisTI, cNBS antes de xDescServ) é
       // responsabilidade do serializer.
       const vAjusteBC = params.ajusteBC && buildAjusteBCNt009(params.ajusteBC);
+      const vDescCondIncond = descontosLocacaoNt009(params);
       const infDPS: InfDPSNt009 = {
         ...comum,
         finNFSe: FinalidadeNFSe.Regular,
-        valores: { ...valores, ...(vAjusteBC ? { vAjusteBC } : {}) },
+        valores: {
+          vServPrest: valores.vServPrest,
+          ...(vDescCondIncond ? { vDescCondIncond } : {}),
+          ...(vAjusteBC ? { vAjusteBC } : {}),
+          trib: valores.trib,
+        },
         ...(params.ibsCbs ? { IBSCBS: buildIbsCbsNt009(params.ibsCbs) } : {}),
       };
       return { layout: 'nt009', versao: '1.01', infDPS };
@@ -671,33 +691,184 @@ function buildUnidadeImobiliariaNt009(u: UnidadeImobiliariaInput): RtcUnidadeImo
   };
 }
 
+/**
+ * E0532 — serviço sem incidência de ISSQN exige `tribISSQN=4`. O alcance muda
+ * por layout: Anexo I 20260209 (`nt004`) cita só o 99.01.01; Anexo I 20261020
+ * (`nt009`) estende a todo 99.XX.XX (inclui locação 99.03 e bens móveis 99.04).
+ */
+function assertIncidenciaPorServico(params: BuildDpsParams): void {
+  if ((params.valores.tribISSQN ?? DEFAULT_TRIB_ISSQN) === TipoTribISSQN.NaoIncidencia) return;
+  const { cTribNac } = params.servico;
+  switch (params.layout) {
+    case 'nt004':
+      if (cTribNac === '990101') {
+        throw new RuleViolationError(
+          "o serviço 99.01.01 não tem incidência de ISSQN: tribISSQN deve ser '4' (Não Incidência) — per E0532",
+          'E0532',
+        );
+      }
+      return;
+    case 'nt009':
+      if (cTribNac.startsWith('99')) {
+        throw new RuleViolationError(
+          `os serviços 99.XX.XX não têm incidência de ISSQN (cTribNac=${cTribNac}): tribISSQN deve ser '4' (Não Incidência) — per E0532`,
+          'E0532',
+        );
+      }
+      return;
+    default:
+      unknownLayout(params);
+  }
+}
+
+/**
+ * Valor como o serializer o emite (`formatDecimal`: inteiro ou 2 casas). Os
+ * guards comparam esta forma — a mesma que a SEFIN recebe. Valores fora do
+ * domínio do `TSDec*V2` (negativos, não finitos) passam intactos: o
+ * serializer já os rejeita.
+ */
+function comoSerializado(n: number): number {
+  return Number.isFinite(n) && n >= 0 && n < 1e21 ? Number(formatDecimal(n)) : n;
+}
+
+/** Subitem da lista de serviços (`IISS` de `cTribNac` = `IISSDD`). */
+function subitem(cTribNac: string): string {
+  return cTribNac.slice(0, 4);
+}
+
+/** Subitem 99.03 — locação, cessão onerosa e arrendamento de bem imóvel. */
+const SUBITEM_LOCACAO_IMOVEL = '9903';
+/** cTribNac 99.04.01 — locação de bens móveis. */
+const CTRIBNAC_BENS_MOVEIS = '990401';
+
+/**
+ * Regras de rejeição fechadas do Anexo I 20261020 (só `nt009`, execução
+ * SEFIN) — dependem apenas dos inputs, sem consulta a cadastro,
+ * parametrização municipal ou calculadora do IBS/CBS.
+ */
+function assertRegrasNt009(params: BuildDpsParamsNt009): void {
+  // E0313 — MEI não informa código de tributação municipal.
+  if (
+    params.emitente.regime.opSimpNac === OpcaoSimplesNacional.Mei &&
+    params.servico.cTribMun !== undefined
+  ) {
+    throw new RuleViolationError(
+      'cTribMun não pode ser informado quando o emitente é MEI (opSimpNac=2) — per E0313',
+      'E0313',
+    );
+  }
+  if (params.ajusteBC) assertAjusteBCNt009(params.ajusteBC, params);
+  if (params.ibsCbs) assertIbsCbsNt009(params.ibsCbs, params);
+}
+
 /** Tipos de ajuste de BC que exigem (e são os únicos que admitem) `xTpAjusteBC`. */
 const TIPOS_AJUSTE_BC_COM_DESCRICAO: ReadonlySet<TipoAjusteBC> = new Set([
   TipoAjusteBC.OutrasDeducoesIssqn,
   TipoAjusteBC.OutrosReembolsos,
 ]);
 
-/** Dia (AAAA-MM-DD) no fuso de Brasília — a mesma data que `TSData` serializa. */
-function diaBrt(d: Date): string {
-  return new Date(d.getTime() - 3 * 60 * 60_000).toISOString().slice(0, 10);
-}
+/** Documentos de ajuste que dispensam E0435/E0445 (repasses/reembolsos 101–105 e 199). */
+const TIPOS_AJUSTE_BC_REPASSE: ReadonlySet<TipoAjusteBC> = new Set([
+  TipoAjusteBC.RepasseIntermediacaoImoveis,
+  TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+  TipoAjusteBC.ReembolsoAgenciaPublicidadeProducaoExterna,
+  TipoAjusteBC.ReembolsoAgenciaPublicidadeMidia,
+  TipoAjusteBC.GlosaServicosSaude,
+  TipoAjusteBC.OutrosReembolsos,
+]);
+
+/**
+ * E0462 — tipos que não convivem com ajuste do ISSQN por percentual/valor. Lista
+ * da coluna "regra" (2, 5, 6, 7, 8, 9, 99); a mensagem do Anexo I cita também o
+ * 105, mas a regra não — fica de fora para não barrar uma DPS que a SEFIN aceite.
+ */
+const TIPOS_AJUSTE_BC_SEM_AJUSTE_ISSQN: ReadonlySet<TipoAjusteBC> = new Set([
+  TipoAjusteBC.Materiais,
+  TipoAjusteBC.RepasseConsorciado,
+  TipoAjusteBC.RepassePlanoSaude,
+  TipoAjusteBC.Servicos,
+  TipoAjusteBC.SubempreitadaMaoObra,
+  TipoAjusteBC.ProfissionalParceiro,
+  TipoAjusteBC.OutrasDeducoesIssqn,
+]);
+
+/** E0479 — tipos que exigem documento fiscal (`dFeNacional`/`docFiscalOutro`, não `docOutro`). */
+const TIPOS_AJUSTE_BC_DOC_FISCAL: ReadonlySet<TipoAjusteBC> = new Set([
+  TipoAjusteBC.RepasseIntermediacaoImoveis,
+  TipoAjusteBC.ReembolsoAgenciaPublicidadeProducaoExterna,
+  TipoAjusteBC.ReembolsoAgenciaPublicidadeMidia,
+  TipoAjusteBC.OutrosReembolsos,
+]);
+
+/** E0463 — subitens 06.01/06.02 só admitem estes tipos. */
+const SUBITENS_SO_PARCEIRO_OU_REEMBOLSO: ReadonlySet<string> = new Set(['0601', '0602']);
+const TIPOS_AJUSTE_BC_PARCEIRO_OU_REEMBOLSO: ReadonlySet<TipoAjusteBC> = new Set([
+  TipoAjusteBC.ProfissionalParceiro,
+  TipoAjusteBC.OutrosReembolsos,
+]);
+
+/** E0476 — `docFiscalOutro` só para competência anterior a esta data (`TSData`). */
+const DOC_FISCAL_OUTRO_COMPETENCIA_LIMITE = '2026-01-01';
 
 /**
  * Regras de rejeição fechadas do ajuste de BC (Anexo I 20261020), checáveis
- * offline antes de montar a DPS.
+ * offline antes de montar a DPS. Datas comparadas como o serializer as emite
+ * (`formatDate`, dia de Brasília) e valores como `comoSerializado`.
  */
-function assertAjusteBCNt009(a: AjusteBCInput, vServ: number): void {
+function assertAjusteBCNt009(a: AjusteBCInput, params: BuildDpsParamsNt009): void {
+  const docs = a.documentos ?? [];
+  if (!a.issqn && docs.length === 0) return;
+  const { regime } = params.emitente;
+  // E0436 — MEI não informa ajuste de BC (sem exceção).
+  if (regime.opSimpNac === OpcaoSimplesNacional.Mei) {
+    throw new RuleViolationError(
+      'ajusteBC não pode ser informado quando o prestador é MEI (opSimpNac=2) — per E0436',
+      'E0436',
+    );
+  }
+  const temRepasse = docs.some((d) => TIPOS_AJUSTE_BC_REPASSE.has(d.tipo));
+  const tribISSQN = params.valores.tribISSQN ?? DEFAULT_TRIB_ISSQN;
+  // E0435 — ajuste de BC só com tribISSQN=1, salvo documento 101–105/199.
+  if (tribISSQN !== TipoTribISSQN.OperacaoTributavel && !temRepasse) {
+    throw new RuleViolationError(
+      `ajusteBC não pode ser informado quando tribISSQN=${tribISSQN} (imune/exportação/não-incidência), salvo documento de tipo 101–105 ou 199 — per E0435`,
+      'E0435',
+    );
+  }
+  // E0445 — nem com regime especial de tributação, com a mesma exceção.
+  if (regime.regEspTrib !== RegimeEspecialTributacao.Nenhum && !temRepasse) {
+    throw new RuleViolationError(
+      `ajusteBC não pode ser informado quando regEspTrib=${regime.regEspTrib} (regime especial), salvo documento de tipo 101–105 ou 199 — per E0445`,
+      'E0445',
+    );
+  }
   if (a.issqn && 'percentual' in a.issqn) {
-    const p = a.issqn.percentual;
+    const p = comoSerializado(a.issqn.percentual);
     if (!(p > 0 && p <= 100)) {
       throw new RuleViolationError(
-        `ajusteBC.issqn.percentual=${p} deve ser maior que 0 e menor ou igual a 100 — per E0453`,
+        `ajusteBC.issqn.percentual=${a.issqn.percentual} (serializado: ${p}) deve ser maior que 0 e menor ou igual a 100 — per E0453`,
         'E0453',
       );
     }
   }
-  for (const [i, d] of (a.documentos ?? []).entries()) {
+  const vServ = comoSerializado(params.valores.vServ);
+  for (const [i, d] of docs.entries()) {
     const at = `ajusteBC.documentos[${i}]`;
+    if (a.issqn && TIPOS_AJUSTE_BC_SEM_AJUSTE_ISSQN.has(d.tipo)) {
+      throw new RuleViolationError(
+        `${at}.tipo=${d.tipo} não pode ser informado junto com ajusteBC.issqn (percentual/valor) — per E0462`,
+        'E0462',
+      );
+    }
+    if (
+      SUBITENS_SO_PARCEIRO_OU_REEMBOLSO.has(subitem(params.servico.cTribNac)) &&
+      !TIPOS_AJUSTE_BC_PARCEIRO_OU_REEMBOLSO.has(d.tipo)
+    ) {
+      throw new RuleViolationError(
+        `${at}.tipo=${d.tipo}: para cTribNac 06.01/06.02 o tipo deve ser 9 (Profissional Parceiro) ou 199 — per E0463`,
+        'E0463',
+      );
+    }
     const exigeDescricao = TIPOS_AJUSTE_BC_COM_DESCRICAO.has(d.tipo);
     if (d.descricao !== undefined && !exigeDescricao) {
       throw new RuleViolationError(
@@ -711,25 +882,237 @@ function assertAjusteBCNt009(a: AjusteBCInput, vServ: number): void {
         'E0465',
       );
     }
-    if (d.dataEmissao && d.dataCompetencia && diaBrt(d.dataEmissao) < diaBrt(d.dataCompetencia)) {
+    if (
+      d.dataEmissao &&
+      d.dataCompetencia &&
+      formatDate(d.dataEmissao) < formatDate(d.dataCompetencia)
+    ) {
       throw new RuleViolationError(
         `${at}.dataEmissao não pode ser anterior a dataCompetencia — per E0472`,
         'E0472',
       );
     }
-    if (d.valorAplicado > vServ) {
+    const valorAplicado = comoSerializado(d.valorAplicado);
+    if (valorAplicado > vServ) {
       throw new RuleViolationError(
-        `${at}.valorAplicado=${d.valorAplicado} não pode exceder o valor do serviço (vServ=${vServ}) — per E0467`,
+        `${at}.valorAplicado=${d.valorAplicado} não pode exceder o valor do serviço (vServ=${params.valores.vServ}) — per E0467`,
         'E0467',
       );
     }
-    if (d.valorAplicado > d.valorTotal) {
+    if (valorAplicado > comoSerializado(d.valorTotal)) {
       throw new RuleViolationError(
         `${at}.valorAplicado=${d.valorAplicado} não pode exceder o valor do documento (valorTotal=${d.valorTotal}) — per E0469`,
         'E0469',
       );
     }
+    const doc = d.documento;
+    // E0470 — o Anexo I diz "tipo 99 - Outro"; no XSD (TSRTCTipoChaveDFe) "Outro" é o 9.
+    if (
+      'dFeNacional' in doc &&
+      doc.dFeNacional.tipoChaveDFe === TipoChaveDFe.Outro &&
+      !doc.dFeNacional.xTipoChaveDFe
+    ) {
+      throw new RuleViolationError(
+        `${at}.documento.dFeNacional.xTipoChaveDFe é obrigatório quando tipoChaveDFe=9 (Outro) — per E0470`,
+        'E0470',
+      );
+    }
+    if (
+      'docFiscalOutro' in doc &&
+      d.dataCompetencia &&
+      formatDate(d.dataCompetencia) >= DOC_FISCAL_OUTRO_COMPETENCIA_LIMITE
+    ) {
+      throw new RuleViolationError(
+        `${at}.documento.docFiscalOutro só pode ser informado com dataCompetencia anterior a 01/01/2026 — per E0476`,
+        'E0476',
+      );
+    }
+    if ('docOutro' in doc && TIPOS_AJUSTE_BC_DOC_FISCAL.has(d.tipo)) {
+      throw new RuleViolationError(
+        `${at}.tipo=${d.tipo} exige documento fiscal (dFeNacional ou docFiscalOutro), não docOutro — per E0479`,
+        'E0479',
+      );
+    }
+    // E0492 — fornecedor identificado por CPF/CNPJ (sempre, no buildDps) exige endereço nacional.
+    if (d.fornecedor && !d.fornecedor.endereco) {
+      throw new RuleViolationError(
+        `${at}.fornecedor.endereco é obrigatório quando o fornecedor é identificado por CPF/CNPJ — per E0492`,
+        'E0492',
+      );
+    }
   }
+}
+
+/** E0903 — subitens da LC 116 que exigem `tpOper` (25.05, 15.09, 17.12, 10.05). */
+const SUBITENS_COM_TP_OPER: ReadonlySet<string> = new Set(['2505', '1509', '1712', '1005']);
+
+/**
+ * Regras de rejeição fechadas do grupo IBS/CBS (Anexo I 20261020). Ficam de
+ * fora as que dependem da calculadora do IBS/CBS ou de tabelas externas, e
+ * E0855 (IBSCBS obrigatório a partir de 01/10/2026), que o CGNFS-e não aplica
+ * até 31/12/2026. As obrigatoriedades por serviço (E0937, E0963) só são
+ * checadas quando `ibsCbs` é informado, pelo mesmo motivo.
+ */
+function assertIbsCbsNt009(i: IbsCbsInput, params: BuildDpsParamsNt009): void {
+  const { cTribNac, cNBS } = params.servico;
+  // E0322 — com IBS/CBS, a DPS precisa de um item da NBS.
+  if (!cNBS) {
+    throw new RuleViolationError(
+      'servico.cNBS é obrigatório quando ibsCbs (grupo IBS/CBS) é informado — per E0322',
+      'E0322',
+    );
+  }
+  const c = i.classificacao;
+  // E0959/E0970 — os 3 primeiros dígitos do cClassTrib são o CST.
+  if (c.cClassTrib.slice(0, 3) !== c.CST) {
+    throw new RuleViolationError(
+      `ibsCbs.classificacao.cClassTrib=${c.cClassTrib} não pertence ao grupo do CST ${c.CST} (3 primeiros dígitos) — per E0959`,
+      'E0959',
+    );
+  }
+  const reg = c.tributacaoRegular;
+  if (reg && reg.cClassTribReg.slice(0, 3) !== reg.CSTReg) {
+    throw new RuleViolationError(
+      `ibsCbs.classificacao.tributacaoRegular.cClassTribReg=${reg.cClassTribReg} não pertence ao grupo do CSTReg ${reg.CSTReg} (3 primeiros dígitos) — per E0970`,
+      'E0970',
+    );
+  }
+  // E0903 — tpOper obrigatório em compra governamental e nos subitens listados.
+  // (E0904, o inverso, depende da correspondência NBS ↔ LC 116 — não checado.)
+  if (
+    i.tpOper === undefined &&
+    (i.tpEnteGov !== undefined || SUBITENS_COM_TP_OPER.has(subitem(cTribNac)))
+  ) {
+    throw new RuleViolationError(
+      'ibsCbs.tpOper é obrigatório quando tpEnteGov é informado ou o serviço é 25.05, 15.09, 17.12 ou 10.05 — per E0903',
+      'E0903',
+    );
+  }
+  const temRefs = nonEmpty(i.nfseReferenciadas) !== undefined;
+  // E0905/E0906 — gRefNFSe obrigatório com tpOper 2/3, proibido nos demais (ou sem tpOper).
+  const exigeRefs =
+    i.tpOper === TipoOperacao.RecebimentoPagamentoFornecimentoRealizado ||
+    i.tpOper === TipoOperacao.FornecimentoComPagamentoJaRealizado;
+  if (exigeRefs && !temRefs) {
+    throw new RuleViolationError(
+      `ibsCbs.nfseReferenciadas é obrigatório quando tpOper=${i.tpOper} — per E0905`,
+      'E0905',
+    );
+  }
+  if (temRefs && !exigeRefs) {
+    throw new RuleViolationError(
+      `ibsCbs.nfseReferenciadas só pode ser informado com tpOper 2 ou 3 (atual: ${i.tpOper ?? 'ausente'}) — per E0906`,
+      'E0906',
+    );
+  }
+
+  const ehLocacao = subitem(cTribNac) === SUBITEM_LOCACAO_IMOVEL;
+  const locacao = i.imovel?.locacao;
+  if (locacao && !ehLocacao) {
+    throw new RuleViolationError(
+      `ibsCbs.imovel.locacao (gLocacao) só pode ser informado para o subitem 99.03 (cTribNac=${cTribNac}) — per E0936`,
+      'E0936',
+    );
+  }
+  if (!locacao && ehLocacao) {
+    throw new RuleViolationError(
+      `ibsCbs.imovel.locacao (gLocacao) é obrigatório para o subitem 99.03 (cTribNac=${cTribNac}) — per E0937`,
+      'E0937',
+    );
+  }
+  if (locacao) {
+    const p = comoSerializado(locacao.pCopropriedade);
+    if (!(p >= 0 && p <= 100)) {
+      throw new RuleViolationError(
+        `ibsCbs.imovel.locacao.pCopropriedade=${locacao.pCopropriedade} deve estar entre 0 e 100 — per E0940`,
+        'E0940',
+      );
+    }
+  }
+  for (const [u, unidade] of (i.imovel?.unidades ?? []).entries()) {
+    for (const [j, aj] of (unidade.ajustesBC ?? []).entries()) {
+      const at = `ibsCbs.imovel.unidades[${u}].ajustesBC[${j}]`;
+      if (!ehLocacao) {
+        throw new RuleViolationError(
+          `${at}: gAjusteBCLocImoveis só pode ser informado para o subitem 99.03 (cTribNac=${cTribNac}) — per E0939`,
+          'E0939',
+        );
+      }
+      const outras = aj.tipo === TipoAjusteBCLocImoveis.Outras;
+      if (outras !== (aj.descricao !== undefined)) {
+        throw new RuleViolationError(
+          `${at}.descricao é obrigatória quando tipo é 99 e proibida nos demais (atual: ${aj.tipo}) — per E0949`,
+          'E0949',
+        );
+      }
+      if (locacao && comoSerializado(aj.valor) > comoSerializado(locacao.vTotOper)) {
+        throw new RuleViolationError(
+          `${at}.valor=${aj.valor} não pode exceder o valor total da operação (vTotOper=${locacao.vTotOper}) — per E0966`,
+          'E0966',
+        );
+      }
+    }
+  }
+
+  const bens = nonEmpty(i.bensMoveis);
+  if (bens && cTribNac !== CTRIBNAC_BENS_MOVEIS) {
+    throw new RuleViolationError(
+      `ibsCbs.bensMoveis só pode ser informado para o cTribNac 99.04.01 (atual: ${cTribNac}) — per E0967`,
+      'E0967',
+    );
+  }
+  if (!bens && cTribNac === CTRIBNAC_BENS_MOVEIS) {
+    throw new RuleViolationError(
+      'ibsCbs.bensMoveis é obrigatório para o cTribNac 99.04.01 — per E0963',
+      'E0963',
+    );
+  }
+  for (const [j, b] of (bens ?? []).entries()) {
+    if (/^0+$/.test(b.quantidade)) {
+      throw new RuleViolationError(
+        `ibsCbs.bensMoveis[${j}].quantidade=${b.quantidade} deve ser maior que 0 — per E0974`,
+        'E0974',
+      );
+    }
+  }
+}
+
+/**
+ * Descontos da DPS derivados da locação (E0434/E0443, subitem 99.03):
+ * `vDescIncond = pCopropriedade × vDescIncondTot` e o mesmo para `vDescCond`,
+ * com `pCopropriedade` em percentual. Calculado sobre os valores serializados,
+ * em centavos inteiros, arredondando meio centavo para cima. Um desconto zero
+ * não é emitido (E0431/E0432 exigem `> 0`); um desconto `>= vServ` lança.
+ */
+function descontosLocacaoNt009(params: BuildDpsParamsNt009): VDescCondIncond | undefined {
+  const locacao = params.ibsCbs?.imovel?.locacao;
+  if (!locacao || subitem(params.servico.cTribNac) !== SUBITEM_LOCACAO_IMOVEL) return undefined;
+  const vServ = comoSerializado(params.valores.vServ);
+  const pCentesimos = Math.round(comoSerializado(locacao.pCopropriedade) * 100);
+  const derivar = (
+    total: number | undefined,
+    campo: 'vDescIncond' | 'vDescCond',
+    regra: 'E0431' | 'E0432',
+  ): number | undefined => {
+    if (total === undefined) return undefined;
+    const totalCentavos = Math.round(comoSerializado(total) * 100);
+    const valor = Math.round((pCentesimos * totalCentavos) / 10_000) / 100;
+    if (valor === 0) return undefined;
+    if (valor >= vServ) {
+      throw new RuleViolationError(
+        `${campo} derivado da locação (pCopropriedade × ${campo}Tot = ${valor}) deve ser menor que o valor do serviço (vServ=${params.valores.vServ}) — per ${regra}`,
+        regra,
+      );
+    }
+    return valor;
+  };
+  const vDescIncond = derivar(locacao.vDescIncondTot, 'vDescIncond', 'E0431');
+  const vDescCond = derivar(locacao.vDescCondTot, 'vDescCond', 'E0432');
+  if (vDescIncond === undefined && vDescCond === undefined) return undefined;
+  return {
+    ...(vDescIncond !== undefined ? { vDescIncond } : {}),
+    ...(vDescCond !== undefined ? { vDescCond } : {}),
+  };
 }
 
 function buildServ(serv: ServicoInput, cMunDefault: string): Serv {

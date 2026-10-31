@@ -823,7 +823,7 @@ function formatDateTime(d: Date): string {
   return `${toBrt(d).toISOString().slice(0, 19)}-03:00`;
 }
 
-function formatDate(d: Date): string {
+export function formatDate(d: Date): string {
   // Campos date-only (TSData): a data no fuso de Brasília (-03:00), como o resto
   // da lib (datetimes saem com offset -03:00). O parser ancora date-only em
   // meia-noite BR (coerceDateOnly), então o round-trip é estável.
@@ -838,7 +838,7 @@ function formatDate(d: Date): string {
  * negativos, `NaN`/`Infinity` ou ≥ 1e21 (que `toString()` emitiria como
  * `"1e+21"`) são rejeitados aqui com erro claro em vez de virar XML inválido.
  */
-function formatDecimal(n: number): string {
+export function formatDecimal(n: number): string {
   if (!Number.isFinite(n) || n < 0 || n >= 1e21) {
     throw new RuleViolationError(
       `valor decimal inválido para o XML: ${n} — esperado número finito, não-negativo e < 1e21 (TSDec*V2)`,
