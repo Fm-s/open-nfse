@@ -354,6 +354,87 @@ describe('buildDpsXml — layout nt009', () => {
     );
   });
 
+  /** Substitui a `<DPS>` do envelope NFS-e sintético do nt009 e parseia (não há entry point só de DPS). */
+  function parseDpsNt009ViaEnvelope(dps: DpsNt009): DpsNt009 {
+    const envelope = readFileSync(
+      join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'),
+      'utf-8',
+    );
+    expect(envelope).toMatch(/<DPS[\s\S]*<\/DPS>/);
+    const dpsXml = buildDpsXml(dps, { includeXmlDeclaration: false });
+    const nfse = parseNfseXml(envelope.replace(/<DPS[\s\S]*<\/DPS>/, () => dpsXml));
+    if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
+    return nfse.infNFSe.DPS;
+  }
+
+  it('arrays vazios omitidos voltam do parse como ausentes (undefined), não como []', () => {
+    const parsed = parseDpsNt009ViaEnvelope(dpsNt009ComArraysVazios());
+    const ibscbs = parsed.infDPS.IBSCBS;
+    expect(ibscbs).toBeDefined();
+    expect(ibscbs?.bensMoveis).toBeUndefined();
+    expect(ibscbs?.imovel).toBeDefined();
+    expect(ibscbs?.imovel?.gUnidImob).toBeUndefined();
+    expect(ibscbs && 'bensMoveis' in ibscbs).toBe(false);
+  });
+
+  it('gAjusteBCLocImoveis omitido volta do parse como ausente', () => {
+    const base = dpsNt009Completa();
+    const ibscbs = base.infDPS.IBSCBS;
+    if (!ibscbs?.imovel) throw new Error('fixture sem imovel');
+    const parsed = parseDpsNt009ViaEnvelope({
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        IBSCBS: {
+          ...ibscbs,
+          imovel: {
+            cMun: ibscbs.imovel.cMun,
+            gUnidImob: [{ identificacao: { cCIB: 'ABC12345' }, gAjusteBCLocImoveis: [] }],
+          },
+        },
+      },
+    });
+    const unidade = parsed.infDPS.IBSCBS?.imovel?.gUnidImob?.[0];
+    expect(unidade?.identificacao).toEqual({ cCIB: 'ABC12345' });
+    expect(unidade?.gAjusteBCLocImoveis).toBeUndefined();
+  });
+
+  it('docAjusteBC com docFiscalOutro: serializa, valida no XSD nt009 e volta no parse', async () => {
+    const base = dpsNt009Completa();
+    const docs = base.infDPS.valores.vAjusteBC?.documentos?.docAjusteBC;
+    if (!docs?.[0]) throw new Error('fixture sem docAjusteBC');
+    const docFiscalOutro = {
+      cMunDocFiscal: '3550308',
+      nDocFiscal: '123',
+      xDocFiscal: 'NF municipal',
+    };
+    const dps: DpsNt009 = {
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        valores: {
+          ...base.infDPS.valores,
+          vAjusteBC: {
+            ...base.infDPS.valores.vAjusteBC,
+            documentos: { docAjusteBC: [{ ...docs[0], documento: { docFiscalOutro } }] },
+          },
+        },
+      },
+    };
+    const xml = buildDpsXml(dps);
+    expect(xml).toContain(
+      '<docFiscalOutro><cMunDocFiscal>3550308</cMunDocFiscal><nDocFiscal>123</nDocFiscal><xDocFiscal>NF municipal</xDocFiscal></docFiscalOutro>',
+    );
+    expect(xml).not.toContain('<dFeNacional>');
+    const result = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
+    expect(result.violations).toEqual([]);
+
+    const parsed = parseDpsNt009ViaEnvelope(dps);
+    const doc = parsed.infDPS.valores.vAjusteBC?.documentos?.docAjusteBC[0];
+    expect(doc?.documento).toEqual({ docFiscalOutro });
+    expect(buildDpsXml(parsed)).toBe(xml);
+  });
+
   it('InfoPessoa nt009 sem xNome é serializada sem o elemento', async () => {
     const base = dpsNt009Completa();
     const dps: DpsNt009 = {
