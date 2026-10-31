@@ -9,7 +9,7 @@ Até 2025, cada um dos **~5.570 municípios** brasileiros operava seu próprio s
 ## O que esta lib cobre
 
 - **Consulta** — NFS-e por chave de acesso, distribuição de DF-e por NSU.
-- **Emissão segura** — `emitir(params)` roda validações offline, consulta o `DpsCounter` só depois que tudo passa, e persiste falhas transientes (rede, timeout, 5xx, **429**) no `RetryStore` para replay idempotente via `replayPendingEvents`. Escape hatch `emitirDpsPronta(dps)` para pipelines manuais.
+- **Emissão segura** — `emitir(params)` roda validações offline, consulta o `DpsCounter` só depois que tudo passa, e persiste falhas transientes (rede, timeout, 5xx, **429**) no `RetryStore` para replay via `replayPendingEvents` — o re-POST reusa o mesmo `infDPS.Id` e uma rejeição (E0014/E1235) é reconciliada via `GET /dps/{id}` antes de a entrada sair do store. Escape hatch `emitirDpsPronta(dps)` para pipelines manuais.
 - **Emissão em lote** — `emitirEmLote` paraleliza no cliente, com concorrência configurável.
 - **Cancelamento e substituição** — cancelar (101101) registra o pedRegEvento; substituir emite a DPS com `<subst>` e o sistema gera o 105102. Falhas transitórias do POST viram `retry_pending` no `RetryStore`.
 - **Rate-limit (429) pluggable** — `RetryPolicy` decide `notBefore` para cada erro transiente. Default respeita `Retry-After` (RFC 7231); customize para backoff exponencial / linear / com jitter usando `RetryContext.attempt`.

@@ -96,6 +96,9 @@ Cron de retry (mesma função cobre `emitir`, `cancelar`, `substituir`):
 const items = await cliente.replayPendingEvents();
 for (const item of items) {
   if (item.status === 'success_emission') await persistirNfse(item.emission);
+  // autorizada, mas a resposta não virou DTO: guarde a chave (o replay já removeu a entrada)
+  if (item.status === 'success_emission_unreadable')
+    await persistirNfse({ chaveAcesso: item.error.chaveAcesso, xmlNfse: item.error.xmlNfse });
   if (item.status === 'success')          await persistirEvento(item.evento);
   if (item.status === 'failed_permanent') alertar(item);
   // still_pending fica no store para próxima rodada

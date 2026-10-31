@@ -32,7 +32,7 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 |-----------------------|-----------------------------------------------------|----------------------------------------------------------------|
 | `cancelar`            | `(params: CancelarParams) → CancelarResult`         | Evento 101101; discriminated `ok` / `retry_pending`            |
 | `substituir`          | `(params: SubstituirParams) → SubstituirResult`     | Emite nova DPS com `<subst>`; sistema gera o 105102. Discriminado `ok` / `retry_pending` |
-| `replayPendingEvents` | `(override?: RetryStore) → ReplayItem[]`            | Cron-friendly; SEFIN dedupa → idempotente                      |
+| `replayPendingEvents` | `(override?: RetryStore) → ReplayItem[]`            | Cron-friendly; mesmo `infDPS.Id` + reconciliação `GET /dps`    |
 
 #### Parâmetros municipais
 

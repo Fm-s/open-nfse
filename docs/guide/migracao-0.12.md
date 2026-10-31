@@ -150,6 +150,7 @@ O leiaute atual vale até **30/11/2026**; em 01/12 o `nt009` entra em produção
 3. **Só então** crie o cliente `nt009` (o `layout` não muda num cliente existente) e volte a emitir.
 4. **Sobrou alguma emissão `nt004`?** O replay com o cliente `nt009` gera `warn` `nfse.replay.layout_divergente` e reenvia o XML. Na rejeição (E1235), a lib consulta `GET /dps/{idDps}` antes de apagar a entrada:
    - a DPS já tinha virado NFS-e (o POST original deu timeout depois do commit) → `success_emission` com a NFS-e e `reconciledFrom` = a rejeição. **Não reemita.**
+   - a NFS-e achada embute **outra** DPS (série/nDPS reaproveitados) → `failed_permanent` + `warn` `nfse.replay.reconcile_mismatch`: trate como o 404 abaixo.
    - 404 → `failed_permanent`: nenhuma nota saiu dessa DPS. Refaça a emissão com o cliente `nt009` (novo `nDPS` do counter). O `id` do item é `emission:<idDps>`; se você precisa de `serie`/`nDPS`/`emitenteCnpj` para remontar, leia-os do `store.list()` **antes** do replay.
    - falha transiente na consulta → `still_pending`; a entrada fica para a próxima passada.
    - outra falha permanente na consulta → `failed_permanent` + `warn` `nfse.replay.reconcile_failed`: confira com `fetchDpsStatus(idDps)` antes de reemitir.

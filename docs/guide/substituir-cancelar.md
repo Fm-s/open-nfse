@@ -68,7 +68,7 @@ try {
 Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e original**. Você envia *uma* mensagem (`POST /nfse`); o **Sistema Nacional NFS-e** gera, de forma atômica com a emissão, o evento **105102 (Cancelamento por Substituição, `autor=MEmis`)** que cancela a original, e retorna a NFS-e substituta.
 
 ::: tip Resultado e falhas
-É um **único write** (a DPS). O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. O contribuinte **não** registra o 105102 (autor `05 MEmis` na planilha Tipo Eventos do Anexo II); a Sefin rejeita o pedido com autor inválido (E0813) e, com o 105102 já vinculado à NFS-e pelo sistema, como redundante (E0845). As regras de assinatura pelo município (E2032 no nt004 / E1638 no nt009) só rodam no ADN, não na recepção da Sefin. Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+É um **único write** (a DPS). O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay via `replayPendingEvents` — o re-POST reusa o mesmo `infDPS.Id` e uma rejeição E0014/E1235 é reconciliada via `GET /dps/{id}`). Rejeição **permanente** (regra fiscal) **lança**. O contribuinte **não** registra o 105102 (autor `05 MEmis` na planilha Tipo Eventos do Anexo II); a Sefin rejeita o pedido com autor inválido (E0813) e, com o 105102 já vinculado à NFS-e pelo sistema, como redundante (E0845). As regras de assinatura pelo município (E2032 no nt004 / E1638 no nt009) só rodam no ADN, não na recepção da Sefin. Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
 :::
 
 ### Chamada
@@ -102,7 +102,8 @@ try {
     await db.insert('nfse_autorizadas', { /* a partir de r.novaNfse */ });
   } else {
     // Transiente: a emissão foi persistida no retryStore; o cron de
-    // replayPendingEvents reenvia (idempotente por infDPS.Id). Nada no SEFIN ainda.
+    // replayPendingEvents reenvia o mesmo XML (mesmo infDPS.Id) e, se o re-POST for
+    // rejeitado (E0014/E1235), reconcilia via GET /dps/{id} — a nota pode já existir.
     logger.warn('substituir pendente', { id: r.pending.id });
   }
 } catch (err) {
@@ -135,6 +136,15 @@ for (const item of items) {
       await db.insert('nfse_autorizadas', { /* ... */ });
       break;
 
+    case 'success_emission_unreadable':
+      // Autorizada, mas a resposta não virou DTO. A lib já removeu a entrada do
+      // store: guarde a chave (e o XML, se veio) e não reemita.
+      await db.insert('nfse_autorizadas', {
+        chave_acesso: item.error.chaveAcesso,
+        xml_nfse: item.error.xmlNfse,
+      });
+      break;
+
     case 'success':
       // Veio de cancelar() transiente (ou de dados legados de substituição)
       await db.insert('nfse_eventos', { /* ... */ });
@@ -153,11 +163,9 @@ for (const item of items) {
 }
 ```
 
-Idempotência é garantida pelo dedup server-side da Sefin:
-- **Emissões** deduplicam via `infDPS.Id` (45 chars, único por CNPJ+série+nDPS).
-- **Eventos** deduplicam via `(chave, tipoEvento)` — determinístico por NFS-e e tipo de evento.
-
-Re-POSTar o mesmo payload nunca cria duplicata: a Receita retorna o mesmo evento autorizado ou uma rejeição de duplicata reconhecível.
+Rodar o replay N vezes não cria nota nem evento novos:
+- **Emissões** — o re-POST reusa o mesmo `infDPS.Id` (45 chars, único por município+CNPJ+série+nDPS), então o SEFIN não gera uma segunda NFS-e. Uma DPS que ele já autorizou volta como **rejeição** (`E0014`, ou `E1235` depois de uma virada de layout), não como sucesso: antes de remover a entrada, a lib consulta `GET /dps/{id}` e, se a NFS-e existe (e embute a DPS persistida), devolve `success_emission` com `reconciledFrom`. Detalhes em [Emitir NFS-e §4](./emitir#_4-cron-de-replay).
+- **Eventos** deduplicam via `(chave, tipoEvento)` — a Receita retorna o mesmo evento autorizado ou uma rejeição de duplicata reconhecível.
 
 ## Interface `RetryStore`
 

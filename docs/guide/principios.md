@@ -16,7 +16,7 @@ Sem banco, cache global ou singleton. Mas a lib oferece:
 
 - **`emitirEmLote`** — worker pool client-side (SEFIN não tem endpoint batch).
 - **`substituir`** — um único write: emite a DPS com `<subst>` e o sistema gera o 105102; retorna `ok`/`retry_pending`, sem rollback.
-- **`RetryStore` + `replayPendingEvents`** — interface plugável para transientes + método cron-friendly. SEFIN deduplica via `infDPS.Id` / `(chave, tipoEvento)`, então replay é idempotente.
+- **`RetryStore` + `replayPendingEvents`** — interface plugável para transientes + método cron-friendly. O re-POST reusa o mesmo `infDPS.Id` (emissão rejeitada com E0014/E1235 é reconciliada via `GET /dps/{id}`) e eventos deduplicam por `(chave, tipoEvento)`, então rodar o replay N vezes não cria documento novo.
 - **`DpsCounter`** — provider atômico de `nDPS`, consultado só depois das validações offline.
 
 Persistência durável, cron e reconciliação ficam com o consumidor. Schema SQL sugerido em [Integração em serviços](./integracao).

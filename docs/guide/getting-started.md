@@ -131,7 +131,7 @@ try {
 Três coisas importantes sobre esse fluxo:
 
 1. **Validações offline rodam antes do counter** — DPS com CPF/CNPJ inválido, XSD quebrado ou CEP inexistente não queima `nDPS`.
-2. **Transiente nunca duplica** — o pendente no store tem o XML já assinado; replay posta de novo e SEFIN deduplica via `infDPS.Id`.
+2. **Transiente nunca duplica** — o pendente no store tem o XML já assinado; o replay re-posta o mesmo `infDPS.Id` (não cria nota nova) e, se a DPS já tinha virado NFS-e, o re-POST volta rejeitado (E0014/E1235) e a lib reconcilia via `GET /dps/{id}` antes de remover a entrada.
 3. **Rejeição permanente consome o `nDPS`** — o número foi gasto, mas a nota não virou NFS-e. Registre para auditoria e siga.
 
 Produção em mais detalhe: [Emitir NFS-e](./emitir). Schema SQL do store: [Integração em serviços](./integracao).
