@@ -525,12 +525,16 @@ export class NfseClient<L extends Layout = Layout> {
    *
    * Pré-checks locais (lançam `RuleViolationError` antes de qualquer envio):
    * E0078 (`cMotivo=99` exige `xMotivo`), `TSMotivo` (15–255 chars no pattern
-   * `TSString`) e E0042 (Cód.Mun./Tipo de Inscrição/Inscrição da chave
-   * substituída iguais aos do `infDPS.Id` da nova DPS).
+   * `TSString`), `infDPS/subst` (o `subst` já presente na DPS diverge dos
+   * params), `TSChaveNFSe` (forma da chave substituída) e E0042 (Cód.Mun./Tipo
+   * de Inscrição/Inscrição da chave substituída iguais aos do `infDPS.Id` da
+   * nova DPS). `infDPS.Id` fora de `TSIdDPS` → `InvalidDpsIdError`.
    *
    * Resultado discriminado (igual a `emitir`): `'ok'` (`novaNfse`) ou
    * `'retry_pending'` — falha transiente no `POST /nfse` persistida no
-   * `retryStore` para replay via `replayPendingEvents` (dedup por `infDPS.Id`).
+   * `retryStore` para replay via `replayPendingEvents` (re-POST com o mesmo
+   * `infDPS.Id`; E0014/E1235 reconciliada via `GET /dps/{id}` — a substituta
+   * pode já ter sido autorizada antes do timeout).
    * Rejeição **permanente** (regra fiscal) lança exceção. `novaDps` de outro
    * layout → `LayoutMismatchError` antes de qualquer envio.
    */

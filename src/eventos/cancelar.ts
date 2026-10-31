@@ -156,8 +156,11 @@ export interface SubstituirParams<L extends Layout = Layout> extends Omit<EmitOp
  * - `'ok'` — nota substituta autorizada (`novaNfse`); a original foi cancelada
  *   server-side pelo 105102.
  * - `'retry_pending'` — falha **transiente** no `POST /nfse`; a emissão foi
- *   persistida no `retryStore` para replay idempotente via `replayPendingEvents`
- *   (dedup por `infDPS.Id`). Nada foi alterado no SEFIN ainda.
+ *   persistida no `retryStore` para replay via `replayPendingEvents`. O
+ *   resultado no SEFIN é **desconhecido**: num timeout depois do commit a
+ *   substituta já pode estar autorizada (e a original cancelada pelo 105102).
+ *   Não reemita nem cancele à mão — o re-POST reusa o mesmo `infDPS.Id`, e uma
+ *   rejeição E0014/E1235 é reconciliada via `GET /dps/{id}`.
  *
  * Rejeição **permanente** (regra fiscal / validação local) **lança** exceção.
  * `UnreadableAuthorizedNfseError` = substituta **autorizada** cuja resposta não

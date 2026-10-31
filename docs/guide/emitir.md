@@ -239,7 +239,7 @@ for (const item of items) {
 }
 ```
 
-O worker deve ser **único por processo** — concorrência entre crons pode causar re-posts simultâneos (tolerado pelo SEFIN dedup, mas desperdiça quota).
+O worker deve ser **único por processo** — crons concorrentes re-postam a mesma DPS ao mesmo tempo: não nasce nota nova (o `infDPS.Id` é o mesmo e o SEFIN rejeita o repetido com E0014, que o replay reconcilia via `GET /dps/{id}`), mas a quota é desperdiçada e os dois processos disputam a mesma entrada do store.
 
 ## 5. Bulk com o mesmo fluxo seguro
 
