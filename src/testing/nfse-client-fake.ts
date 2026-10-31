@@ -35,6 +35,7 @@ import type {
   NfseEmitResult,
 } from '../nfse/emit.js';
 import { runIdentifierValidation } from '../nfse/emit.js';
+import { REGEX_DPS_ID } from '../nfse/fetch-dps-status.js';
 import {
   assertLayout,
   assertNoForeignLayoutFields,
@@ -61,8 +62,7 @@ function transientError(failure: Extract<ProgrammedFailure, { kind: 'transient' 
 }
 
 // Chave: mesma pré-validação das leituras do real (TSChaveNFSe ou a forma de
-// TSIdNFSe). Id da DPS: espelha TSIdDPS do bundle RTC v1.01-20260727.
-const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
+// TSIdNFSe). Id da DPS: o mesmo REGEX_DPS_ID do fetchDpsStatus real (TSIdDPS).
 
 /**
  * Dublê em memória do `NfseClient` para testes de consumidores. Expõe a mesma
@@ -147,7 +147,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   }
 
   async fetchDpsStatus(idDps: string): Promise<DpsStatusResult> {
-    if (!REGEX_ID_DPS.test(idDps)) {
+    if (!REGEX_DPS_ID.test(idDps)) {
       throw new InvalidDpsIdError(idDps);
     }
     for (const nfse of this.state.emitted.values()) {
@@ -258,16 +258,29 @@ export class NfseClientFake<L extends Layout = Layout> {
 
   async emitirEmLote(
     dpsList: readonly DpsFor<L>[],
-    _options?: EmitLoteOptions,
+    options?: EmitLoteOptions,
   ): Promise<EmitLoteResult<L>> {
     // Como o real: o lote inteiro é checado antes do primeiro "envio".
     for (const dps of dpsList) assertSameLayout(this.layout, dps);
+    // Como o emitMany real: skipCpfCnpjValidation é repassado a cada DPS e
+    // stopOnError marca as DPS restantes como 'skipped' (o fake é sequencial).
+    const emitOptions: EmitOptions & { dryRun?: false } =
+      options?.skipCpfCnpjValidation !== undefined
+        ? { skipCpfCnpjValidation: options.skipCpfCnpjValidation }
+        : {};
     const items: EmitLoteItem<L>[] = [];
     let successCount = 0;
     let failureCount = 0;
+    let skippedCount = 0;
+    let parar = false;
     for (const dps of dpsList) {
+      if (parar) {
+        items.push({ status: 'skipped', dps });
+        skippedCount++;
+        continue;
+      }
       try {
-        const result = await this.emitirDpsPronta(dps);
+        const result = await this.emitirDpsPronta(dps, emitOptions);
         items.push({ status: 'success', dps, result });
         successCount++;
       } catch (err) {
@@ -277,9 +290,10 @@ export class NfseClientFake<L extends Layout = Layout> {
           error: err instanceof Error ? err : new Error(String(err)),
         });
         failureCount++;
+        if (options?.stopOnError) parar = true;
       }
     }
-    return { items, successCount, failureCount, skippedCount: 0 };
+    return { items, successCount, failureCount, skippedCount };
   }
 
   // -------------------------------------------------------------------------

@@ -615,6 +615,18 @@ describe('NfseClientFake — DV de CPF/CNPJ na DPS pronta (paridade com emitDpsP
     ).rejects.toBeInstanceOf(ReceitaRejectionError);
   });
 
+  it('emitirEmLote repassa skipCpfCnpjValidation e respeita stopOnError, como o emitMany real', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const invalida = dpsComCnpjInvalido();
+    const comSkip = await fake.emitirEmLote([invalida], { skipCpfCnpjValidation: true });
+    expect(comSkip.items[0]).toMatchObject({ status: 'success' });
+
+    const valida = buildDps({ ...baseEmitirParams(), layout: 'nt004', nDPS: '6' });
+    const parado = await fake.emitirEmLote([invalida, valida], { stopOnError: true });
+    expect(parado.items.map((i) => i.status)).toEqual(['failure', 'skipped']);
+    expect(parado).toMatchObject({ successCount: 0, failureCount: 1, skippedCount: 1 });
+  });
+
   it('skipCpfCnpjValidation desliga o guard, como no real', async () => {
     const fake = new NfseClientFake({ layout: 'nt004' });
     const dps = dpsComCnpjInvalido();
