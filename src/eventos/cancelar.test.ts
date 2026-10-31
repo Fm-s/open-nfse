@@ -822,6 +822,30 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     },
   );
 
+  it.each([
+    ['ausente (chamador JS)', undefined],
+    ['curta demais', CHAVE_ORIGINAL.slice(0, 49)],
+    ['longa demais', `${CHAVE_ORIGINAL}0`],
+    ['com letra fora das posições 7–20', trocar(CHAVE_ORIGINAL, 30, 'A')],
+    ['com minúscula', trocar(CHAVE_ORIGINAL, 10, 'a')],
+  ])(
+    'chaveOriginal %s → RuleViolationError TSChaveNFSe (não TypeError nem E0042) sem POST',
+    async (_caso, chave) => {
+      const dispatch = vi.spyOn(mockAgent, 'dispatch');
+      for (const novaDps of [minimalNovaDps(), minimalNovaDpsNt009()]) {
+        await expect(
+          substituir(httpClient, cert, policy, {
+            ...baseSubstParams,
+            chaveOriginal: chave as string,
+            novaDps,
+            skipValidation: true,
+          }),
+        ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSChaveNFSe' });
+      }
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
   it('E0042: só cMun/tpInsc/inscrição contam — ambGer e demais posições da chave podem diferir', async () => {
     mockEmitSuccess();
     // ambGer (pos 7) e nNFSe (pos 23+) diferentes do sample — mesmo emitente.

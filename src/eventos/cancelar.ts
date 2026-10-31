@@ -209,6 +209,9 @@ export async function substituir<L extends Layout = Layout>(
   if (subst.xMotivo !== undefined) {
     validarTSMotivo(subst.xMotivo);
   }
+  // TSChaveNFSe — chSubstda precisa ter a forma da chave antes de comparar
+  // posições (chamador JS sem chaveOriginal, chave truncada etc.).
+  assertChSubstdaTSChaveNFSe(subst.chSubstda);
   // Rule E0042 — Cód.Mun./Tipo de Inscrição/Inscrição da chave substituída
   // devem corresponder exatamente aos do Id desta DPS.
   assertChSubstdaCorrespondeAoIdDps(subst.chSubstda, params.novaDps.infDPS.Id);
@@ -294,6 +297,25 @@ function comSubst(dps: DPS, subst: Substituicao): DPS {
       return { ...dps, infDPS: { ...dps.infDPS, subst } };
     default:
       return unknownLayout(dps);
+  }
+}
+
+// TSChaveNFSe (tiposSimples_v1.01.xsd, idêntico nos bundles nt004 e nt009):
+// maxLength 50 + pattern `[0-9]{6}([0-9A-Z]{14})[0-9]{30}` (âncoras implícitas no XSD).
+const REGEX_TS_CHAVE_NFSE = /^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/;
+
+/**
+ * Forma da chave substituída (`subst/chSubstda`, tipo `TSChaveNFSe`). Roda
+ * antes da E0042 para que um valor ausente (chamador JS) ou malformado gere
+ * erro tipado de formato — não um `TypeError` nem uma E0042 enganosa — mesmo
+ * com `skipValidation` (que desliga a validação XSD).
+ */
+function assertChSubstdaTSChaveNFSe(chSubstda: unknown): asserts chSubstda is string {
+  if (typeof chSubstda !== 'string' || !REGEX_TS_CHAVE_NFSE.test(chSubstda)) {
+    throw new RuleViolationError(
+      `chaveOriginal (subst/chSubstda) deve ser uma chave de NFS-e de 50 posições no formato [0-9]{6}[0-9A-Z]{14}[0-9]{30}, recebido ${JSON.stringify(chSubstda)} — per TSChaveNFSe`,
+      'TSChaveNFSe',
+    );
   }
 }
 
