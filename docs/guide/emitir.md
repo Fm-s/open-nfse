@@ -246,17 +246,32 @@ O worker deve ser **único por processo** — crons concorrentes re-postam a mes
 `emitir(params)` é uma chamada por vez, mas um worker pool simples paraleliza sem perder a segurança do counter + retry store:
 
 ```typescript
-async function emitirBulk(lote: readonly EmitirParams[], concurrency = 4) {
-  const cursor = { i: 0 };
-  const resultados = new Array(lote.length);
+import { type EmitirParams, type EmitirResult, UnreadableAuthorizedNfseError } from 'open-nfse';
+
+type ItemBulk =
+  | EmitirResult<'nt004'>
+  | { readonly status: 'autorizada_ilegivel'; readonly error: UnreadableAuthorizedNfseError }
+  | { readonly status: 'throw'; readonly error: Error };
+
+async function emitirBulk(
+  lote: readonly EmitirParams<'nt004'>[],
+  concurrency = 4,
+): Promise<ItemBulk[]> {
+  const resultados: ItemBulk[] = new Array(lote.length);
+  let proximo = 0;
 
   async function worker() {
-    while (cursor.i < lote.length) {
-      const idx = cursor.i++;
+    while (proximo < lote.length) {
+      const idx = proximo++;
+      // `dryRun: false` escolhe o overload que devolve EmitirResult (não o dry-run).
+      const params = { ...(lote[idx] as EmitirParams<'nt004'>), dryRun: false as const };
       try {
-        resultados[idx] = await cliente.emitir(lote[idx]);
+        resultados[idx] = await cliente.emitir(params);
       } catch (err) {
-        resultados[idx] = { status: 'throw', error: err as Error };
+        resultados[idx] =
+          err instanceof UnreadableAuthorizedNfseError
+            ? { status: 'autorizada_ilegivel', error: err } // AUTORIZADA — não reemita
+            : { status: 'throw', error: err as Error };
       }
     }
   }
@@ -265,20 +280,21 @@ async function emitirBulk(lote: readonly EmitirParams[], concurrency = 4) {
   return resultados;
 }
 
-const lote = pedidosDoMes.map((p) => paramsParaEmissao(p));   // sua função
+const lote = pedidosDoMes.map((p) => paramsParaEmissao(p)); // sua função
 const rs = await emitirBulk(lote, 4);
 
 for (const r of rs) {
-  if (r.status === 'ok')              await persistirAutorizada(r);
+  if (r.status === 'ok') await persistirAutorizada(r);
+  else if (r.status === 'autorizada_ilegivel') await persistirAutorizada(r.error); // chaveAcesso/xmlNfse
   else if (r.status === 'retry_pending') logger.warn('pendente', r.pending.id);
-  else if (r.status === 'throw')      await persistirRejeicao(r.error);
+  else await persistirRejeicao(r.error);
 }
 ```
 
 Cada `emitir(params)` individual ainda:
 - Consulta o `DpsCounter` atomicamente (sua impl Postgres garante isso)
 - Persiste `retry_pending` no `RetryStore` em falha transiente
-- Lança em rejeição permanente
+- Lança em rejeição permanente — exceto `UnreadableAuthorizedNfseError`, que é nota **autorizada** (vai para `nfse_autorizadas` com a `chaveAcesso`, nunca para rejeições)
 
 Sem surpresas ao paralelizar.
 

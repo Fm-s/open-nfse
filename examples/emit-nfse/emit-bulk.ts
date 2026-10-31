@@ -1,7 +1,7 @@
 import {
   Ambiente,
   buildDps,
-  type DPS,
+  type DpsNt004,
   NfseClient,
   OpcaoSimplesNacional,
   providerFromFile,
@@ -30,7 +30,7 @@ if (!certPath || !password || !cnpj || !codMun) {
   process.exit(1);
 }
 
-function montarDps(indice: number): DPS {
+function montarDps(indice: number): DpsNt004 {
   const base = Math.floor(Date.now() / 1000) * 10;
   const nDPS = String(base + indice);
   return buildDps({
@@ -90,17 +90,28 @@ async function main() {
     );
     r.items.forEach((item, i) => {
       const nDPS = item.dps.infDPS.nDPS;
-      if (item.status === 'success') {
-        console.log(`  [${i}] ok     nDPS=${nDPS}  chave=${item.result.chaveAcesso}`);
-      } else if (item.status === 'failure') {
-        const err = item.error;
-        const reason =
-          err instanceof ReceitaRejectionError
-            ? `[${err.codigo}] ${err.descricao}`
-            : (err.message ?? String(err));
-        console.log(`  [${i}] falha  nDPS=${nDPS}  ${reason}`);
-      } else {
-        console.log(`  [${i}] skip   nDPS=${nDPS}`);
+      switch (item.status) {
+        case 'success':
+          console.log(`  [${i}] ok     nDPS=${nDPS}  chave=${item.result.chaveAcesso}`);
+          break;
+        case 'success_unreadable':
+          // Autorizada — só a resposta não pôde ser lida. Não reemita.
+          console.log(
+            `  [${i}] ok*    nDPS=${nDPS}  chave=${item.error.chaveAcesso}  (autorizada; resposta ilegível — NÃO reemita)`,
+          );
+          break;
+        case 'failure': {
+          const err = item.error;
+          const reason =
+            err instanceof ReceitaRejectionError
+              ? `[${err.codigo}] ${err.descricao}`
+              : (err.message ?? String(err));
+          console.log(`  [${i}] falha  nDPS=${nDPS}  ${reason}`);
+          break;
+        }
+        case 'skipped':
+          console.log(`  [${i}] skip   nDPS=${nDPS}`);
+          break;
       }
     });
   } finally {
