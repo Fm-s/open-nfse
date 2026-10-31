@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidLayoutError, XsdValidationError } from '../errors/validation.js';
 import { buildDpsXml } from './build-xml.js';
-import type { DPS, InfDPSNt004 } from './domain.js';
+import type { DpsNt004, InfDPSNt004 } from './domain.js';
 import { validateDpsXml } from './validate-xml.js';
 
-function minimalDps(overrides: Partial<InfDPSNt004> = {}): DPS {
+function minimalDps(overrides: Partial<InfDPSNt004> = {}): DpsNt004 {
   const infDPS: InfDPSNt004 = {
     Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPSNt004['tpAmb'],

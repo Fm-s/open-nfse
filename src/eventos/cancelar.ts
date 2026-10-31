@@ -234,17 +234,15 @@ function ensureSubstPopulated(
   xMotivo: string | undefined,
 ): DPS {
   if (dps.infDPS.subst) return dps;
-  return {
-    ...dps,
-    infDPS: {
-      ...dps.infDPS,
-      subst: {
-        chSubstda: chaveOriginal,
-        cMotivo,
-        ...(xMotivo ? { xMotivo } : {}),
-      },
-    },
+  const subst = {
+    chSubstda: chaveOriginal,
+    cMotivo,
+    ...(xMotivo ? { xMotivo } : {}),
   };
+  // Narrowing por layout: o spread de uma union não preserva o discriminante.
+  return dps.layout === 'nt009'
+    ? { ...dps, infDPS: { ...dps.infDPS, subst } }
+    : { ...dps, infDPS: { ...dps.infDPS, subst } };
 }
 
 function dropInternal(r: EventoResult & { xmlAssinado: string }): EventoResult {

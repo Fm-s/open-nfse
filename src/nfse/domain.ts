@@ -1,4 +1,5 @@
 import type { DpsNt004, NfseNt004 } from './domain-nt004.js';
+import type { DpsNt009, NfseNt009 } from './domain-nt009.js';
 import type {
   CodigoNaoNif,
   CST,
@@ -24,6 +25,7 @@ import type {
 import type { Layout } from './layout.js';
 
 export type * from './domain-nt004.js';
+export type * from './domain-nt009.js';
 
 export type IdentificadorPessoa =
   | { readonly CNPJ: string }
@@ -405,11 +407,11 @@ export interface Signature {
   readonly referenceUri: string;
 }
 
-/** Union dos layouts de DPS suportados (alargada na Task 3). */
-export type DPS = DpsNt004;
+/** Union dos layouts de DPS suportados — discrimine por `dps.layout`. */
+export type DPS = DpsNt004 | DpsNt009;
 
-/** Union dos layouts de NFS-e suportados (alargada na Task 3). */
-export type NFSe = NfseNt004;
+/** Union dos layouts de NFS-e suportados — discrimine por `nfse.layout`. */
+export type NFSe = NfseNt004 | NfseNt009;
 
 export type DpsFor<L extends Layout> = Extract<DPS, { readonly layout: L }>;
 

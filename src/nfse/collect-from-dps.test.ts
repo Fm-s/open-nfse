@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
-import type { DPS, InfDPSNt004 } from './domain.js';
+import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
 import { IndicadorDestinatario } from './enums.js';
 
-function base(): DPS {
+function base(): DpsNt004 {
   const infDPS: InfDPSNt004 = {
     Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPSNt004['tpAmb'],
@@ -187,5 +188,88 @@ describe('collectIdentifiersFromDps', () => {
     expect(ids).toContain('00574753000100');
     expect(ids).toContain('33000167000101');
     expect(ids).toContain('11222333000181');
+  });
+});
+
+describe('layout nt009', () => {
+  it('collectIdentifiersFromDps inclui vAjusteBC.documentos.docAjusteBC[i].fornec', () => {
+    const ids = collectIdentifiersFromDps(dpsNt009Completa());
+    expect(ids).toContainEqual({
+      path: 'infDPS.valores.vAjusteBC.documentos.docAjusteBC[0].fornec.CNPJ',
+      type: 'CNPJ',
+      value: '11222333000181',
+    });
+    expect(ids.map((i) => i.path)).toEqual([
+      'infDPS.prest.CNPJ',
+      'infDPS.toma.CPF',
+      'infDPS.valores.vAjusteBC.documentos.docAjusteBC[0].fornec.CNPJ',
+    ]);
+  });
+
+  it('collectIdentifiersFromDps inclui IBSCBS.dest no nt009', () => {
+    const base = dpsNt009Completa();
+    const ibscbs = base.infDPS.IBSCBS;
+    if (!ibscbs) throw new Error('fixture sem IBSCBS');
+    const ids = collectIdentifiersFromDps({
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        IBSCBS: {
+          ...ibscbs,
+          indDest: IndicadorDestinatario.DestinatarioDistinto,
+          dest: { identificador: { CNPJ: '33000167000101' }, xNome: 'D' },
+        },
+      },
+    });
+    expect(ids).toContainEqual({
+      path: 'infDPS.IBSCBS.dest.CNPJ',
+      type: 'CNPJ',
+      value: '33000167000101',
+    });
+  });
+
+  it('collectCepsFromDps inclui IBSCBS.imovel.gUnidImob[i].end e fornec.end', () => {
+    const base = dpsNt009Completa();
+    const docs = base.infDPS.valores.vAjusteBC?.documentos?.docAjusteBC ?? [];
+    const [primeiro, ...resto] = docs;
+    if (!primeiro?.fornec) throw new Error('fixture sem fornec');
+    const dps = {
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        valores: {
+          ...base.infDPS.valores,
+          vAjusteBC: {
+            documentos: {
+              docAjusteBC: [
+                {
+                  ...primeiro,
+                  fornec: {
+                    ...primeiro.fornec,
+                    end: {
+                      localidade: { endNac: { cMun: '2111300', CEP: '65020000' } },
+                      xLgr: 'R',
+                      nro: '1',
+                      xBairro: 'B',
+                    },
+                  },
+                },
+                ...resto,
+              ],
+            },
+          },
+        },
+      },
+    };
+    const ceps = collectCepsFromDps(dps);
+    expect(ceps).toContainEqual({
+      path: 'infDPS.IBSCBS.imovel.gUnidImob[1].end.CEP',
+      cep: '65010000',
+    });
+    expect(ceps).toContainEqual({
+      path: 'infDPS.valores.vAjusteBC.documentos.docAjusteBC[0].fornec.end.localidade.endNac.CEP',
+      cep: '65020000',
+    });
+    expect(ceps).toContainEqual({ path: 'infDPS.toma.end.localidade.endNac.CEP', cep: '65000000' });
   });
 });

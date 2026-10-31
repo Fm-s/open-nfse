@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { InvalidXmlError } from '../errors/validation.js';
+import type { NfseNt004 } from './domain.js';
 import {
   AmbienteGerador,
   OpcaoSimplesNacional,
@@ -16,6 +17,13 @@ import {
 } from './enums.js';
 import { parseNfseXml } from './parse-xml.js';
 
+/** Os XMLs deste arquivo são todos nt004 — estreita o `NFSe` (union) para os asserts. */
+function parseNt004(xml: string): NfseNt004 {
+  const nfse = parseNfseXml(xml);
+  if (nfse.layout !== 'nt004') throw new Error(`esperado layout nt004, veio ${nfse.layout}`);
+  return nfse;
+}
+
 const SAMPLE_PATH = join(
   __dirname,
   '..',
@@ -27,7 +35,7 @@ const SAMPLE_PATH = join(
 
 describe('parseNfseXml — captured Simples Nacional sample', () => {
   const xml = readFileSync(SAMPLE_PATH, 'utf-8');
-  const nfse = parseNfseXml(xml);
+  const nfse = parseNt004(xml);
 
   it('marca NFS-e do layout atual como nt004', () => {
     expect(nfse.layout).toBe('nt004');
@@ -152,7 +160,7 @@ describe('parseNfseXml — IBS/CBS branch (synthetic)', () => {
   const ibscbsBlock =
     '<IBSCBS><cLocalidadeIncid>2111300</cLocalidadeIncid><xLocalidadeIncid>São Luís</xLocalidadeIncid><pRedutor>0</pRedutor><valores><vBC>100</vBC><uf><pIBSUF>10</pIBSUF><pAliqEfetUF>10</pAliqEfetUF></uf><mun><pIBSMun>5</pIBSMun><pAliqEfetMun>5</pAliqEfetMun></mun><fed><pCBS>1</pCBS><pAliqEfetCBS>1</pAliqEfetCBS></fed></valores><totCIBS><vTotNF>51.60</vTotNF><gIBS><vIBSTot>15</vIBSTot><gIBSUFTot><vDifUF>0</vDifUF><vIBSUF>10</vIBSUF></gIBSUFTot><gIBSMunTot><vDifMun>0</vDifMun><vIBSMun>5</vIBSMun></gIBSMunTot></gIBS><gCBS><vDifCBS>0</vDifCBS><vCBS>1</vCBS></gCBS></totCIBS></IBSCBS>';
   const withIbscbs = base.replace('<DPS versao=', `${ibscbsBlock}<DPS versao=`);
-  const nfse = parseNfseXml(withIbscbs);
+  const nfse = parseNt004(withIbscbs);
 
   it('exposes cLocalidadeIncid and pRedutor', () => {
     expect(nfse.infNFSe.IBSCBS?.cLocalidadeIncid).toBe('2111300');
@@ -196,7 +204,7 @@ describe('parseNfseXml — phase 4 service variants (synthetic)', () => {
     const xml = injectIntoServ(
       '<comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>USD</tpMoeda><vServMoeda>1000</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><mdic>0</mdic></comExt>',
     );
-    const parsed = parseNfseXml(xml);
+    const parsed = parseNt004(xml);
     const serv = parsed.infNFSe.DPS.infDPS.serv;
     expect(serv.comExt?.mdPrestacao).toBe('1');
     expect(serv.comExt?.tpMoeda).toBe('USD');
@@ -205,7 +213,7 @@ describe('parseNfseXml — phase 4 service variants (synthetic)', () => {
 
   it('parses obra service variant with cObra identification', () => {
     const xml = injectIntoServ('<obra><cObra>123456789012</cObra></obra>');
-    const parsed = parseNfseXml(xml);
+    const parsed = parseNt004(xml);
     const obra = parsed.infNFSe.DPS.infDPS.serv.obra;
     expect(obra).toBeDefined();
     expect(obra?.identificacao).toEqual({ cObra: '123456789012' });
@@ -215,14 +223,14 @@ describe('parseNfseXml — phase 4 service variants (synthetic)', () => {
     const xml = injectIntoServ(
       '<infoCompl><xPed>PED-42</xPed><gItemPed><xItemPed>1</xItemPed><xItemPed>2</xItemPed></gItemPed></infoCompl>',
     );
-    const parsed = parseNfseXml(xml);
+    const parsed = parseNt004(xml);
     const infoCompl = parsed.infNFSe.DPS.infDPS.serv.infoCompl;
     expect(infoCompl?.xPed).toBe('PED-42');
     expect(infoCompl?.gItemPed?.xItemPed).toEqual(['1', '2']);
   });
 
   it('Simples Nacional sample has none of the service variants', () => {
-    const parsed = parseNfseXml(base);
+    const parsed = parseNt004(base);
     const serv = parsed.infNFSe.DPS.infDPS.serv;
     expect(serv.comExt).toBeUndefined();
     expect(serv.obra).toBeUndefined();
@@ -239,7 +247,7 @@ describe('parseNfseXml — phase 4 substituição (synthetic)', () => {
       '<prest>',
       '<subst><chSubstda>00000000000000000000000000000000000000000000000001</chSubstda><cMotivo>01</cMotivo><xMotivo>motivo</xMotivo></subst><prest>',
     );
-    const parsed = parseNfseXml(xml);
+    const parsed = parseNt004(xml);
     const subst = parsed.infNFSe.DPS.infDPS.subst;
     expect(subst?.chSubstda).toHaveLength(50);
     expect(subst?.cMotivo).toBe('01');
@@ -247,7 +255,7 @@ describe('parseNfseXml — phase 4 substituição (synthetic)', () => {
   });
 
   it('leaves subst undefined in the Simples Nacional sample', () => {
-    const parsed = parseNfseXml(base);
+    const parsed = parseNt004(base);
     expect(parsed.infNFSe.DPS.infDPS.subst).toBeUndefined();
   });
 });
@@ -260,7 +268,7 @@ describe('parseNfseXml — phase 4 DPS-side IBS/CBS (synthetic)', () => {
 
   it('parses declared IBS/CBS block with CST and cClassTrib', () => {
     const xml = base.replace('</valores></infDPS>', `</valores>${ibscbsDps}</infDPS>`);
-    const parsed = parseNfseXml(xml);
+    const parsed = parseNt004(xml);
     const ibscbs = parsed.infNFSe.DPS.infDPS.IBSCBS;
     expect(ibscbs?.finNFSe).toBe('0');
     expect(ibscbs?.cIndOp).toBe('010101');
@@ -270,7 +278,7 @@ describe('parseNfseXml — phase 4 DPS-side IBS/CBS (synthetic)', () => {
   });
 
   it('Simples Nacional sample has no declared IBS/CBS', () => {
-    const parsed = parseNfseXml(base);
+    const parsed = parseNt004(base);
     expect(parsed.infNFSe.DPS.infDPS.IBSCBS).toBeUndefined();
   });
 });
@@ -325,7 +333,7 @@ describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', 
     '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="x"/><SignatureMethod Algorithm="x"/><Reference URI="#NFS11111111111111111111111111111111111111111111119999"><Transforms><Transform Algorithm="x"/></Transforms><DigestMethod Algorithm="x"/><DigestValue>d</DigestValue></Reference></SignedInfo><SignatureValue>s</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature>' +
     '</NFSe>';
 
-  const parsed = parseNfseXml(xml);
+  const parsed = parseNt004(xml);
 
   it('parses exterior tomador endExt', () => {
     const end = parsed.infNFSe.DPS.infDPS.toma?.end;

@@ -4,51 +4,67 @@ import XMLBuilder from 'fast-xml-builder';
 import { RuleViolationError } from '../errors/validation.js';
 import { ATTR_PREFIX } from '../xml/parser.js';
 import type {
+  AjusteBCIssqnNt009,
   AtvEvento,
   AtvEventoIdentificacao,
   BeneficioMunicipal,
   ComExterior,
   CServ,
+  DocAjusteBCNt009,
   DocDedRedNt004,
   DocNFNFSNt004,
   DocOutNFSeNt004,
   DPS,
   Endereco,
   EnderecoSimples,
+  EnderImovelNt009,
   EnderObraEvento,
   ExigSuspensa,
   IdentificadorPessoa,
   ImovelIdentificacaoNt004,
   InfDPSNt004,
+  InfDPSNt009,
+  InfoAjusteBCNt009,
   InfoCompl,
   InfoDedRedNt004,
   InfoItemPed,
   InfoObra,
   InfoObraIdentificacao,
   InfoPessoaNt004,
+  InfoPessoaNt009,
   InfoPrestador,
   InfoRefNFSe,
   InfoTributacao,
   InfoValoresNt004,
+  InfoValoresNt009,
   ListaDocDedRedNt004,
   LocPrest,
   ReferenciaDocDedRedNt004,
   RegTrib,
   RtcDocumentoReferenciado,
+  RtcInfoBensMoveisNt009,
   RtcInfoDest,
   RtcInfoIbsCbsNt004,
+  RtcInfoIbsCbsNt009,
   RtcInfoImovelNt004,
+  RtcInfoImovelNt009,
   RtcInfoReeRepResNt004,
+  RtcInfoTribIbsCbsNt009,
   RtcInfoTributosDif,
   RtcInfoTributosIbsCbsNt004,
   RtcInfoTributosSitClasNt004,
+  RtcInfoTributosSitClasNt009,
   RtcInfoTributosTribRegular,
   RtcInfoValoresIbsCbsNt004,
+  RtcInfoValoresIbsCbsNt009,
   RtcListaDocDFe,
   RtcListaDocFiscalOutro,
   RtcListaDocFornec,
   RtcListaDocNt004,
   RtcListaDocOutro,
+  RtcLocacaoImovelNt009,
+  RtcUnidadeImobiliariaNt009,
+  RtcValoresBCImoveisNt009,
   Serv,
   Signature,
   Substituicao,
@@ -58,9 +74,11 @@ import type {
   TribTotal,
   TribTotalMonet,
   TribTotalPercent,
+  UnidadeImobiliariaIdentificacaoNt009,
   VDescCondIncond,
   VServPrest,
 } from './domain.js';
+import type { Layout } from './layout.js';
 
 const NFSE_NS = 'http://www.sped.fazenda.gov.br/nfse';
 const DSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
@@ -79,14 +97,17 @@ const xmlBuilder = new XMLBuilder({
 
 /**
  * Serializes a typed `DPS` DTO to canonical XML. Inverse of `parseNfseXml`'s
- * DPS branch. Element order and namespace declarations follow RTC v1.01.
+ * DPS branch. Element order and namespace declarations follow RTC v1.01 of the
+ * DPS's `layout` (`schemas/1.01/` for `'nt004'`, `schemas/1.01-nt009/` for
+ * `'nt009'`). The `layout` field itself is never serialized — both layouts
+ * emit `versao="1.01"`.
  */
 export function buildDpsXml(dps: DPS, options?: BuildDpsXmlOptions): string {
   const root = {
     DPS: {
       [`${ATTR_PREFIX}xmlns`]: NFSE_NS,
       [`${ATTR_PREFIX}versao`]: dps.versao,
-      infDPS: buildInfDPS(dps.infDPS),
+      infDPS: dps.layout === 'nt009' ? buildInfDPSNt009(dps.infDPS) : buildInfDPSNt004(dps.infDPS),
       ...onlyDefined('Signature', dps.signature ? buildSignature(dps.signature) : undefined),
     },
   };
@@ -97,7 +118,7 @@ export function buildDpsXml(dps: DPS, options?: BuildDpsXmlOptions): string {
     : `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 }
 
-function buildInfDPS(inf: InfDPSNt004): object {
+function buildInfDPSNt004(inf: InfDPSNt004): object {
   return {
     [`${ATTR_PREFIX}Id`]: inf.Id,
     tpAmb: inf.tpAmb,
@@ -112,11 +133,35 @@ function buildInfDPS(inf: InfDPSNt004): object {
     cLocEmi: inf.cLocEmi,
     ...onlyDefined('subst', inf.subst && buildSubstituicao(inf.subst)),
     prest: buildInfoPrestador(inf.prest),
-    ...onlyDefined('toma', inf.toma && buildInfoPessoa(inf.toma)),
-    ...onlyDefined('interm', inf.interm && buildInfoPessoa(inf.interm)),
-    serv: buildServ(inf.serv),
-    valores: buildInfoValores(inf.valores),
-    ...onlyDefined('IBSCBS', inf.IBSCBS && buildRtcInfoIbsCbs(inf.IBSCBS)),
+    ...onlyDefined('toma', inf.toma && buildInfoPessoaNt004(inf.toma)),
+    ...onlyDefined('interm', inf.interm && buildInfoPessoaNt004(inf.interm)),
+    serv: buildServ(inf.serv, 'nt004'),
+    valores: buildInfoValoresNt004(inf.valores),
+    ...onlyDefined('IBSCBS', inf.IBSCBS && buildRtcInfoIbsCbsNt004(inf.IBSCBS)),
+  };
+}
+
+function buildInfDPSNt009(inf: InfDPSNt009): object {
+  return {
+    [`${ATTR_PREFIX}Id`]: inf.Id,
+    tpAmb: inf.tpAmb,
+    dhEmi: formatDateTime(inf.dhEmi),
+    verAplic: inf.verAplic,
+    serie: inf.serie,
+    nDPS: inf.nDPS,
+    dCompet: formatDate(inf.dCompet),
+    tpEmit: inf.tpEmit,
+    ...onlyDefined('cMotivoEmisTI', inf.cMotivoEmisTI),
+    finNFSe: inf.finNFSe,
+    ...onlyDefined('chNFSeRej', inf.chNFSeRej),
+    cLocEmi: inf.cLocEmi,
+    ...onlyDefined('subst', inf.subst && buildSubstituicao(inf.subst)),
+    prest: buildInfoPrestador(inf.prest),
+    ...onlyDefined('toma', inf.toma && buildInfoPessoaNt009(inf.toma)),
+    ...onlyDefined('interm', inf.interm && buildInfoPessoaNt009(inf.interm)),
+    serv: buildServ(inf.serv, 'nt009'),
+    valores: buildInfoValoresNt009(inf.valores),
+    ...onlyDefined('IBSCBS', inf.IBSCBS && buildRtcInfoIbsCbsNt009(inf.IBSCBS)),
   };
 }
 
@@ -141,12 +186,24 @@ function buildInfoPrestador(p: InfoPrestador): object {
   };
 }
 
-function buildInfoPessoa(p: InfoPessoaNt004): object {
+function buildInfoPessoaNt004(p: InfoPessoaNt004): object {
   return {
     ...buildIdentificador(p.identificador),
     ...onlyDefined('CAEPF', p.CAEPF),
     ...onlyDefined('IM', p.IM),
     xNome: p.xNome,
+    ...onlyDefined('end', p.end && buildEndereco(p.end)),
+    ...onlyDefined('fone', p.fone),
+    ...onlyDefined('email', p.email),
+  };
+}
+
+function buildInfoPessoaNt009(p: InfoPessoaNt009): object {
+  return {
+    ...buildIdentificador(p.identificador),
+    ...onlyDefined('CAEPF', p.CAEPF),
+    ...onlyDefined('IM', p.IM),
+    ...onlyDefined('xNome', p.xNome),
     ...onlyDefined('end', p.end && buildEndereco(p.end)),
     ...onlyDefined('fone', p.fone),
     ...onlyDefined('email', p.email),
@@ -214,10 +271,10 @@ function buildEnderObraEvento(e: EnderObraEvento): object {
   return buildEnderecoSimples(e);
 }
 
-function buildServ(s: Serv): object {
+function buildServ(s: Serv, layout: Layout): object {
   return {
     locPrest: buildLocPrest(s.locPrest),
-    cServ: buildCServ(s.cServ),
+    cServ: layout === 'nt009' ? buildCServNt009(s.cServ) : buildCServNt004(s.cServ),
     ...onlyDefined('comExt', s.comExt && buildComExterior(s.comExt)),
     ...onlyDefined('obra', s.obra && buildInfoObra(s.obra)),
     ...onlyDefined('atvEvento', s.atvEvento && buildAtvEvento(s.atvEvento)),
@@ -230,13 +287,24 @@ function buildLocPrest(l: LocPrest): object {
   return { cPaisPrestacao: l.cPaisPrestacao };
 }
 
-function buildCServ(c: CServ): object {
+function buildCServNt004(c: CServ): object {
   return {
     cTribNac: c.cTribNac,
     ...onlyDefined('cTribMun', c.cTribMun),
     xDescServ: c.xDescServ,
     ...onlyDefined('cNBS', c.cNBS),
     ...onlyDefined('cIntContrib', c.cIntContrib),
+  };
+}
+
+/** nt009 moveu `xDescServ` para o fim de `TCCServ` (após `cNBS`/`cIntContrib`). */
+function buildCServNt009(c: CServ): object {
+  return {
+    cTribNac: c.cTribNac,
+    ...onlyDefined('cTribMun', c.cTribMun),
+    ...onlyDefined('cNBS', c.cNBS),
+    ...onlyDefined('cIntContrib', c.cIntContrib),
+    xDescServ: c.xDescServ,
   };
 }
 
@@ -296,12 +364,52 @@ function buildInfoItemPed(g: InfoItemPed): object {
   return { xItemPed: [...g.xItemPed] };
 }
 
-function buildInfoValores(v: InfoValoresNt004): object {
+function buildInfoValoresNt004(v: InfoValoresNt004): object {
   return {
     vServPrest: buildVServPrest(v.vServPrest),
     ...onlyDefined('vDescCondIncond', v.vDescCondIncond && buildVDescCondIncond(v.vDescCondIncond)),
     ...onlyDefined('vDedRed', v.vDedRed && buildInfoDedRed(v.vDedRed)),
     trib: buildInfoTributacao(v.trib),
+  };
+}
+
+function buildInfoValoresNt009(v: InfoValoresNt009): object {
+  return {
+    vServPrest: buildVServPrest(v.vServPrest),
+    ...onlyDefined('vDescCondIncond', v.vDescCondIncond && buildVDescCondIncond(v.vDescCondIncond)),
+    ...onlyDefined('vAjusteBC', v.vAjusteBC && buildInfoAjusteBCNt009(v.vAjusteBC)),
+    trib: buildInfoTributacao(v.trib),
+  };
+}
+
+function buildInfoAjusteBCNt009(a: InfoAjusteBCNt009): object {
+  return {
+    ...(a.ajusteIssqn ? buildAjusteBCIssqnNt009(a.ajusteIssqn) : {}),
+    // `documentos` sem nenhum `docAjusteBC` equivale à ausência do grupo.
+    ...onlyDefined(
+      'documentos',
+      mapIfDefined(nonEmpty(a.documentos?.docAjusteBC), (docs) => ({
+        docAjusteBC: docs.map(buildDocAjusteBCNt009),
+      })),
+    ),
+  };
+}
+
+function buildAjusteBCIssqnNt009(a: AjusteBCIssqnNt009): object {
+  if ('pAjusteBCISSQN' in a) return { pAjusteBCISSQN: formatDecimal(a.pAjusteBCISSQN) };
+  return { vAjusteBCISSQN: formatDecimal(a.vAjusteBCISSQN) };
+}
+
+function buildDocAjusteBCNt009(d: DocAjusteBCNt009): object {
+  return {
+    tpAjusteBC: d.tpAjusteBC,
+    ...onlyDefined('xTpAjusteBC', d.xTpAjusteBC),
+    vTotDoc: formatDecimal(d.vTotDoc),
+    vAjusteAplic: formatDecimal(d.vAjusteAplic),
+    ...onlyDefined('dtEmiDoc', d.dtEmiDoc && formatDate(d.dtEmiDoc)),
+    ...onlyDefined('dtCompDoc', d.dtCompDoc && formatDate(d.dtCompDoc)),
+    ...buildRtcDocumentoReferenciado(d.documento),
+    ...onlyDefined('fornec', d.fornec && buildInfoPessoaNt009(d.fornec)),
   };
 }
 
@@ -337,7 +445,7 @@ function buildDocDedRed(d: DocDedRedNt004): object {
     dtEmiDoc: formatDate(d.dtEmiDoc),
     vDedutivelRedutivel: formatDecimal(d.vDedutivelRedutivel),
     vDeducaoReducao: formatDecimal(d.vDeducaoReducao),
-    ...onlyDefined('fornec', d.fornec && buildInfoPessoa(d.fornec)),
+    ...onlyDefined('fornec', d.fornec && buildInfoPessoaNt004(d.fornec)),
   };
 }
 
@@ -438,7 +546,7 @@ function buildTribTotalPercent(p: TribTotalPercent): object {
   };
 }
 
-function buildRtcInfoIbsCbs(r: RtcInfoIbsCbsNt004): object {
+function buildRtcInfoIbsCbsNt004(r: RtcInfoIbsCbsNt004): object {
   return {
     finNFSe: r.finNFSe,
     ...onlyDefined('indFinal', r.indFinal),
@@ -448,8 +556,23 @@ function buildRtcInfoIbsCbs(r: RtcInfoIbsCbsNt004): object {
     ...onlyDefined('tpEnteGov', r.tpEnteGov),
     indDest: r.indDest,
     ...onlyDefined('dest', r.dest && buildRtcInfoDest(r.dest)),
-    ...onlyDefined('imovel', r.imovel && buildRtcInfoImovel(r.imovel)),
-    valores: buildRtcInfoValoresIbsCbs(r.valores),
+    ...onlyDefined('imovel', r.imovel && buildRtcInfoImovelNt004(r.imovel)),
+    valores: buildRtcInfoValoresIbsCbsNt004(r.valores),
+  };
+}
+
+function buildRtcInfoIbsCbsNt009(r: RtcInfoIbsCbsNt009): object {
+  return {
+    ...onlyDefined('indFinal', r.indFinal),
+    ...onlyDefined('cIndOp', r.cIndOp),
+    ...onlyDefined('tpOper', r.tpOper),
+    ...onlyDefined('gRefNFSe', r.gRefNFSe && buildInfoRefNFSe(r.gRefNFSe)),
+    ...onlyDefined('tpEnteGov', r.tpEnteGov),
+    indDest: r.indDest,
+    ...onlyDefined('dest', r.dest && buildRtcInfoDest(r.dest)),
+    ...onlyDefined('imovel', r.imovel && buildRtcInfoImovelNt009(r.imovel)),
+    ...onlyDefined('bensMoveis', nonEmpty(r.bensMoveis)?.map(buildRtcInfoBensMoveisNt009)),
+    valores: buildRtcInfoValoresIbsCbsNt009(r.valores),
   };
 }
 
@@ -467,7 +590,7 @@ function buildRtcInfoDest(d: RtcInfoDest): object {
   };
 }
 
-function buildRtcInfoImovel(i: RtcInfoImovelNt004): object {
+function buildRtcInfoImovelNt004(i: RtcInfoImovelNt004): object {
   return {
     ...onlyDefined('inscImobFisc', i.inscImobFisc),
     ...buildImovelIdentificacao(i.identificacao),
@@ -479,7 +602,92 @@ function buildImovelIdentificacao(i: ImovelIdentificacaoNt004): object {
   return { end: buildEnderObraEvento(i.end) };
 }
 
-function buildRtcInfoValoresIbsCbs(v: RtcInfoValoresIbsCbsNt004): object {
+function buildRtcInfoImovelNt009(i: RtcInfoImovelNt009): object {
+  return {
+    cMun: i.cMun,
+    ...onlyDefined('gLocacao', i.gLocacao && buildRtcLocacaoImovelNt009(i.gLocacao)),
+    ...onlyDefined('gUnidImob', nonEmpty(i.gUnidImob)?.map(buildRtcUnidadeImobiliariaNt009)),
+  };
+}
+
+function buildRtcLocacaoImovelNt009(l: RtcLocacaoImovelNt009): object {
+  return {
+    pCopropriedade: formatDecimal(l.pCopropriedade),
+    vTotOper: formatDecimal(l.vTotOper),
+    ...onlyDefined('vDescIncondTot', formatOptionalDecimal(l.vDescIncondTot)),
+    ...onlyDefined('vDescCondTot', formatOptionalDecimal(l.vDescCondTot)),
+    ...onlyDefined('dVencOrig', l.dVencOrig && formatDate(l.dVencOrig)),
+  };
+}
+
+function buildRtcUnidadeImobiliariaNt009(u: RtcUnidadeImobiliariaNt009): object {
+  return {
+    ...onlyDefined('inscImobFisc', u.inscImobFisc),
+    ...buildUnidadeImobiliariaIdentificacaoNt009(u.identificacao),
+    ...onlyDefined(
+      'gAjusteBCLocImoveis',
+      nonEmpty(u.gAjusteBCLocImoveis)?.map(buildRtcValoresBCImoveisNt009),
+    ),
+  };
+}
+
+function buildUnidadeImobiliariaIdentificacaoNt009(
+  i: UnidadeImobiliariaIdentificacaoNt009,
+): object {
+  if ('cCIB' in i) return { cCIB: i.cCIB };
+  return { end: buildEnderImovelNt009(i.end) };
+}
+
+function buildEnderImovelNt009(e: EnderImovelNt009): object {
+  return {
+    CEP: e.CEP,
+    xLgr: e.xLgr,
+    nro: e.nro,
+    ...onlyDefined('xCpl', e.xCpl),
+    ...onlyDefined('xBairro', e.xBairro),
+  };
+}
+
+function buildRtcValoresBCImoveisNt009(v: RtcValoresBCImoveisNt009): object {
+  return {
+    tpAjusteBCLocImoveis: v.tpAjusteBCLocImoveis,
+    ...onlyDefined('xTpAjusteBCLocImoveis', v.xTpAjusteBCLocImoveis),
+    vAjusteBCLocImoveis: formatDecimal(v.vAjusteBCLocImoveis),
+  };
+}
+
+function buildRtcInfoBensMoveisNt009(b: RtcInfoBensMoveisNt009): object {
+  return {
+    cNCMBemMovel: b.cNCMBemMovel,
+    xNCMBemMovel: b.xNCMBemMovel,
+    qtdNCMBemMovel: b.qtdNCMBemMovel,
+  };
+}
+
+function buildRtcInfoValoresIbsCbsNt009(v: RtcInfoValoresIbsCbsNt009): object {
+  return { trib: buildRtcInfoTribIbsCbsNt009(v.trib) };
+}
+
+function buildRtcInfoTribIbsCbsNt009(t: RtcInfoTribIbsCbsNt009): object {
+  return {
+    CST: t.CST,
+    cClassTrib: t.cClassTrib,
+    ...onlyDefined('gIBSCBS', t.gIBSCBS && buildRtcInfoTributosSitClasNt009(t.gIBSCBS)),
+  };
+}
+
+function buildRtcInfoTributosSitClasNt009(s: RtcInfoTributosSitClasNt009): object {
+  return {
+    ...onlyDefined('cCredPres', s.cCredPres),
+    ...onlyDefined(
+      'gTribRegular',
+      s.gTribRegular && buildRtcInfoTributosTribRegular(s.gTribRegular),
+    ),
+    ...onlyDefined('gDif', s.gDif && buildRtcInfoTributosDif(s.gDif)),
+  };
+}
+
+function buildRtcInfoValoresIbsCbsNt004(v: RtcInfoValoresIbsCbsNt004): object {
   return {
     ...onlyDefined('gReeRepRes', v.gReeRepRes && buildRtcInfoReeRepRes(v.gReeRepRes)),
     trib: buildRtcInfoTributosIbsCbs(v.trib),
@@ -616,6 +824,15 @@ function formatDecimal(n: number): string {
 
 function formatOptionalDecimal(n: number | undefined): string | undefined {
   return n === undefined ? undefined : formatDecimal(n);
+}
+
+/** Arrays `minOccurs="0"` vazios são omitidos (equivalem à ausência do grupo). */
+function nonEmpty<T>(arr: readonly T[] | undefined): readonly T[] | undefined {
+  return arr && arr.length > 0 ? arr : undefined;
+}
+
+function mapIfDefined<T, R>(value: T | undefined, fn: (v: T) => R): R | undefined {
+  return value === undefined ? undefined : fn(value);
 }
 
 function onlyDefined<K extends string, V>(key: K, value: V | undefined): { readonly [P in K]?: V } {

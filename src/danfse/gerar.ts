@@ -249,7 +249,8 @@ function renderTomador(doc: Doc, nfse: NFSe): void {
           : ['Sem NIF', toma.identificador.cNaoNIF];
 
   field(doc, idLabel[0] as string, idLabel[1] as string, x + 6, y + 14, 160);
-  field(doc, 'Nome / Razão Social', toma.xNome, x + 175, y + 14, 380);
+  // `xNome` do tomador é opcional no nt009 — cai no placeholder.
+  field(doc, 'Nome / Razão Social', toma.xNome ?? '—', x + 175, y + 14, 380);
 
   if (toma.end) {
     const end = toma.end;
@@ -339,10 +340,12 @@ function renderIbsCbs(doc: Doc, nfse: NFSe): void {
   const w = 531;
   const y = 438;
   box(doc, 'IBS / CBS (Reforma Tributária)', x, y, w, 50);
-  field(doc, 'Localidade de Incidência', ibs.xLocalidadeIncid, x + 6, y + 14, 200);
+  // nt009: `xLocalidadeIncid`, `gIBS` e `gCBS` são opcionais — `field`/`currency`
+  // renderizam o placeholder `—` quando ausentes.
+  field(doc, 'Localidade de Incidência', ibs.xLocalidadeIncid ?? '—', x + 6, y + 14, 200);
   field(doc, 'Valor Total NF', currency(ibs.totCIBS.vTotNF), x + 210, y + 14, 120);
-  field(doc, 'Valor IBS Total', currency(ibs.totCIBS.gIBS.vIBSTot), x + 335, y + 14, 100);
-  field(doc, 'Valor CBS', currency(ibs.totCIBS.gCBS.vCBS), x + 440, y + 14, 100);
+  field(doc, 'Valor IBS Total', currency(ibs.totCIBS.gIBS?.vIBSTot), x + 335, y + 14, 100);
+  field(doc, 'Valor CBS', currency(ibs.totCIBS.gCBS?.vCBS), x + 440, y + 14, 100);
 }
 
 function renderObservacoes(doc: Doc, observacoes: string | undefined): void {

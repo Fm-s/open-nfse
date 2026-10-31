@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { Ambiente } from '../ambiente.js';
+import { Ambiente, TipoAmbiente } from '../ambiente.js';
+import { dpsNt009Completa } from '../nfse/__fixtures__/dps-nt009.js';
+import type { NfseNt009 } from '../nfse/domain.js';
 import { parseNfseXml } from '../nfse/parse-xml.js';
+import { synthNfse } from '../testing/synth.js';
 import { gerarDanfse } from './gerar.js';
 
 const SAMPLE_XML = readFileSync(
@@ -57,5 +60,41 @@ describe('gerarDanfse', () => {
     const customUrl = 'https://minha.prefeitura.gov.br/consulta';
     const pdf = await gerarDanfse(nfse, { urlConsultaPublica: customUrl });
     expect(pdf.toString('latin1')).toContain(customUrl);
+  });
+});
+
+describe('gerarDanfse — layout nt009', () => {
+  it('renderiza NFS-e nt009 sem xLocalidadeIncid, gIBS e gCBS (opcionais no nt009)', async () => {
+    const sintetica = synthNfse(
+      dpsNt009Completa(),
+      '21113002200574753000100000000000146726037032711025',
+      TipoAmbiente.Homologacao,
+    );
+    if (sintetica.layout !== 'nt009') throw new Error('synthNfse deveria devolver nt009');
+    const nfse: NfseNt009 = {
+      ...sintetica,
+      infNFSe: { ...sintetica.infNFSe, IBSCBS: { totCIBS: { vTotNF: 1000 } } },
+    };
+    // Renderer local — o mesmo usado pela strategy 'local' (default) do NfseClient.
+    const pdf = await gerarDanfse(nfse);
+    expect(pdf).toBeInstanceOf(Buffer);
+    expect(pdf.length).toBeGreaterThan(2000);
+    expect(pdf.subarray(0, 5).toString('utf-8')).toBe('%PDF-');
+  });
+
+  it('renderiza tomador nt009 sem xNome', async () => {
+    const dps = dpsNt009Completa();
+    const semNome = {
+      ...dps,
+      infDPS: { ...dps.infDPS, toma: { identificador: { CPF: '12345678909' } } },
+    };
+    const pdf = await gerarDanfse(
+      synthNfse(
+        semNome,
+        '21113002200574753000100000000000146726037032711025',
+        TipoAmbiente.Homologacao,
+      ),
+    );
+    expect(pdf.subarray(0, 5).toString('utf-8')).toBe('%PDF-');
   });
 });

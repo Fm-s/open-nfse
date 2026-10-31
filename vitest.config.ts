@@ -13,6 +13,9 @@ export default defineConfig({
         // Pure type declaration files — compile to empty JS, v8 can't cover them
         'src/nfse/domain.ts',
         'src/nfse/domain-nt004.ts',
+        'src/nfse/domain-nt009.ts',
+        // Fixtures DTO compartilhadas entre testes (fora do dist)
+        'src/**/__fixtures__/**',
         'src/nfse/types.ts',
         'src/dfe/types.ts',
         'src/certificado/types.ts',

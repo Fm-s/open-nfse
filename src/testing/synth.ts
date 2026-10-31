@@ -7,6 +7,7 @@ import type {
   NFSe,
   Signature,
   ValoresNFSeNt004,
+  ValoresNFSeNt009,
 } from '../nfse/domain.js';
 import { AmbienteGerador, SituacaoNfse, TipoEmissao } from '../nfse/enums.js';
 
@@ -29,28 +30,38 @@ export function synthChaveAcesso(sequential: number, cnpj: string): string {
 // assinatura por compatibilidade: `synthNfse` é público em open-nfse/testing.
 export function synthNfse(dps: DPS, chaveAcesso: string, _ambiente: TipoAmbiente): NFSe {
   const descServ = dps.infDPS.serv.cServ.xDescServ;
-  return {
-    layout: 'nt004',
-    versao: '1.01',
-    infNFSe: {
-      Id: `NFS${chaveAcesso}`,
-      chaveAcesso,
-      xLocEmi: 'Cidade Fake',
-      xLocPrestacao: 'Cidade Fake',
-      nNFSe: dps.infDPS.nDPS,
-      xTribNac: descServ.slice(0, 300),
-      verAplic: 'NfseClientFake/0.6',
-      ambGer: AmbienteGerador.SefinNacional,
-      tpEmis: TipoEmissao.Normal,
-      cStat: SituacaoNfse.Gerada,
-      dhProc: new Date(),
-      nDFSe: String(Date.now()),
-      emit: synthEmit(dps),
-      valores: synthValoresNFSe(dps),
-      DPS: dps,
-    },
-    signature: synthSignature(),
+  const comum = {
+    Id: `NFS${chaveAcesso}`,
+    chaveAcesso,
+    xLocEmi: 'Cidade Fake',
+    xLocPrestacao: 'Cidade Fake',
+    nNFSe: dps.infDPS.nDPS,
+    xTribNac: descServ.slice(0, 300),
+    verAplic: 'NfseClientFake/0.6',
+    ambGer: AmbienteGerador.SefinNacional,
+    tpEmis: TipoEmissao.Normal,
+    cStat: SituacaoNfse.Gerada,
+    dhProc: new Date(),
+    nDFSe: String(Date.now()),
+    emit: synthEmit(dps),
+    valores: synthValoresNFSe(dps),
   };
+  // Mesmo layout da DPS de entrada. `synthValoresNFSe` não preenche o campo
+  // que muda de nome (`vCalcDR` nt004 / `vCalcAjusteBCISSQN` nt009), então o
+  // grupo `valores` é compatível com os dois.
+  return dps.layout === 'nt009'
+    ? {
+        layout: 'nt009',
+        versao: '1.01',
+        infNFSe: { ...comum, DPS: dps },
+        signature: synthSignature(),
+      }
+    : {
+        layout: 'nt004',
+        versao: '1.01',
+        infNFSe: { ...comum, DPS: dps },
+        signature: synthSignature(),
+      };
 }
 
 /**
@@ -81,7 +92,7 @@ function synthEmit(dps: DPS): Emitente {
   };
 }
 
-function synthValoresNFSe(dps: DPS): ValoresNFSeNt004 {
+function synthValoresNFSe(dps: DPS): ValoresNFSeNt004 & ValoresNFSeNt009 {
   const vServ = dps.infDPS.valores.vServPrest.vServ;
   const trib = dps.infDPS.valores.trib;
   const pAliq = trib.tribMun.pAliq ?? 0;

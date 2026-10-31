@@ -2,9 +2,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ATTR_PREFIX, parseXml } from '../xml/parser.js';
+import { dpsNt009ComArraysVazios, dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import { buildDpsXml } from './build-xml.js';
-import type { DPS, InfDPSNt004 } from './domain.js';
+import type { DPS, DpsNt009, InfDPSNt004 } from './domain.js';
 import { parseNfseXml } from './parse-xml.js';
+import { validateDpsXml } from './validate-xml.js';
 
 const SAMPLE_PATH = join(
   __dirname,
@@ -275,5 +277,106 @@ describe('buildDpsXml', () => {
     const valores = infDps.valores as Record<string, unknown>;
     const vServPrest = valores.vServPrest as Record<string, unknown>;
     expect(Number(vServPrest.vServ)).toBeCloseTo(originalDps.infDPS.valores.vServPrest.vServ);
+  });
+});
+
+describe('buildDpsXml — layout nt009', () => {
+  it('DPS nt009 completa serializa e valida no XSD nt009', async () => {
+    const xml = buildDpsXml(dpsNt009Completa());
+    const result = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
+    expect(result.violations).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it('DPS nt009 completa é inválida no XSD nt004', async () => {
+    const xml = buildDpsXml(dpsNt009Completa());
+    expect((await validateDpsXml(xml, { layout: 'nt004', throwOnInvalid: false })).valid).toBe(
+      false,
+    );
+  });
+
+  it('nt009 põe finNFSe após cMotivoEmisTI e xDescServ após cIntContrib', () => {
+    const xml = buildDpsXml(dpsNt009Completa());
+    expect(xml.indexOf('<finNFSe>')).toBeGreaterThan(xml.indexOf('</tpEmit>'));
+    expect(xml.indexOf('<finNFSe>')).toBeLessThan(xml.indexOf('<cLocEmi>'));
+    expect(xml.indexOf('<xDescServ>')).toBeGreaterThan(xml.indexOf('</cIntContrib>'));
+    expect(xml).not.toContain('<vDedRed>');
+    expect(xml).not.toContain('<layout>');
+  });
+
+  it('serializa os grupos novos (vAjusteBC, imovel, bensMoveis, trib)', () => {
+    const xml = buildDpsXml(dpsNt009Completa());
+    expect(xml).toContain('<pAjusteBCISSQN>10</pAjusteBCISSQN>');
+    expect(xml.match(/<docAjusteBC>/g)).toHaveLength(2);
+    expect(xml).toContain('<tpAjusteBC>199</tpAjusteBC>');
+    expect(xml).toContain('<xTpAjusteBC>Reembolso de despesas</xTpAjusteBC>');
+    expect(xml).toContain('<vAjusteAplic>100.50</vAjusteAplic>');
+    expect(xml).toContain('<dtEmiDoc>2026-11-20</dtEmiDoc>');
+    expect(xml.match(/<gUnidImob>/g)).toHaveLength(2);
+    expect(xml).toContain('<cCIB>ABC12345</cCIB>');
+    expect(xml).toContain('<tpAjusteBCLocImoveis>03</tpAjusteBCLocImoveis>');
+    expect(xml).toContain('<dVencOrig>2026-12-10</dVencOrig>');
+    expect(xml.match(/<bensMoveis>/g)).toHaveLength(2);
+    expect(xml).toContain('<qtdNCMBemMovel>3</qtdNCMBemMovel>');
+    expect(xml).toContain('<trib><CST>000</CST><cClassTrib>000001</cClassTrib></trib>');
+  });
+
+  it('arrays vazios são omitidos (bensMoveis, gUnidImob, gAjusteBCLocImoveis)', async () => {
+    const xml = buildDpsXml(dpsNt009ComArraysVazios());
+    expect(xml).not.toMatch(/<bensMoveis|<gUnidImob|<gAjusteBCLocImoveis/);
+    expect((await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false })).valid).toBe(
+      true,
+    );
+  });
+
+  it('gAjusteBCLocImoveis vazio dentro de um gUnidImob é omitido', async () => {
+    const base = dpsNt009Completa();
+    const ibscbs = base.infDPS.IBSCBS;
+    if (!ibscbs?.imovel) throw new Error('fixture sem imovel');
+    const dps: DpsNt009 = {
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        IBSCBS: {
+          ...ibscbs,
+          imovel: {
+            cMun: ibscbs.imovel.cMun,
+            gUnidImob: [{ identificacao: { cCIB: 'ABC12345' }, gAjusteBCLocImoveis: [] }],
+          },
+        },
+      },
+    };
+    const xml = buildDpsXml(dps);
+    expect(xml).toContain('<gUnidImob><cCIB>ABC12345</cCIB></gUnidImob>');
+    expect(xml).not.toContain('<gAjusteBCLocImoveis');
+    expect((await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false })).valid).toBe(
+      true,
+    );
+  });
+
+  it('InfoPessoa nt009 sem xNome é serializada sem o elemento', async () => {
+    const base = dpsNt009Completa();
+    const dps: DpsNt009 = {
+      ...base,
+      infDPS: { ...base.infDPS, toma: { identificador: { CPF: '12345678909' } } },
+    };
+    const xml = buildDpsXml(dps);
+    expect(xml).toContain('<toma><CPF>12345678909</CPF></toma>');
+    expect((await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false })).valid).toBe(
+      true,
+    );
+  });
+
+  it('DPS nt004 continua no layout antigo (finNFSe dentro de IBSCBS, xDescServ antes de cNBS)', () => {
+    const xml = buildDpsXml(
+      minimalDps({
+        serv: {
+          locPrest: { cLocPrestacao: '2111300' },
+          cServ: { cTribNac: '250101', xDescServ: 'x', cNBS: '123456789' },
+        },
+      }),
+    );
+    expect(xml.indexOf('<xDescServ>')).toBeLessThan(xml.indexOf('<cNBS>'));
+    expect(xml.indexOf('<finNFSe>')).toBe(-1);
   });
 });

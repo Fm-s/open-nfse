@@ -9,7 +9,7 @@ import type {
   DocDedRedNt004,
   DocNFNFSNt004,
   DocOutNFSeNt004,
-  DPS,
+  DpsNt004,
   Emitente,
   Endereco,
   EnderecoEmitente,
@@ -207,7 +207,7 @@ function parseValoresNFSe(node: XmlObject): ValoresNFSeNt004 {
   };
 }
 
-function parseDPS(node: XmlObject): DPS {
+function parseDPS(node: XmlObject): DpsNt004 {
   const sig = optionalChild(node, 'Signature');
   return {
     layout: 'nt004',

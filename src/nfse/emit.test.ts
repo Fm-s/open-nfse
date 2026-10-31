@@ -10,7 +10,7 @@ import { ReceitaRejectionError } from '../errors/receita.js';
 import { InvalidCepError, InvalidCnpjError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
-import type { DPS, InfDPSNt004 } from './domain.js';
+import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
 import { emitDpsPronta, emitMany } from './emit.js';
 
 const SAMPLE_PATH = join(
@@ -43,7 +43,7 @@ function selfSignedCert(): A1Certificate {
   };
 }
 
-function minimalDps(): DPS {
+function minimalDps(): DpsNt004 {
   const infDPS: InfDPSNt004 = {
     Id: 'DPS211130010057475300010000001000000000000001',
     tpAmb: '2' as InfDPSNt004['tpAmb'],
@@ -450,7 +450,7 @@ describe('emitMany', () => {
     await mockAgent.close();
   });
 
-  function dpsWith(nDPS: string): DPS {
+  function dpsWith(nDPS: string): DpsNt004 {
     const base = minimalDps();
     return { ...base, infDPS: { ...base.infDPS, nDPS } };
   }

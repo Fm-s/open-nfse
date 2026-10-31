@@ -419,6 +419,43 @@ export enum TipoReembolsoRepasse {
   Outros = '99',
 }
 
+/**
+ * Tipo de ajuste da base de cálculo (`TSRTCTpAjusteBC`, layout nt009 —
+ * `schemas/1.01-nt009/tiposSimples_v1.01.xsd`), campo
+ * `valores/vAjusteBC/documentos/docAjusteBC/tpAjusteBC`. `99` = outras deduções
+ * exclusivas do ISSQN; `101`–`104` e `199` correspondem aos reembolsos/repasses
+ * que no nt004 iam em `IBSCBS/valores/gReeRepRes` (`TipoReembolsoRepasse`).
+ */
+export enum TipoAjusteBC {
+  Materiais = '2',
+  RepasseConsorciado = '5',
+  RepassePlanoSaude = '6',
+  Servicos = '7',
+  SubempreitadaMaoObra = '8',
+  ProfissionalParceiro = '9',
+  OutrasDeducoesIssqn = '99',
+  RepasseIntermediacaoImoveis = '101',
+  RepasseFornecedorAgenciaTurismo = '102',
+  ReembolsoAgenciaPublicidadeProducaoExterna = '103',
+  ReembolsoAgenciaPublicidadeMidia = '104',
+  GlosaServicosSaude = '105',
+  OutrosReembolsos = '199',
+}
+
+/**
+ * Tipo de ajuste da base de cálculo do IBS/CBS na locação, cessão ou
+ * arrendamento de imóveis (`TSAjusteBCLocImoveis`, layout nt009 —
+ * `schemas/1.01-nt009/tiposSimples_v1.01.xsd`), campo
+ * `IBSCBS/imovel/gUnidImob/gAjusteBCLocImoveis/tpAjusteBCLocImoveis`.
+ */
+export enum TipoAjusteBCLocImoveis {
+  TributosInclusos = '01',
+  Emolumentos = '02',
+  Condominio = '03',
+  RedutorSocial = '04',
+  Outras = '99',
+}
+
 /** Tipo da chave do documento fiscal referenciado (`TSRTCTipoChaveDFe`). */
 export enum TipoChaveDFe {
   Nfse = '1',

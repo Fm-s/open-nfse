@@ -4,8 +4,11 @@ import type {
   Endereco,
   EnderecoSimples,
   IdentificadorPessoa,
+  InfDPSNt004,
+  InfDPSNt009,
   InfoPessoaNt004,
   RtcInfoIbsCbsNt004,
+  RtcInfoIbsCbsNt009,
   Serv,
 } from './domain.js';
 
@@ -33,14 +36,39 @@ export function collectCepsFromDps(dps: DPS): readonly CollectedCep[] {
   pushEndereco(out, 'infDPS.toma.end', inf.toma?.end);
   pushEndereco(out, 'infDPS.interm.end', inf.interm?.end);
   pushServ(out, 'infDPS.serv', inf.serv);
-  if (inf.IBSCBS) pushRtcIbsCbs(out, 'infDPS.IBSCBS', inf.IBSCBS);
+
+  switch (dps.layout) {
+    case 'nt004':
+      collectCepsNt004(out, dps.infDPS);
+      break;
+    case 'nt009':
+      collectCepsNt009(out, dps.infDPS);
+      break;
+  }
+
+  return out;
+}
+
+function collectCepsNt004(out: CollectedCep[], inf: InfDPSNt004): void {
+  if (inf.IBSCBS) pushRtcIbsCbsNt004(out, 'infDPS.IBSCBS', inf.IBSCBS);
   if (inf.valores.vDedRed && 'documentos' in inf.valores.vDedRed) {
     inf.valores.vDedRed.documentos.docDedRed.forEach((doc, i) => {
       pushDocDedRed(out, `infDPS.valores.vDedRed.documentos.docDedRed[${i}]`, doc);
     });
   }
+}
 
-  return out;
+function collectCepsNt009(out: CollectedCep[], inf: InfDPSNt009): void {
+  if (inf.IBSCBS) pushRtcIbsCbsNt009(out, 'infDPS.IBSCBS', inf.IBSCBS);
+  inf.valores.vAjusteBC?.documentos?.docAjusteBC.forEach((doc, i) => {
+    if (doc.fornec?.end) {
+      pushEndereco(
+        out,
+        `infDPS.valores.vAjusteBC.documentos.docAjusteBC[${i}].fornec.end`,
+        doc.fornec.end,
+      );
+    }
+  });
 }
 
 /**
@@ -60,6 +88,19 @@ export function collectIdentifiersFromDps(dps: DPS): readonly CollectedIdentifie
     pushIdentificador(out, 'infDPS.IBSCBS.dest', inf.IBSCBS.dest.identificador);
   }
 
+  switch (dps.layout) {
+    case 'nt004':
+      collectIdentifiersNt004(out, dps.infDPS);
+      break;
+    case 'nt009':
+      collectIdentifiersNt009(out, dps.infDPS);
+      break;
+  }
+
+  return out;
+}
+
+function collectIdentifiersNt004(out: CollectedIdentifier[], inf: InfDPSNt004): void {
   if (inf.valores.vDedRed && 'documentos' in inf.valores.vDedRed) {
     inf.valores.vDedRed.documentos.docDedRed.forEach((doc, i) => {
       if (doc.fornec) {
@@ -83,8 +124,18 @@ export function collectIdentifiersFromDps(dps: DPS): readonly CollectedIdentifie
       }
     });
   }
+}
 
-  return out;
+function collectIdentifiersNt009(out: CollectedIdentifier[], inf: InfDPSNt009): void {
+  inf.valores.vAjusteBC?.documentos?.docAjusteBC.forEach((doc, i) => {
+    if (doc.fornec) {
+      pushIdentificador(
+        out,
+        `infDPS.valores.vAjusteBC.documentos.docAjusteBC[${i}].fornec`,
+        doc.fornec.identificador,
+      );
+    }
+  });
 }
 
 function pushEndereco(out: CollectedCep[], path: string, endereco: Endereco | undefined): void {
@@ -114,12 +165,24 @@ function pushServ(out: CollectedCep[], path: string, serv: Serv): void {
   }
 }
 
-function pushRtcIbsCbs(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbsNt004): void {
+function pushRtcIbsCbsNt004(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbsNt004): void {
   if (rtc.dest?.end) pushEndereco(out, `${path}.dest.end`, rtc.dest.end);
   if (rtc.imovel) {
     const ident = rtc.imovel.identificacao;
     if ('end' in ident) pushEnderecoSimples(out, `${path}.imovel.end`, ident.end);
   }
+}
+
+function pushRtcIbsCbsNt009(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbsNt009): void {
+  if (rtc.dest?.end) pushEndereco(out, `${path}.dest.end`, rtc.dest.end);
+  rtc.imovel?.gUnidImob?.forEach((unid, i) => {
+    if ('end' in unid.identificacao) {
+      out.push({
+        path: `${path}.imovel.gUnidImob[${i}].end.CEP`,
+        cep: unid.identificacao.end.CEP,
+      });
+    }
+  });
 }
 
 function pushDocDedRed(out: CollectedCep[], path: string, doc: DocDedRedNt004): void {
