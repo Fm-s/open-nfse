@@ -114,10 +114,10 @@ export interface ServicoInput {
 export interface ValoresInput {
   readonly vServ: number;
   /**
-   * **Não use com `buildDps`.** `buildDps` sempre emite `tpEmit=1` (prestador é o
-   * emitente), e `vReceb` só é válido com `tpEmit=3` (intermediário) — informá-lo
-   * lança `RuleViolationError` (E0424). Para o cenário de intermediário, construa
-   * `InfDPSNt004` manualmente.
+   * **Não use com `buildDps`.** Pelo Anexo I 20261020 (E0424), o valor recebido
+   * não deve ser informado na DPS quando o prestador, tomador ou intermediário
+   * for o emitente (`tpEmit` 1, 2 ou 3). `buildDps` sempre emite `tpEmit=1`, então
+   * informá-lo lança `RuleViolationError` (E0424).
    */
   readonly vReceb?: number;
   /**
@@ -197,7 +197,8 @@ export interface BuildDpsParamsBase {
   readonly valores: ValoresInput;
   readonly tomador?: TomadorInput;
   /**
-   * Pula a validação de dígito verificador de CPF/CNPJ (emitente + tomador).
+   * Pula a validação de dígito verificador de CPF/CNPJ (emitente + tomador e,
+   * no nt009, fornecedores de `ajusteBC` + destinatário de `ibsCbs`).
    * Default `false`. `emitir` repassa esta opção para cá, então o escape hatch
    * documentado continua funcionando no caminho seguro.
    */
@@ -816,19 +817,29 @@ function buildTotTrib(v: ValoresInput, opSimpNac: OpcaoSimplesNacional): TribTot
  * local para virar erro de tempo de build em vez de rejeição.
  */
 /**
- * Valida o DV de CPF/CNPJ do emitente e do tomador (E0080/E0096/E0188/E0206) no
- * próprio builder, para que o caminho offline `buildDps` + `buildDpsXml`
+ * Valida o DV de CPF/CNPJ do emitente e do tomador (E0080/E0096/E0188/E0206)
+ * — e, no nt009, dos fornecedores de `ajusteBC.documentos` e do
+ * `ibsCbs.destinatario` — no próprio builder, para que o caminho offline
+ * `buildDps` + `buildDpsXml`
  * (dry-run/preview, design principle #5) também rejeite DV inválido — não só o
  * `emitSeguro`. O XSD valida apenas o formato (14 chars alfanuméricos no
  * TSCNPJ do bundle 20260727), não o DV.
  */
 function assertIdentifiersDv(params: BuildDpsParams): void {
   validateCnpj(params.emitente.cnpj);
-  if (params.tomador) {
-    const doc = params.tomador.documento;
-    if ('CNPJ' in doc) validateCnpj(doc.CNPJ);
-    else validateCpf(doc.CPF);
+  if (params.tomador) validateDocumento(params.tomador.documento);
+  if (params.layout === 'nt009') {
+    // nt009: fornecedores do ajuste de BC e destinatário do IBS/CBS.
+    for (const d of params.ajusteBC?.documentos ?? []) {
+      if (d.fornecedor) validateDocumento(d.fornecedor.documento);
+    }
+    if (params.ibsCbs?.destinatario) validateDocumento(params.ibsCbs.destinatario.documento);
   }
+}
+
+function validateDocumento(doc: TomadorInput['documento']): void {
+  if ('CNPJ' in doc) validateCnpj(doc.CNPJ);
+  else validateCpf(doc.CPF);
 }
 
 function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
@@ -859,11 +870,12 @@ function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
  * - E0580: não pode haver retenção (`tpRetISSQN` 2/3) com `tribISSQN` 2/3/4.
  */
 function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario): void {
-  // E0424 — vReceb só é válido com tpEmit=3 (intermediário); buildDps sempre usa
-  // tpEmit=1 (prestador é o emitente), então vReceb aqui é rejeição garantida.
+  // E0424 (Anexo I 20261020) — vReceb não deve ser informado quando o prestador,
+  // tomador ou intermediário é o emitente (tpEmit 1, 2 ou 3); buildDps sempre usa
+  // tpEmit=1, então vReceb aqui é rejeição garantida.
   if (v.vReceb !== undefined) {
     throw new RuleViolationError(
-      'vReceb não pode ser informado: buildDps usa tpEmit=1 (prestador é o emitente). vReceb só vale com tpEmit=3 (intermediário) — para esse cenário construa InfDPSNt004 manualmente — per E0424',
+      'vReceb não pode ser informado: o valor recebido não deve ser informado na DPS quando o prestador, tomador ou intermediário for o emitente (tpEmit 1, 2 ou 3), e buildDps usa tpEmit=1 — per E0424',
       'E0424',
     );
   }

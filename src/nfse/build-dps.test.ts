@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   InvalidCnpjError,
+  InvalidCpfError,
   InvalidLayoutError,
   LayoutMismatchError,
   RuleViolationError,
@@ -31,6 +34,7 @@ import {
   TipoRetISSQN,
   TipoTribISSQN,
 } from './enums.js';
+import { parseNfseXml } from './parse-xml.js';
 import { validateDpsXml } from './validate-xml.js';
 
 function baseParams(): BuildDpsParamsNt004 {
@@ -357,8 +361,8 @@ describe('buildDps', () => {
     ).not.toThrow();
   });
 
-  // E0424 — buildDps sempre usa tpEmit=1 (prestador é o emitente); vReceb só é
-  // válido com tpEmit=3 (intermediário). Informá-lo aqui é rejeição garantida.
+  // E0424 (Anexo I 20261020) — vReceb não deve ser informado quando o emitente é
+  // prestador, tomador ou intermediário (tpEmit 1, 2 ou 3); buildDps usa tpEmit=1.
   it('throws RuleViolationError (E0424) when vReceb is set (buildDps is always tpEmit=1)', () => {
     expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, vReceb: 50 } })).toThrow(
       RuleViolationError,
@@ -660,6 +664,37 @@ describe('nt009 inputs de alto nível', () => {
     expect(dps.infDPS.IBSCBS?.indDest).toBe(IndicadorDestinatario.DestinatarioDistinto);
     expect(dps.infDPS.valores.vAjusteBC?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
 
+    // Parse de volta: a DPS gerada substitui a <DPS> do envelope NFS-e sintético
+    // do nt009 e passa pelo parseNfseXml (não há entry point só de DPS).
+    const envelope = readFileSync(
+      join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'),
+      'utf-8',
+    );
+    const dpsXmlSemDecl = buildDpsXml(dps, { includeXmlDeclaration: false });
+    expect(envelope).toMatch(/<DPS[\s\S]*<\/DPS>/);
+    const nfse = parseNfseXml(envelope.replace(/<DPS[\s\S]*<\/DPS>/, () => dpsXmlSemDecl));
+    if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
+    const parsed = nfse.infNFSe.DPS;
+    // Campos date-only voltam ancorados à meia-noite de Brasília; a igualdade
+    // completa é verificada na forma serializada (estável).
+    expect(buildDpsXml(parsed)).toBe(xml);
+    const pv = parsed.infDPS.valores.vAjusteBC;
+    expect(pv?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
+    expect(pv?.documentos?.docAjusteBC.map((d) => d.tpAjusteBC)).toEqual([
+      TipoAjusteBC.Materiais,
+      TipoAjusteBC.OutrosReembolsos,
+    ]);
+    expect(pv?.documentos?.docAjusteBC[1]?.xTpAjusteBC).toBe('Reembolso de despesas');
+    const pIbs = parsed.infDPS.IBSCBS;
+    expect(pIbs?.indDest).toBe(IndicadorDestinatario.DestinatarioDistinto);
+    expect(pIbs?.dest?.identificador).toEqual({ CNPJ: '11222333000181' });
+    expect(pIbs?.dest?.xNome).toBe('Destinatário Ltda');
+    expect(pIbs?.imovel?.gUnidImob).toHaveLength(2);
+    expect(pIbs?.imovel?.gUnidImob?.[0]?.identificacao).toEqual({ cCIB: 'ABC12345' });
+    expect(pIbs?.bensMoveis).toEqual(dps.infDPS.IBSCBS?.bensMoveis);
+    expect(pIbs?.valores.trib.CST).toBe('000');
+    expect(pIbs?.valores.trib).toEqual(dps.infDPS.IBSCBS?.valores.trib);
+
     // Igualdade no nível do DTO: o mapeamento produz exatamente os grupos da RTC.
     expect(dps.infDPS.valores.vAjusteBC).toEqual({
       ajusteIssqn: { pAjusteBCISSQN: 10 },
@@ -857,6 +892,41 @@ describe('nt009 inputs de alto nível', () => {
         ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
       } as never),
     ).toThrow(LayoutMismatchError);
+  });
+
+  it('DV inválido do fornecedor de ajusteBC → InvalidCnpjError (salvo skipCpfCnpjValidation)', () => {
+    const params = (cnpj: string): BuildDpsParamsNt009 => ({
+      ...paramsNt009Minimos(),
+      ajusteBC: {
+        documentos: [
+          {
+            tipo: TipoAjusteBC.Materiais,
+            valorTotal: 100,
+            valorAplicado: 50,
+            documento: { docOutro: { nDoc: '1', xDoc: 'Recibo' } },
+            fornecedor: { documento: { CNPJ: cnpj }, nome: 'Fornecedor' },
+          },
+        ],
+      },
+    });
+    expect(() => buildDps(params('11222333000181'))).not.toThrow();
+    expect(() => buildDps(params('11222333000199'))).toThrow(InvalidCnpjError);
+    expect(() =>
+      buildDps({ ...params('11222333000199'), skipCpfCnpjValidation: true }),
+    ).not.toThrow();
+  });
+
+  it('DV inválido do destinatário de ibsCbs → InvalidCpfError (salvo skipCpfCnpjValidation)', () => {
+    const params = (cpf: string): BuildDpsParamsNt009 => ({
+      ...paramsNt009Minimos(),
+      ibsCbs: {
+        classificacao: { CST: '000', cClassTrib: '000001' },
+        destinatario: { documento: { CPF: cpf }, nome: 'Destinatário' },
+      },
+    });
+    expect(() => buildDps(params('01075595363'))).not.toThrow();
+    expect(() => buildDps(params('01075595300'))).toThrow(InvalidCpfError);
+    expect(() => buildDps({ ...params('01075595300'), skipCpfCnpjValidation: true })).not.toThrow();
   });
 
   it('existing guards keep running for nt009 (E0532)', () => {
