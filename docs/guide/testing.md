@@ -76,8 +76,9 @@ fake.failNextEmit({
 });
 
 // Próximo emitir/substituir retorna { status: 'retry_pending' } (a original
-// de substituir fica intacta); emitirDpsPronta/emitirEmLote lançam TimeoutError,
-// como no real (sem caminho transiente):
+// de substituir fica intacta); emitirDpsPronta lança TimeoutError e emitirEmLote
+// devolve o item com status 'failure' (TimeoutError em error), como no real
+// (sem caminho transiente):
 fake.failNextEmit({ kind: 'transient', message: 'simulated timeout' });
 
 // Mesmo para cancelar:

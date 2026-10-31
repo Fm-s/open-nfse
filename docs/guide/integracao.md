@@ -318,7 +318,7 @@ for (const r of results) {
 // GET /dps/{id} mostrou que a NFS-e já existia. failed_permanent de emissão: o GET /dps
 // respondeu 404 (nenhuma nota saiu da DPS) ou a nota achada embute outra DPS (warn
 // nfse.replay.reconcile_mismatch) — reemitir com novo nDPS é seguro. Se a consulta não
-// decide (403, corpo malformado — warn nfse.replay.reconcile_failed), o item é
+// decide (403 → warn nfse.replay.reconcile_failed; corpo malformado → reconcile_pending), o item é
 // still_pending e a entrada fica: a lib nunca apaga uma emissão sem saber se a nota existe.
 ```
 

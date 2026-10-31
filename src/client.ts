@@ -95,7 +95,8 @@ import { defaultIsTransient } from './retry/transient.js';
  *   `chaveAcesso`/`idDps`/`xmlNfse`. A entrada sai do store. Não reemita.
  * - `still_pending` — falha transiente do re-POST, ou reconciliação que não
  *   pôde decidir se a DPS virou NFS-e (qualquer falha de `GET /dps/{id}` que
- *   não seja 404 — inclusive 401/403 ou resposta malformada, logadas em
+ *   não seja 404: transiente ou resposta malformada logam
+ *   `nfse.replay.reconcile_pending`, 401/403/400 logam
  *   `nfse.replay.reconcile_failed`); a entrada fica no store.
  * - `failed_permanent` — rejeição permanente e nenhuma NFS-e gerada a partir
  *   da DPS (`GET /dps/{id}` → 404), ou a NFS-e achada nasceu de **outra** DPS
@@ -580,8 +581,9 @@ export class NfseClient<L extends Layout = Layout> {
    *   seguro);
    * - qualquer outra falha na consulta → `still_pending` com o erro da
    *   consulta (a entrada fica; nunca se deleta sem saber). Transiente loga
-   *   `warn` `nfse.replay.reconcile_pending`; permanente (401/403/400,
-   *   resposta malformada) loga `warn` `nfse.replay.reconcile_failed` com a
+   *   `warn` `nfse.replay.reconcile_pending` (resposta malformada vira
+   *   `NetworkError`, transiente); permanente (401/403/400) loga `warn`
+   *   `nfse.replay.reconcile_failed` com a
    *   rejeição do re-POST — investigue, porque a entrada volta a cada
    *   varredura até a consulta decidir.
    *

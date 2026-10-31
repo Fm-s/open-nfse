@@ -174,8 +174,8 @@ Tudo que cai em `retry_pending` (de `emitir`, `cancelar` ou `substituir`) é per
 | NFS-e encontrada            | `success_emission` (baixada via `GET /nfse/{chave}`), `reconciledFrom` = a rejeição | removida |
 | NFS-e de **outra** DPS      | `failed_permanent` + `warn` `nfse.replay.reconcile_mismatch` (ver abaixo)       | removida    |
 | 404                         | `failed_permanent` (`error` = a rejeição) — nenhuma NFS-e saiu dessa DPS       | removida    |
-| falha transiente            | `still_pending` + `warn` `nfse.replay.reconcile_pending`                       | mantida     |
-| outra falha (401/403/400, corpo malformado) | `still_pending` + `warn` `nfse.replay.reconcile_failed` — investigue: volta a cada varredura | mantida |
+| falha transiente (inclui corpo malformado) | `still_pending` + `warn` `nfse.replay.reconcile_pending` | mantida     |
+| outra falha (401/403/400) | `still_pending` + `warn` `nfse.replay.reconcile_failed` — investigue: volta a cada varredura | mantida |
 
 O `infDPS.Id` só codifica município, CNPJ/CPF, série e `nDPS`. Se a numeração colidiu (contador em memória reiniciado, `nDPS` explícito reaproveitado), o E0014 é legítimo e o `GET /dps/{id}` devolve a nota **antiga**. Por isso a lib confere a DPS embutida na NFS-e baixada contra a persistida — `SignatureValue` da DPS, ou `dhEmi` quando a persistida não tem assinatura — e, se divergem, devolve `failed_permanent`: o serviço pendente **não** foi faturado; reemita com um `nDPS` novo.
 
