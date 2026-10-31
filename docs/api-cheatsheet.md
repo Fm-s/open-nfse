@@ -218,6 +218,7 @@ Todos herdam de `OpenNfseError`. Árvore e comportamento por método em [Erros t
 | `MissingRetryStoreError`          | Transiente sem `retryStore` configurado                                      |
 | `MissingDpsCounterError`          | `emitir(params)` sem `params.nDPS` e sem `dpsCounter`                         |
 | `ReceitaRejectionError`           | HTTP 400 com body de rejeição; `codigo`, `descricao`, `mensagens[]`          |
+| `UnreadableAuthorizedNfseError`   | NFS-e **autorizada** com resposta ilegível; `chaveAcesso`, `idDps`, `xmlNfse` — não reemita |
 | `ClientClosedError`               | Chamada após `cliente.close()`                                               |
 
 ## Types principais
@@ -231,10 +232,10 @@ Todos os DTOs de domínio (RTC v1.01) em `src/nfse/domain.ts` são reexportados.
 | `NfseEmitResult`              | `{ chaveAcesso, idDps, xmlNfse, nfse, alertas[], ... }`                                             |
 | `EmitirResult` (discriminated)| `{ status: 'ok', nfse: NfseEmitResult }` \| `{ status: 'retry_pending', pending, error }`          |
 | `DpsDryRunResult`             | `{ dryRun: true, xmlDpsAssinado, xmlDpsGZipB64 }`                                                   |
-| `EmitLoteResult`              | `{ items: EmitLoteItem[], successCount, failureCount, skippedCount }`                               |
+| `EmitLoteResult`              | `{ items: EmitLoteItem[], successCount, failureCount, skippedCount }` — item `'success'` \| `'success_unreadable'` \| `'failure'` \| `'skipped'` |
 | `CancelarResult` (discriminated) | `'ok'` \| `'retry_pending'`                                                                     |
 | `SubstituirResult` (discriminated) | `{ status:'ok', novaNfse }` \| `{ status:'retry_pending', pending, error }` — sistema gera o 105102; transiente → RetryStore; sem rollback |
-| `ReplayItem`                  | `'success'` \| `'success_emission'` \| `'still_pending'` \| `'failed_permanent'`                   |
+| `ReplayItem`                  | `'success'` \| `'success_emission'` (`reconciledFrom?`) \| `'success_emission_unreadable'` \| `'still_pending'` \| `'failed_permanent'` |
 | `PendingEvent` (discriminated)| `kind: 'emission' \| 'cancelamento_simples' \| 'cancelamento_por_substituicao' \| 'rollback_cancelamento'` |
 | `ConsultaAliquotasResult`, `ConsultaBeneficioResult`, `ConsultaConvenioResult`, `ConsultaRegimesEspeciaisResult`, `ConsultaRetencoesResult` | parâmetros municipais normalizados |
 

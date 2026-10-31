@@ -1,6 +1,6 @@
 # Emitir NFS-e
 
-`emitir(params)` é o fluxo primário. Recebe params de alto nível (sem `nDPS`), roda as validações offline, consulta o `DpsCounter` **só depois** que tudo passa, e retorna um resultado discriminado. Falha de rede nunca duplica (replay idempotente via `RetryStore` + SEFIN dedup no `infDPS.Id`); DPS quebrada nunca queima número da série.
+`emitir(params)` é o fluxo primário. Recebe params de alto nível (sem `nDPS`), roda as validações offline, consulta o `DpsCounter` **só depois** que tudo passa, e retorna um resultado discriminado. Falha de rede não duplica: o pendente vai para o `RetryStore` com o XML assinado (mesmo `infDPS.Id`) e o replay reconcilia via `GET /dps/{id}` quando o re-POST é rejeitado — uma DPS que o SEFIN já autorizou volta como `success_emission`, não como falha (ver seção 4). DPS quebrada nunca queima número da série.
 
 ```
 params → valida CPF/CNPJ → XSD → CEP
@@ -10,6 +10,7 @@ counter.next() → nDPS real → sign → POST /nfse
 { status: 'ok', nfse }                 ← autorizada
 { status: 'retry_pending', pending }   ← transiente, salvo no RetryStore
 throw ReceitaRejectionError            ← regra fiscal violada (nDPS consumido)
+throw UnreadableAuthorizedNfseError    ← AUTORIZADA, resposta ilegível (não reemita)
 ```
 
 Erros transientes cobrem `NetworkError`, `TimeoutError`, `ServerError` (5xx) e `TooManyRequestsError` (429). O 429 respeita o cabeçalho `Retry-After` do servidor — a entrada fica no `RetryStore` com `notBefore` calculado pela `RetryPolicy` configurada e o cron de replay só toca nela quando elegível. Detalhes em [Erros tipados](./erros#429-e-retrypolicy).
@@ -99,7 +100,7 @@ O CEP é validado contra ViaCEP por default. Desligue com `skipCepValidation: tr
 A chave está em **tratar os três desfechos como cenários distintos**, não como variações do mesmo:
 
 ```typescript
-import { ReceitaRejectionError } from 'open-nfse';
+import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from 'open-nfse';
 
 try {
   const r = await cliente.emitir(params);
@@ -130,6 +131,17 @@ try {
     return;
   }
 } catch (err) {
+  if (err instanceof UnreadableAuthorizedNfseError) {
+    // AUTORIZADA — a lib só não conseguiu montar o DTO (parser/layout). A nota
+    // existe: persista chave + XML e NÃO reemita (geraria uma 2ª NFS-e).
+    await db.insert('nfse_autorizadas', {
+      chave_acesso: err.chaveAcesso,
+      id_dps: err.idDps,
+      xml_nfse: err.xmlNfse,
+    });
+    logger.error('NFS-e autorizada sem DTO', { chave: err.chaveAcesso, causa: err.cause });
+    return;
+  }
   if (err instanceof ReceitaRejectionError) {
     // Permanente. nDPS foi consumido; a nota foi definitivamente rejeitada.
     await db.insert('nfse_rejeicoes', {
@@ -147,13 +159,24 @@ try {
 
 Três regras que emergem dessa estrutura:
 
-- **`ok`** é o único caminho que cria linha em `nfse_autorizadas`.
+- **`ok`** e **`UnreadableAuthorizedNfseError`** são os caminhos que criam linha em `nfse_autorizadas` — o segundo é raro (resposta que o parser não lê), mas a nota existe do mesmo jeito.
 - **`retry_pending`** não precisa de ação imediata — a lib já salvou o pendente. Você pode opcionalmente registrar um log para dashboard, mas o replay cron é quem fecha o ciclo.
-- **Permanente** (throw) consumiu o `nDPS` mas não vai virar NFS-e autorizada. Registre para auditoria e siga.
+- **Permanente** (`ReceitaRejectionError`, validação) consumiu o `nDPS` mas não vai virar NFS-e autorizada. Registre para auditoria e siga.
 
 ## 4. Cron de replay
 
-Tudo que cai em `retry_pending` (de `emitir`, `cancelar` ou `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um; SEFIN deduplica no `infDPS.Id` (emissões) e em `(chave, tipoEvento)` (eventos), então chamar N vezes é idempotente.
+Tudo que cai em `retry_pending` (de `emitir`, `cancelar` ou `substituir`) é persistido no `RetryStore`. Um cron que chama `replayPendingEvents` re-posta cada um com o XML assinado original (mesmo `infDPS.Id`; eventos deduplicados em `(chave, tipoEvento)`), então chamar N vezes não gera nota nova.
+
+**Emissão já autorizada não vira falha.** O caso clássico de transiente é o timeout **depois** que o SEFIN gravou a NFS-e. O re-POST dessa DPS não devolve sucesso: volta como rejeição permanente — `E0014` (série/número já existe numa NFS-e) ou, se o pendente atravessou uma virada de layout, `E1235` (falha de schema). Antes de remover uma emissão rejeitada, a lib consulta `GET /dps/{idDps}`:
+
+| `GET /dps/{id}`             | Item                                                                          | Store       |
+|-----------------------------|-------------------------------------------------------------------------------|-------------|
+| NFS-e encontrada            | `success_emission` (baixada via `GET /nfse/{chave}`), `reconciledFrom` = a rejeição | removida |
+| 404                         | `failed_permanent` (`error` = a rejeição) — nenhuma NFS-e saiu dessa DPS       | removida    |
+| falha transiente            | `still_pending`                                                                | mantida     |
+| outra falha permanente      | `failed_permanent` + `warn` `nfse.replay.reconcile_failed`                     | removida    |
+
+Resposta 201 que o parser não consegue ler vira `success_emission_unreadable` (`error` = `UnreadableAuthorizedNfseError` com `chaveAcesso`/`xmlNfse`): a nota existe e a entrada sai do store.
 
 Entradas com `notBefore` no futuro (caso clássico: 429 com `Retry-After: 120`) são puladas silenciosamente — não aparecem no resultado e ficam no store até `notBefore <= now`. A cada falha transiente no replay, `notBefore` é recalculado pela `RetryPolicy` e `attempts` incrementado. **`replayPendingEvents` é single-threaded** — dois processos chamando concorrentemente duplicariam o tráfego para o SEFIN. Garanta exclusão mútua no caller (cron single-instance ou lock distribuído).
 
@@ -170,7 +193,19 @@ for (const item of items) {
         xml_nfse: item.emission.xmlNfse,
         /* ... */
       });
-      logger.info('replay emissão ok', { id: item.id });
+      // item.reconciledFrom presente: o re-POST foi rejeitado (E0014/E1235…),
+      // mas GET /dps/{id} mostrou que a nota já existia.
+      logger.info('replay emissão ok', { id: item.id, reconciliada: !!item.reconciledFrom });
+      break;
+
+    case 'success_emission_unreadable':
+      // Autorizada, mas a lib não montou o DTO — persista chave + XML, não reemita.
+      await db.insert('nfse_autorizadas', {
+        chave_acesso: item.error.chaveAcesso,
+        id_dps: item.error.idDps,
+        xml_nfse: item.error.xmlNfse,
+      });
+      logger.error('replay: NFS-e autorizada sem DTO', { id: item.id, causa: item.error.cause });
       break;
 
     case 'success':
@@ -190,7 +225,10 @@ for (const item of items) {
       break;
 
     case 'failed_permanent':
-      // Permanente — lib removeu do store. Caller decide (alerta, ticket, etc).
+      // Permanente — lib removeu do store. Para emissões, o GET /dps/{id}
+      // confirmou que não há NFS-e (ou a consulta falhou de forma permanente,
+      // ver warn nfse.replay.reconcile_failed). Caller decide (alerta, ticket,
+      // reemissão consciente com novo nDPS).
       logger.error('replay permanent', { id: item.id, err: item.error.message });
       break;
   }
@@ -361,7 +399,7 @@ console.log(nfseAutorizada.chaveAcesso);
 
 Cobre ~85% dos casos; para **tomador exterior, obra, atividade-evento, dedução/redução, IBS/CBS**, construa `InfDPSNt004` manualmente (todos os tipos RTC estão exportados).
 
-`emitirEmLote(dpsList, options)` segue o mesmo contrato — worker pool client-side sobre `DPS[]` pré-montado. A seção **5. Bulk com o mesmo fluxo seguro** acima é o equivalente idiomático para quem quer manter o `DpsCounter` + `RetryStore` no caminho.
+`emitirEmLote(dpsList, options)` segue o mesmo contrato — worker pool client-side sobre `DPS[]` pré-montado; cada item vem como `success`, `success_unreadable` (NFS-e autorizada cuja resposta não pôde ser interpretada: `item.error.chaveAcesso`/`xmlNfse`, conta em `successCount`, não reemita), `failure` ou `skipped`. A seção **5. Bulk com o mesmo fluxo seguro** acima é o equivalente idiomático para quem quer manter o `DpsCounter` + `RetryStore` no caminho.
 
 ## Exemplo runnable
 

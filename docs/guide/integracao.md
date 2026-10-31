@@ -2,7 +2,7 @@
 
 A lib não persiste nada — oferece as interfaces (`DpsCounter`, `RetryStore`, `ParametrosCache`) e o fluxo. O banco fica com você. Este guia cobre o **schema SQL mínimo** e o fluxo recomendado de produção.
 
-> **Mental model:** a lib roda validações offline, **só depois consulta o counter**, e falhas de rede viram `retry_pending` no store com replay idempotente (SEFIN dedupa via `infDPS.Id`). Rejeições permanentes lançam — aí o `nDPS` foi consumido.
+> **Mental model:** a lib roda validações offline, **só depois consulta o counter**, e falhas de rede viram `retry_pending` no store. O replay re-POSTa o XML assinado original (mesmo `infDPS.Id`) e, se o re-POST for rejeitado, consulta `GET /dps/{id}` antes de desistir — uma DPS que o SEFIN já autorizou volta como `success_emission`, não como falha. Rejeições permanentes lançam — aí o `nDPS` foi consumido e não há nota. `UnreadableAuthorizedNfseError` é a exceção: a nota **foi** autorizada (a lib só não leu a resposta) — persista `chaveAcesso`/`xmlNfse` e não reemita.
 
 ## Qual banco eu preciso? {#quanto-banco}
 
@@ -297,6 +297,8 @@ if (r.status === 'ok') {
 }
 // r.status === 'retry_pending' já foi persistido pelo retryStore (a lib chamou save).
 // Rejeições permanentes lançam ReceitaRejectionError — persistir em nfse_rejeicoes pra auditoria.
+// UnreadableAuthorizedNfseError = nota AUTORIZADA (chaveAcesso/xmlNfse no erro) — inserir em
+// nfse_autorizadas, nunca em nfse_rejeicoes, e não reemitir.
 ```
 
 ### Cron de retry
@@ -306,10 +308,16 @@ if (r.status === 'ok') {
 const results = await cliente.replayPendingEvents();
 for (const r of results) {
   if (r.status === 'success_emission') await db.insert('nfse_autorizadas', { ...r.emission });
+  if (r.status === 'success_emission_unreadable')
+    await db.insert('nfse_autorizadas', { chave_acesso: r.error.chaveAcesso, xml_nfse: r.error.xmlNfse });
   if (r.status === 'success')          await db.insert('nfse_eventos', { ...r.evento });
   if (r.status === 'failed_permanent') logger.error('permanent fail', r.id, r.error);
   // still_pending fica no store; entradas com notBefore no futuro nem aparecem
 }
+// success_emission com r.reconciledFrom: o re-POST foi rejeitado (E0014/E1235…), mas
+// GET /dps/{id} mostrou que a NFS-e já existia. failed_permanent de emissão: o GET /dps
+// respondeu 404 (nenhuma nota saiu da DPS) — reemitir com novo nDPS é seguro — ou, com
+// warn nfse.replay.reconcile_failed, a consulta falhou: confira com fetchDpsStatus antes.
 ```
 
 **Contratos críticos do cron:**

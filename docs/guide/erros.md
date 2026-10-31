@@ -35,6 +35,7 @@ Error
       │    ├─ MissingDpsCounterError
       │    └─ RuleViolationError          (com rule código E...)
       ├─ ReceitaRejectionError      (concreto — com mensagens[], idDps, codigo, descricao)
+      ├─ UnreadableAuthorizedNfseError (concreto — NFS-e AUTORIZADA, resposta ilegível; chaveAcesso, idDps, xmlNfse)
       └─ ClientClosedError          (concreto — pós cliente.close())
 ```
 
@@ -44,7 +45,11 @@ Error
 try {
   await cliente.emitir(params);
 } catch (err) {
-  if (err instanceof ReceitaRejectionError) {
+  if (err instanceof UnreadableAuthorizedNfseError) {
+    // NÃO é falha: a nota foi autorizada. Persista a chave e o XML; não reemita.
+    await db.insert('nfse_autorizadas', { chave_acesso: err.chaveAcesso, xml_nfse: err.xmlNfse });
+    alerts.send('NFS-e autorizada sem DTO', { chave: err.chaveAcesso, causa: err.cause });
+  } else if (err instanceof ReceitaRejectionError) {
     // rejeição fiscal — dispatch por err.codigo; nDPS foi consumido
     logger.warn(`[${err.codigo}] ${err.descricao}`);
   } else if (err instanceof ServerError || err instanceof NetworkError || err instanceof TimeoutError) {
@@ -74,6 +79,18 @@ class ReceitaRejectionError extends OpenNfseError {
   readonly codigo: string;
   readonly descricao: string;
   readonly complemento: string | undefined;
+}
+
+class UnreadableAuthorizedNfseError extends OpenNfseError {
+  readonly chaveAcesso: string;            // a NFS-e existe
+  readonly idDps: string;
+  readonly xmlNfse: string | undefined;    // ausente só se nem o XML pôde ser baixado (reconciliação do replay)
+  readonly alertas: readonly MensagemProcessamento[];
+  readonly tipoAmbiente: TipoAmbiente | undefined;
+  readonly versaoAplicativo: string | undefined;
+  readonly dataHoraProcessamento: Date | undefined;
+  // cause: o erro do parser (InvalidXmlError…), LayoutMismatchError (NFS-e de
+  // outro layout que a DPS enviada) ou a falha do GET na reconciliação.
 }
 
 class XsdValidationError extends ValidationError {
@@ -113,6 +130,7 @@ class InvalidCepError extends ValidationError {
 - **`fetchByNsu` nunca lança `NotFoundError`** — 404 carrega body e vira `status: 'NENHUM_DOCUMENTO_LOCALIZADO'`. Lança apenas erros de transporte/certificado.
 - **`emitir(params)` não lança em transiente** — retorna `{ status: 'retry_pending', pending, error }`. Lança em permanente (rejeição) ou validação local.
 - **`emitirDpsPronta(dps)` lança em tudo** — escape hatch, sem `retryStore`.
+- **`UnreadableAuthorizedNfseError` — a nota existe.** O SEFIN respondeu 201 (NFS-e autorizada, `nDPS` consumido), mas a lib não conseguiu montar o DTO: XML que o parser rejeita ou NFS-e de layout diferente do da DPS enviada. Lançado por `emitir`, `emitirDpsPronta` e `substituir`; em `emitirEmLote` vira o item `success_unreadable` (conta em `successCount`, não aborta o lote); no replay vira `success_emission_unreadable`. Nunca é transiente e nunca vai para o `RetryStore` (o parsing roda fora do caminho de retry — nem um `isTransient` custom o captura). Persista `chaveAcesso`/`xmlNfse` e **não reemita**: uma nova emissão com outro `nDPS` gera uma segunda NFS-e para o mesmo serviço.
 - **`substituir`** — um único write (a DPS com `<subst>`); retorna `{ status: 'ok' | 'retry_pending' }` (transiente persistido) ou lança em rejeição permanente. Sem rollback.
 - **`MissingDpsCounterError`** — `emitir(params)` sem `params.nDPS` e sem `dpsCounter` configurado.
 - **`MissingRetryStoreError`** — transiente em `emitir`/`cancelar`/`substituir` sem `retryStore`.

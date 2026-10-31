@@ -41,7 +41,7 @@ await validateEventoXml(xml, { layout: 'nt009' });
 
 Na virada, **crie um novo cliente** com `layout: 'nt009'` (o `layout` não muda em um cliente existente). Antes, valide o fluxo em Produção Restrita, onde o `nt009` já está disponível.
 
-Atenção a eventos pendentes: o `RetryStore` guarda o XML já assinado e o reenvia como está. `PendingEvent.layout?` registra o layout de origem (só observabilidade). Reenviar após a virada uma DPS `nt004` pode ser rejeitado pelo servidor; a lib não converte.
+Atenção às emissões pendentes: o `RetryStore` guarda o XML já assinado e o replay o reenvia como está — a lib não converte entre layouts. Segundo a CGNFS-e, o leiaute atual vale **até 30/11/2026**, e no `nt009` `infDPS/finNFSe` é obrigatório; uma DPS `nt004` reenviada depois da virada deve ser rejeitada por schema (E1235). Nesse caso o replay consulta `GET /dps/{idDps}` antes de apagar a entrada: se a DPS já tinha virado NFS-e (timeout depois do commit), o item volta como `success_emission` com `reconciledFrom`; se não (404), vira `failed_permanent` e a emissão precisa ser refeita no `nt009`, com novo `nDPS`. `PendingEvent.layout?` registra o layout de origem; uma emissão de outro layout que o do cliente gera `warn` `nfse.replay.layout_divergente`. **Drene o `RetryStore` com o cliente `nt004` antes de trocar** — o roteiro está em [Migração 0.11 → 0.12](./migracao-0.12#virada-retrystore). Eventos pendentes (cancelamento) não são afetados: o leiaute de evento não muda no release 1 (Anexo II 20261020).
 
 ## Leitura: os dois leiautes, sem perda
 
