@@ -10,7 +10,7 @@ import { ReceitaRejectionError } from '../errors/receita.js';
 import { InvalidCepError, InvalidCnpjError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
-import type { DPS, InfDPS } from './domain.js';
+import type { DPS, InfDPSNt004 } from './domain.js';
 import { emitDpsPronta, emitMany } from './emit.js';
 
 const SAMPLE_PATH = join(
@@ -44,15 +44,15 @@ function selfSignedCert(): A1Certificate {
 }
 
 function minimalDps(): DPS {
-  const infDPS: InfDPS = {
+  const infDPS: InfDPSNt004 = {
     Id: 'DPS211130010057475300010000001000000000000001',
-    tpAmb: '2' as InfDPS['tpAmb'],
+    tpAmb: '2' as InfDPSNt004['tpAmb'],
     dhEmi: new Date('2026-04-17T14:30:00Z'),
     verAplic: 'test-1.0.0',
     serie: '1',
     nDPS: '1',
     dCompet: new Date('2026-04-17T00:00:00Z'),
-    tpEmit: '1' as InfDPS['tpEmit'],
+    tpEmit: '1' as InfDPSNt004['tpEmit'],
     cLocEmi: '2111300',
     prest: {
       identificador: { CNPJ: '00574753000100' },
@@ -70,7 +70,7 @@ function minimalDps(): DPS {
       },
     },
   };
-  return { versao: '1.01', infDPS };
+  return { layout: 'nt004', versao: '1.01', infDPS };
 }
 
 describe('emit', () => {

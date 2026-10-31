@@ -1,40 +1,29 @@
+import type { DpsNt004, NfseNt004 } from './domain-nt004.js';
 import type {
-  AmbienteGerador,
   CodigoNaoNif,
   CST,
   EnvioMDIC,
-  FinalidadeNFSe,
-  IndicadorDestinatario,
-  IndicadorFinal,
   IndicadorTotalTributos,
   JustificativaSubstituicao,
   MecanismoApoioComExPrestador,
   MecanismoApoioComExTomador,
   ModoPrestacao,
-  MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
   OpcaoSimplesNacional,
-  ProcessoEmissao,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
-  SituacaoNfse,
-  TipoAmbienteDps,
-  TipoBeneficioMunicipal,
   TipoChaveDFe,
-  TipoDedRed,
-  TipoEmissao,
-  TipoEmitenteDps,
-  TipoEnteGovernamental,
   TipoExigSuspensa,
   TipoImunidadeISSQN,
-  TipoOperacao,
-  TipoReembolsoRepasse,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
   UF,
   VinculoPrestacao,
 } from './enums.js';
+import type { Layout } from './layout.js';
+
+export type * from './domain-nt004.js';
 
 export type IdentificadorPessoa =
   | { readonly CNPJ: string }
@@ -108,16 +97,6 @@ export interface InfoPrestador {
   readonly fone?: string;
   readonly email?: string;
   readonly regTrib: RegTrib;
-}
-
-export interface InfoPessoa {
-  readonly identificador: IdentificadorPessoa;
-  readonly CAEPF?: string;
-  readonly IM?: string;
-  readonly xNome: string;
-  readonly end?: Endereco;
-  readonly fone?: string;
-  readonly email?: string;
 }
 
 export type LocPrest = { readonly cLocPrestacao: string } | { readonly cPaisPrestacao: string };
@@ -278,56 +257,10 @@ export type TribTotal =
   | { readonly indTotTrib: IndicadorTotalTributos }
   | { readonly pTotTribSN: number };
 
-export interface DocOutNFSe {
-  readonly cMunNFSeMun: string;
-  readonly nNFSeMun: string;
-  readonly cVerifNFSeMun: string;
-}
-
-export interface DocNFNFS {
-  readonly nNFS: string;
-  readonly modNFS: string;
-  readonly serieNFS: string;
-}
-
-export type ReferenciaDocDedRed =
-  | { readonly chNFSe: string }
-  | { readonly chNFe: string }
-  | { readonly NFSeMun: DocOutNFSe }
-  | { readonly NFNFS: DocNFNFS }
-  | { readonly nDocFisc: string }
-  | { readonly nDoc: string };
-
-export interface DocDedRed {
-  readonly referencia: ReferenciaDocDedRed;
-  readonly tpDedRed: TipoDedRed;
-  readonly xDescOutDed?: string;
-  readonly dtEmiDoc: Date;
-  readonly vDedutivelRedutivel: number;
-  readonly vDeducaoReducao: number;
-  readonly fornec?: InfoPessoa;
-}
-
-export interface ListaDocDedRed {
-  readonly docDedRed: readonly DocDedRed[];
-}
-
-export type InfoDedRed =
-  | { readonly pDR: number }
-  | { readonly vDR: number }
-  | { readonly documentos: ListaDocDedRed };
-
 export interface InfoTributacao {
   readonly tribMun: TribMunicipal;
   readonly tribFed?: TribFederal;
   readonly totTrib: TribTotal;
-}
-
-export interface InfoValores {
-  readonly vServPrest: VServPrest;
-  readonly vDescCondIncond?: VDescCondIncond;
-  readonly vDedRed?: InfoDedRed;
-  readonly trib: InfoTributacao;
 }
 
 export interface RtcValoresIbsCbsUF {
@@ -346,14 +279,6 @@ export interface RtcValoresIbsCbsFed {
   readonly pCBS: number;
   readonly pRedAliqCBS?: number;
   readonly pAliqEfetCBS: number;
-}
-
-export interface RtcValoresIbsCbs {
-  readonly vBC: number;
-  readonly vCalcReeRepRes?: number;
-  readonly uf: RtcValoresIbsCbsUF;
-  readonly mun: RtcValoresIbsCbsMun;
-  readonly fed: RtcValoresIbsCbsFed;
 }
 
 export interface RtcTotalIbsCredPres {
@@ -410,23 +335,6 @@ export interface RtcTotalTribCompraGov {
   readonly vCBS: number;
 }
 
-export interface RtcTotalCIbs {
-  readonly vTotNF: number;
-  readonly gIBS: RtcTotalIbs;
-  readonly gCBS: RtcTotalCbs;
-  readonly gTribRegular?: RtcTotalTribRegular;
-  readonly gTribCompraGov?: RtcTotalTribCompraGov;
-}
-
-export interface RtcIbsCbs {
-  readonly cLocalidadeIncid: string;
-  readonly xLocalidadeIncid: string;
-  /** `minOccurs="0"` — só preenchido em compra governamental. */
-  readonly pRedutor?: number;
-  readonly valores: RtcValoresIbsCbs;
-  readonly totCIBS: RtcTotalCIbs;
-}
-
 export interface Substituicao {
   readonly chSubstda: string;
   readonly cMotivo: JustificativaSubstituicao;
@@ -443,13 +351,6 @@ export interface RtcInfoDest {
   readonly end?: Endereco;
   readonly fone?: string;
   readonly email?: string;
-}
-
-export type ImovelIdentificacao = { readonly cCIB: string } | { readonly end: EnderObraEvento };
-
-export interface RtcInfoImovel {
-  readonly inscImobFisc?: string;
-  readonly identificacao: ImovelIdentificacao;
 }
 
 export interface RtcListaDocDFe {
@@ -479,20 +380,6 @@ export interface RtcListaDocFornec {
   readonly xNome: string;
 }
 
-export interface RtcListaDoc {
-  readonly documento: RtcDocumentoReferenciado;
-  readonly fornec?: RtcListaDocFornec;
-  readonly dtEmiDoc: Date;
-  readonly dtCompDoc: Date;
-  readonly tpReeRepRes: TipoReembolsoRepasse;
-  readonly xTpReeRepRes?: string;
-  readonly vlrReeRepRes: number;
-}
-
-export interface RtcInfoReeRepRes {
-  readonly documentos: readonly RtcListaDoc[];
-}
-
 export interface RtcInfoTributosTribRegular {
   /**
    * CST do IBS/CBS para tributação regular (3 dígitos). Valores definidos pela
@@ -511,68 +398,6 @@ export interface RtcInfoTributosDif {
   readonly pDifCBS: number;
 }
 
-export interface RtcInfoTributosSitClas {
-  /**
-   * CST do IBS/CBS (3 dígitos, `TSRTCCodSitTrib` pattern `[0-9]{3}`).
-   *
-   * **NÃO é o mesmo CST do enum `CST` exportado** — aquele é de PIS/COFINS
-   * (`TSTipoCST`, valores `'00'`-`'09'`). O CST da Reforma Tributária tem
-   * um valuespace próprio (3 dígitos) que evolui via Nota Técnica; por isso
-   * fica como `string` em vez de enum.
-   */
-  readonly CST: string;
-  /** Código de classificação tributária do IBS/CBS (6 dígitos, `TSRTCCodClassTrib`). */
-  readonly cClassTrib: string;
-  /** Código de crédito presumido (2 dígitos, `TSRTCCodCredPres`), quando aplicável. */
-  readonly cCredPres?: string;
-  readonly gTribRegular?: RtcInfoTributosTribRegular;
-  readonly gDif?: RtcInfoTributosDif;
-}
-
-export interface RtcInfoTributosIbsCbs {
-  readonly gIBSCBS: RtcInfoTributosSitClas;
-}
-
-export interface RtcInfoValoresIbsCbs {
-  readonly gReeRepRes?: RtcInfoReeRepRes;
-  readonly trib: RtcInfoTributosIbsCbs;
-}
-
-export interface RtcInfoIbsCbs {
-  readonly finNFSe: FinalidadeNFSe;
-  /** `minOccurs="0"` no XSD — não force o preenchimento. */
-  readonly indFinal?: IndicadorFinal;
-  readonly cIndOp: string;
-  readonly tpOper?: TipoOperacao;
-  readonly gRefNFSe?: InfoRefNFSe;
-  readonly tpEnteGov?: TipoEnteGovernamental;
-  readonly indDest: IndicadorDestinatario;
-  readonly dest?: RtcInfoDest;
-  readonly imovel?: RtcInfoImovel;
-  readonly valores: RtcInfoValoresIbsCbs;
-}
-
-export interface InfDPS {
-  readonly Id: string;
-  readonly tpAmb: TipoAmbienteDps;
-  readonly dhEmi: Date;
-  readonly verAplic: string;
-  readonly serie: string;
-  readonly nDPS: string;
-  readonly dCompet: Date;
-  readonly tpEmit: TipoEmitenteDps;
-  readonly cMotivoEmisTI?: MotivoEmissaoTomadorIntermediario;
-  readonly chNFSeRej?: string;
-  readonly cLocEmi: string;
-  readonly subst?: Substituicao;
-  readonly prest: InfoPrestador;
-  readonly toma?: InfoPessoa;
-  readonly interm?: InfoPessoa;
-  readonly serv: Serv;
-  readonly valores: InfoValores;
-  readonly IBSCBS?: RtcInfoIbsCbs;
-}
-
 export interface Signature {
   readonly signatureValue: string;
   readonly digestValue: string;
@@ -580,51 +405,12 @@ export interface Signature {
   readonly referenceUri: string;
 }
 
-export interface DPS {
-  readonly versao: string;
-  readonly infDPS: InfDPS;
-  readonly signature?: Signature;
-}
+/** Union dos layouts de DPS suportados (alargada na Task 3). */
+export type DPS = DpsNt004;
 
-export interface ValoresNFSe {
-  readonly vCalcDR?: number;
-  readonly tpBM?: TipoBeneficioMunicipal;
-  readonly vCalcBM?: number;
-  readonly vBC?: number;
-  readonly pAliqAplic?: number;
-  readonly vISSQN?: number;
-  readonly vTotalRet?: number;
-  readonly vLiq: number;
-}
+/** Union dos layouts de NFS-e suportados (alargada na Task 3). */
+export type NFSe = NfseNt004;
 
-export interface InfNFSe {
-  readonly Id: string;
-  readonly chaveAcesso: string;
-  readonly xLocEmi: string;
-  readonly xLocPrestacao: string;
-  readonly nNFSe: string;
-  readonly cLocIncid?: string;
-  readonly xLocIncid?: string;
-  readonly xTribNac: string;
-  readonly xTribMun?: string;
-  readonly xNBS?: string;
-  readonly verAplic: string;
-  readonly ambGer: AmbienteGerador;
-  readonly tpEmis: TipoEmissao;
-  readonly procEmi?: ProcessoEmissao;
-  readonly cStat: SituacaoNfse;
-  readonly dhProc: Date;
-  readonly nDFSe: string;
-  readonly emit: Emitente;
-  readonly valores: ValoresNFSe;
-  /** `TCInfNFSe/xOutInf` (`minOccurs="0"`) — uso da Adm. Tributária Municipal. */
-  readonly xOutInf?: string;
-  readonly IBSCBS?: RtcIbsCbs;
-  readonly DPS: DPS;
-}
+export type DpsFor<L extends Layout> = Extract<DPS, { readonly layout: L }>;
 
-export interface NFSe {
-  readonly versao: string;
-  readonly infNFSe: InfNFSe;
-  readonly signature: Signature;
-}
+export type NfseFor<L extends Layout> = Extract<NFSe, { readonly layout: L }>;

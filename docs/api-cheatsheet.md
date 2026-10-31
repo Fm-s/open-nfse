@@ -238,4 +238,4 @@ Todos os DTOs de domínio (RTC v1.01) em `src/nfse/domain.ts` são reexportados.
 | `PendingEvent` (discriminated)| `kind: 'emission' \| 'cancelamento_simples' \| 'cancelamento_por_substituicao' \| 'rollback_cancelamento'` |
 | `ConsultaAliquotasResult`, `ConsultaBeneficioResult`, `ConsultaConvenioResult`, `ConsultaRegimesEspeciaisResult`, `ConsultaRetencoesResult` | parâmetros municipais normalizados |
 
-Types detalhados, incluindo RTC / IBS / CBS (`RtcInfoTributosSitClas`, `RtcTotalIbs`, etc.): [API completa](/api/).
+Types detalhados, incluindo RTC / IBS / CBS (`RtcInfoTributosSitClasNt004`, `RtcTotalIbs`, etc.): [API completa](/api/).

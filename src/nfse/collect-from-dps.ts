@@ -1,11 +1,11 @@
 import type {
-  DocDedRed,
+  DocDedRedNt004,
   DPS,
   Endereco,
   EnderecoSimples,
   IdentificadorPessoa,
-  InfoPessoa,
-  RtcInfoIbsCbs,
+  InfoPessoaNt004,
+  RtcInfoIbsCbsNt004,
   Serv,
 } from './domain.js';
 
@@ -114,7 +114,7 @@ function pushServ(out: CollectedCep[], path: string, serv: Serv): void {
   }
 }
 
-function pushRtcIbsCbs(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbs): void {
+function pushRtcIbsCbs(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbsNt004): void {
   if (rtc.dest?.end) pushEndereco(out, `${path}.dest.end`, rtc.dest.end);
   if (rtc.imovel) {
     const ident = rtc.imovel.identificacao;
@@ -122,11 +122,11 @@ function pushRtcIbsCbs(out: CollectedCep[], path: string, rtc: RtcInfoIbsCbs): v
   }
 }
 
-function pushDocDedRed(out: CollectedCep[], path: string, doc: DocDedRed): void {
+function pushDocDedRed(out: CollectedCep[], path: string, doc: DocDedRedNt004): void {
   if (doc.fornec) pushInfoPessoa(out, `${path}.fornec`, doc.fornec);
 }
 
-function pushInfoPessoa(out: CollectedCep[], path: string, pessoa: InfoPessoa): void {
+function pushInfoPessoa(out: CollectedCep[], path: string, pessoa: InfoPessoaNt004): void {
   if (pessoa.end) pushEndereco(out, `${path}.end`, pessoa.end);
 }
 

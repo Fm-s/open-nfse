@@ -9,45 +9,45 @@ import type {
   BeneficioMunicipal,
   ComExterior,
   CServ,
-  DocDedRed,
-  DocNFNFS,
-  DocOutNFSe,
+  DocDedRedNt004,
+  DocNFNFSNt004,
+  DocOutNFSeNt004,
   DPS,
   Endereco,
   EnderecoSimples,
   EnderObraEvento,
   ExigSuspensa,
   IdentificadorPessoa,
-  ImovelIdentificacao,
-  InfDPS,
+  ImovelIdentificacaoNt004,
+  InfDPSNt004,
   InfoCompl,
-  InfoDedRed,
+  InfoDedRedNt004,
   InfoItemPed,
   InfoObra,
   InfoObraIdentificacao,
-  InfoPessoa,
+  InfoPessoaNt004,
   InfoPrestador,
   InfoRefNFSe,
   InfoTributacao,
-  InfoValores,
-  ListaDocDedRed,
+  InfoValoresNt004,
+  ListaDocDedRedNt004,
   LocPrest,
-  ReferenciaDocDedRed,
+  ReferenciaDocDedRedNt004,
   RegTrib,
   RtcDocumentoReferenciado,
   RtcInfoDest,
-  RtcInfoIbsCbs,
-  RtcInfoImovel,
-  RtcInfoReeRepRes,
+  RtcInfoIbsCbsNt004,
+  RtcInfoImovelNt004,
+  RtcInfoReeRepResNt004,
   RtcInfoTributosDif,
-  RtcInfoTributosIbsCbs,
-  RtcInfoTributosSitClas,
+  RtcInfoTributosIbsCbsNt004,
+  RtcInfoTributosSitClasNt004,
   RtcInfoTributosTribRegular,
-  RtcInfoValoresIbsCbs,
-  RtcListaDoc,
+  RtcInfoValoresIbsCbsNt004,
   RtcListaDocDFe,
   RtcListaDocFiscalOutro,
   RtcListaDocFornec,
+  RtcListaDocNt004,
   RtcListaDocOutro,
   Serv,
   Signature,
@@ -97,7 +97,7 @@ export function buildDpsXml(dps: DPS, options?: BuildDpsXmlOptions): string {
     : `<?xml version="1.0" encoding="UTF-8"?>${body}`;
 }
 
-function buildInfDPS(inf: InfDPS): object {
+function buildInfDPS(inf: InfDPSNt004): object {
   return {
     [`${ATTR_PREFIX}Id`]: inf.Id,
     tpAmb: inf.tpAmb,
@@ -141,7 +141,7 @@ function buildInfoPrestador(p: InfoPrestador): object {
   };
 }
 
-function buildInfoPessoa(p: InfoPessoa): object {
+function buildInfoPessoa(p: InfoPessoaNt004): object {
   return {
     ...buildIdentificador(p.identificador),
     ...onlyDefined('CAEPF', p.CAEPF),
@@ -296,7 +296,7 @@ function buildInfoItemPed(g: InfoItemPed): object {
   return { xItemPed: [...g.xItemPed] };
 }
 
-function buildInfoValores(v: InfoValores): object {
+function buildInfoValores(v: InfoValoresNt004): object {
   return {
     vServPrest: buildVServPrest(v.vServPrest),
     ...onlyDefined('vDescCondIncond', v.vDescCondIncond && buildVDescCondIncond(v.vDescCondIncond)),
@@ -319,17 +319,17 @@ function buildVDescCondIncond(v: VDescCondIncond): object {
   };
 }
 
-function buildInfoDedRed(d: InfoDedRed): object {
+function buildInfoDedRed(d: InfoDedRedNt004): object {
   if ('pDR' in d) return { pDR: formatDecimal(d.pDR) };
   if ('vDR' in d) return { vDR: formatDecimal(d.vDR) };
   return { documentos: buildListaDocDedRed(d.documentos) };
 }
 
-function buildListaDocDedRed(l: ListaDocDedRed): object {
+function buildListaDocDedRed(l: ListaDocDedRedNt004): object {
   return { docDedRed: l.docDedRed.map(buildDocDedRed) };
 }
 
-function buildDocDedRed(d: DocDedRed): object {
+function buildDocDedRed(d: DocDedRedNt004): object {
   return {
     ...buildReferenciaDocDedRed(d.referencia),
     tpDedRed: d.tpDedRed,
@@ -341,7 +341,7 @@ function buildDocDedRed(d: DocDedRed): object {
   };
 }
 
-function buildReferenciaDocDedRed(r: ReferenciaDocDedRed): object {
+function buildReferenciaDocDedRed(r: ReferenciaDocDedRedNt004): object {
   if ('chNFSe' in r) return { chNFSe: r.chNFSe };
   if ('chNFe' in r) return { chNFe: r.chNFe };
   if ('NFSeMun' in r) return { NFSeMun: buildDocOutNFSe(r.NFSeMun) };
@@ -350,7 +350,7 @@ function buildReferenciaDocDedRed(r: ReferenciaDocDedRed): object {
   return { nDoc: r.nDoc };
 }
 
-function buildDocOutNFSe(d: DocOutNFSe): object {
+function buildDocOutNFSe(d: DocOutNFSeNt004): object {
   return {
     cMunNFSeMun: d.cMunNFSeMun,
     nNFSeMun: d.nNFSeMun,
@@ -358,7 +358,7 @@ function buildDocOutNFSe(d: DocOutNFSe): object {
   };
 }
 
-function buildDocNFNFS(d: DocNFNFS): object {
+function buildDocNFNFS(d: DocNFNFSNt004): object {
   return { nNFS: d.nNFS, modNFS: d.modNFS, serieNFS: d.serieNFS };
 }
 
@@ -438,7 +438,7 @@ function buildTribTotalPercent(p: TribTotalPercent): object {
   };
 }
 
-function buildRtcInfoIbsCbs(r: RtcInfoIbsCbs): object {
+function buildRtcInfoIbsCbs(r: RtcInfoIbsCbsNt004): object {
   return {
     finNFSe: r.finNFSe,
     ...onlyDefined('indFinal', r.indFinal),
@@ -467,30 +467,30 @@ function buildRtcInfoDest(d: RtcInfoDest): object {
   };
 }
 
-function buildRtcInfoImovel(i: RtcInfoImovel): object {
+function buildRtcInfoImovel(i: RtcInfoImovelNt004): object {
   return {
     ...onlyDefined('inscImobFisc', i.inscImobFisc),
     ...buildImovelIdentificacao(i.identificacao),
   };
 }
 
-function buildImovelIdentificacao(i: ImovelIdentificacao): object {
+function buildImovelIdentificacao(i: ImovelIdentificacaoNt004): object {
   if ('cCIB' in i) return { cCIB: i.cCIB };
   return { end: buildEnderObraEvento(i.end) };
 }
 
-function buildRtcInfoValoresIbsCbs(v: RtcInfoValoresIbsCbs): object {
+function buildRtcInfoValoresIbsCbs(v: RtcInfoValoresIbsCbsNt004): object {
   return {
     ...onlyDefined('gReeRepRes', v.gReeRepRes && buildRtcInfoReeRepRes(v.gReeRepRes)),
     trib: buildRtcInfoTributosIbsCbs(v.trib),
   };
 }
 
-function buildRtcInfoReeRepRes(r: RtcInfoReeRepRes): object {
+function buildRtcInfoReeRepRes(r: RtcInfoReeRepResNt004): object {
   return { documentos: r.documentos.map(buildRtcListaDoc) };
 }
 
-function buildRtcListaDoc(d: RtcListaDoc): object {
+function buildRtcListaDoc(d: RtcListaDocNt004): object {
   return {
     ...buildRtcDocumentoReferenciado(d.documento),
     ...onlyDefined('fornec', d.fornec && buildRtcListaDocFornec(d.fornec)),
@@ -533,11 +533,11 @@ function buildRtcListaDocFornec(d: RtcListaDocFornec): object {
   return { ...buildIdentificador(d.identificador), xNome: d.xNome };
 }
 
-function buildRtcInfoTributosIbsCbs(t: RtcInfoTributosIbsCbs): object {
+function buildRtcInfoTributosIbsCbs(t: RtcInfoTributosIbsCbsNt004): object {
   return { gIBSCBS: buildRtcInfoTributosSitClas(t.gIBSCBS) };
 }
 
-function buildRtcInfoTributosSitClas(s: RtcInfoTributosSitClas): object {
+function buildRtcInfoTributosSitClas(s: RtcInfoTributosSitClasNt004): object {
   return {
     CST: s.CST,
     cClassTrib: s.cClassTrib,

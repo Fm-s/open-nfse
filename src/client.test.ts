@@ -183,6 +183,7 @@ describe('NfseClient', () => {
 
   it('emitir: signs DPS, POSTs to /nfse and returns the parsed NFS-e on success', async () => {
     const minimalDps = {
+      layout: 'nt004',
       versao: '1.01',
       infDPS: {
         Id: 'DPS211130010057475300010000001000000000000001',
@@ -239,6 +240,7 @@ describe('NfseClient', () => {
 
   it('emitir({dryRun:true}) returns the signed DPS XML without hitting the network', async () => {
     const minimalDps = {
+      layout: 'nt004',
       versao: '1.01',
       infDPS: {
         Id: 'DPS211130010057475300010000001000000000000001',

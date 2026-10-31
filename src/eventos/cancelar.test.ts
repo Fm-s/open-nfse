@@ -9,7 +9,7 @@ import { ReceitaRejectionError } from '../errors/receita.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDps } from '../nfse/build-dps.js';
-import type { DPS, InfDPS } from '../nfse/domain.js';
+import type { DPS, InfDPSNt004 } from '../nfse/domain.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
@@ -472,5 +472,5 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
 
 // silence unused-import warning — Ambiente is imported for the barrel test above
 void Ambiente;
-// silence InfDPS unused
-void ({} as InfDPS | undefined);
+// silence InfDPSNt004 unused
+void ({} as InfDPSNt004 | undefined);

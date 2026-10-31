@@ -6,9 +6,9 @@ import type {
   BeneficioMunicipal,
   ComExterior,
   CServ,
-  DocDedRed,
-  DocNFNFS,
-  DocOutNFSe,
+  DocDedRedNt004,
+  DocNFNFSNt004,
+  DocOutNFSeNt004,
   DPS,
   Emitente,
   Endereco,
@@ -21,52 +21,52 @@ import type {
   ExigSuspensa,
   IdentificadorEmitente,
   IdentificadorPessoa,
-  ImovelIdentificacao,
-  InfDPS,
-  InfNFSe,
+  ImovelIdentificacaoNt004,
+  InfDPSNt004,
+  InfNFSeNt004,
   InfoCompl,
-  InfoDedRed,
+  InfoDedRedNt004,
   InfoItemPed,
   InfoObra,
   InfoObraIdentificacao,
-  InfoPessoa,
+  InfoPessoaNt004,
   InfoPrestador,
   InfoRefNFSe,
   InfoTributacao,
-  InfoValores,
-  ListaDocDedRed,
+  InfoValoresNt004,
+  ListaDocDedRedNt004,
   LocPrest,
   NFSe,
-  ReferenciaDocDedRed,
+  ReferenciaDocDedRedNt004,
   RegTrib,
   RtcDocumentoReferenciado,
-  RtcIbsCbs,
+  RtcIbsCbsNt004,
   RtcInfoDest,
-  RtcInfoIbsCbs,
-  RtcInfoImovel,
-  RtcInfoReeRepRes,
+  RtcInfoIbsCbsNt004,
+  RtcInfoImovelNt004,
+  RtcInfoReeRepResNt004,
   RtcInfoTributosDif,
-  RtcInfoTributosIbsCbs,
-  RtcInfoTributosSitClas,
+  RtcInfoTributosIbsCbsNt004,
+  RtcInfoTributosSitClasNt004,
   RtcInfoTributosTribRegular,
-  RtcInfoValoresIbsCbs,
-  RtcListaDoc,
+  RtcInfoValoresIbsCbsNt004,
   RtcListaDocDFe,
   RtcListaDocFiscalOutro,
   RtcListaDocFornec,
+  RtcListaDocNt004,
   RtcListaDocOutro,
   RtcTotalCbs,
   RtcTotalCbsCredPres,
-  RtcTotalCIbs,
+  RtcTotalCIbsNt004,
   RtcTotalIbs,
   RtcTotalIbsCredPres,
   RtcTotalIbsMun,
   RtcTotalIbsUF,
   RtcTotalTribCompraGov,
   RtcTotalTribRegular,
-  RtcValoresIbsCbs,
   RtcValoresIbsCbsFed,
   RtcValoresIbsCbsMun,
+  RtcValoresIbsCbsNt004,
   RtcValoresIbsCbsUF,
   Serv,
   Signature,
@@ -77,7 +77,7 @@ import type {
   TribTotal,
   TribTotalMonet,
   TribTotalPercent,
-  ValoresNFSe,
+  ValoresNFSeNt004,
   VDescCondIncond,
   VServPrest,
 } from './domain.js';
@@ -135,13 +135,14 @@ export function parseNfseXml(xml: string): NFSe {
 
 function parseNFSe(node: XmlObject): NFSe {
   return {
+    layout: 'nt004',
     versao: requireAttr(node, 'versao'),
     infNFSe: parseInfNFSe(requireChild(node, 'infNFSe')),
     signature: parseSignature(requireChild(node, 'Signature')),
   };
 }
 
-function parseInfNFSe(node: XmlObject): InfNFSe {
+function parseInfNFSe(node: XmlObject): InfNFSeNt004 {
   const id = requireAttr(node, 'Id');
   return {
     Id: id,
@@ -193,7 +194,7 @@ function parseEnderecoEmitente(node: XmlObject): EnderecoEmitente {
   };
 }
 
-function parseValoresNFSe(node: XmlObject): ValoresNFSe {
+function parseValoresNFSe(node: XmlObject): ValoresNFSeNt004 {
   return {
     ...optionalAssign('vCalcDR', optionalNumber(node, 'vCalcDR')),
     ...optionalAssign('tpBM', optionalText(node, 'tpBM') as TipoBeneficioMunicipal | undefined),
@@ -209,13 +210,14 @@ function parseValoresNFSe(node: XmlObject): ValoresNFSe {
 function parseDPS(node: XmlObject): DPS {
   const sig = optionalChild(node, 'Signature');
   return {
+    layout: 'nt004',
     versao: requireAttr(node, 'versao'),
     infDPS: parseInfDPS(requireChild(node, 'infDPS')),
     ...optionalAssign('signature', sig ? parseSignature(sig) : undefined),
   };
 }
 
-function parseInfDPS(node: XmlObject): InfDPS {
+function parseInfDPS(node: XmlObject): InfDPSNt004 {
   return {
     Id: requireAttr(node, 'Id'),
     tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
@@ -249,7 +251,7 @@ function parseSubstituicao(node: XmlObject): Substituicao {
   };
 }
 
-function parseRtcInfoIbsCbs(node: XmlObject): RtcInfoIbsCbs {
+function parseRtcInfoIbsCbs(node: XmlObject): RtcInfoIbsCbsNt004 {
   return {
     finNFSe: requireText(node, 'finNFSe') as FinalidadeNFSe,
     ...optionalAssign('indFinal', optionalText(node, 'indFinal') as IndicadorFinal | undefined),
@@ -286,14 +288,14 @@ function parseRtcInfoDest(node: XmlObject): RtcInfoDest {
   };
 }
 
-function parseRtcInfoImovel(node: XmlObject): RtcInfoImovel {
+function parseRtcInfoImovel(node: XmlObject): RtcInfoImovelNt004 {
   return {
     ...optionalAssign('inscImobFisc', optionalText(node, 'inscImobFisc')),
     identificacao: parseImovelIdentificacao(node),
   };
 }
 
-function parseImovelIdentificacao(node: XmlObject): ImovelIdentificacao {
+function parseImovelIdentificacao(node: XmlObject): ImovelIdentificacaoNt004 {
   const cCIB = optionalText(node, 'cCIB');
   if (cCIB !== undefined) return { cCIB };
   const end = optionalChild(node, 'end');
@@ -301,7 +303,7 @@ function parseImovelIdentificacao(node: XmlObject): ImovelIdentificacao {
   throw new InvalidXmlError('imovel sem cCIB nem end');
 }
 
-function parseRtcInfoValoresIbsCbs(node: XmlObject): RtcInfoValoresIbsCbs {
+function parseRtcInfoValoresIbsCbs(node: XmlObject): RtcInfoValoresIbsCbsNt004 {
   return {
     ...optionalAssign(
       'gReeRepRes',
@@ -311,7 +313,7 @@ function parseRtcInfoValoresIbsCbs(node: XmlObject): RtcInfoValoresIbsCbs {
   };
 }
 
-function parseRtcInfoReeRepRes(node: XmlObject): RtcInfoReeRepRes {
+function parseRtcInfoReeRepRes(node: XmlObject): RtcInfoReeRepResNt004 {
   return {
     documentos: asArray(node.documentos).map((entry) => {
       if (!isObject(entry)) throw new InvalidXmlError('documentos entry inválida');
@@ -320,7 +322,7 @@ function parseRtcInfoReeRepRes(node: XmlObject): RtcInfoReeRepRes {
   };
 }
 
-function parseRtcListaDoc(node: XmlObject): RtcListaDoc {
+function parseRtcListaDoc(node: XmlObject): RtcListaDocNt004 {
   return {
     documento: parseRtcDocumentoReferenciado(node),
     ...optionalAssign(
@@ -375,13 +377,13 @@ function parseRtcListaDocFornec(node: XmlObject): RtcListaDocFornec {
   };
 }
 
-function parseRtcInfoTributosIbsCbs(node: XmlObject): RtcInfoTributosIbsCbs {
+function parseRtcInfoTributosIbsCbs(node: XmlObject): RtcInfoTributosIbsCbsNt004 {
   return {
     gIBSCBS: parseRtcInfoTributosSitClas(requireChild(node, 'gIBSCBS')),
   };
 }
 
-function parseRtcInfoTributosSitClas(node: XmlObject): RtcInfoTributosSitClas {
+function parseRtcInfoTributosSitClas(node: XmlObject): RtcInfoTributosSitClasNt004 {
   return {
     CST: requireText(node, 'CST'),
     cClassTrib: requireText(node, 'cClassTrib'),
@@ -422,7 +424,7 @@ function parseInfoPrestador(node: XmlObject): InfoPrestador {
   };
 }
 
-function parseInfoPessoa(node: XmlObject): InfoPessoa {
+function parseInfoPessoa(node: XmlObject): InfoPessoaNt004 {
   return {
     identificador: parseIdentificador(node),
     ...optionalAssign('CAEPF', optionalText(node, 'CAEPF')),
@@ -605,7 +607,7 @@ function parseCServ(node: XmlObject): CServ {
   };
 }
 
-function parseInfoValores(node: XmlObject): InfoValores {
+function parseInfoValores(node: XmlObject): InfoValoresNt004 {
   return {
     vServPrest: parseVServPrest(requireChild(node, 'vServPrest')),
     ...optionalAssign(
@@ -631,7 +633,7 @@ function parseVDescCondIncond(node: XmlObject): VDescCondIncond {
   };
 }
 
-function parseInfoDedRed(node: XmlObject): InfoDedRed {
+function parseInfoDedRed(node: XmlObject): InfoDedRedNt004 {
   const pDR = optionalNumber(node, 'pDR');
   if (pDR !== undefined) return { pDR };
   const vDR = optionalNumber(node, 'vDR');
@@ -641,7 +643,7 @@ function parseInfoDedRed(node: XmlObject): InfoDedRed {
   throw new InvalidXmlError('vDedRed sem pDR, vDR ou documentos');
 }
 
-function parseListaDocDedRed(node: XmlObject): ListaDocDedRed {
+function parseListaDocDedRed(node: XmlObject): ListaDocDedRedNt004 {
   return {
     docDedRed: asArray(node.docDedRed).map((entry) => {
       if (!isObject(entry)) {
@@ -652,7 +654,7 @@ function parseListaDocDedRed(node: XmlObject): ListaDocDedRed {
   };
 }
 
-function parseDocDedRed(node: XmlObject): DocDedRed {
+function parseDocDedRed(node: XmlObject): DocDedRedNt004 {
   return {
     referencia: parseReferenciaDocDedRed(node),
     tpDedRed: requireText(node, 'tpDedRed') as TipoDedRed,
@@ -664,7 +666,7 @@ function parseDocDedRed(node: XmlObject): DocDedRed {
   };
 }
 
-function parseReferenciaDocDedRed(node: XmlObject): ReferenciaDocDedRed {
+function parseReferenciaDocDedRed(node: XmlObject): ReferenciaDocDedRedNt004 {
   const chNFSe = optionalText(node, 'chNFSe');
   if (chNFSe !== undefined) return { chNFSe };
   const chNFe = optionalText(node, 'chNFe');
@@ -680,7 +682,7 @@ function parseReferenciaDocDedRed(node: XmlObject): ReferenciaDocDedRed {
   throw new InvalidXmlError('docDedRed sem referência de documento');
 }
 
-function parseDocOutNFSe(node: XmlObject): DocOutNFSe {
+function parseDocOutNFSe(node: XmlObject): DocOutNFSeNt004 {
   return {
     cMunNFSeMun: requireText(node, 'cMunNFSeMun'),
     nNFSeMun: requireText(node, 'nNFSeMun'),
@@ -688,7 +690,7 @@ function parseDocOutNFSe(node: XmlObject): DocOutNFSe {
   };
 }
 
-function parseDocNFNFS(node: XmlObject): DocNFNFS {
+function parseDocNFNFS(node: XmlObject): DocNFNFSNt004 {
   return {
     nNFS: requireText(node, 'nNFS'),
     modNFS: requireText(node, 'modNFS'),
@@ -790,7 +792,7 @@ function parseTribTotalPercent(node: XmlObject): TribTotalPercent {
   };
 }
 
-function parseRtcIbsCbs(node: XmlObject): RtcIbsCbs {
+function parseRtcIbsCbs(node: XmlObject): RtcIbsCbsNt004 {
   return {
     cLocalidadeIncid: requireText(node, 'cLocalidadeIncid'),
     xLocalidadeIncid: requireText(node, 'xLocalidadeIncid'),
@@ -800,7 +802,7 @@ function parseRtcIbsCbs(node: XmlObject): RtcIbsCbs {
   };
 }
 
-function parseRtcValoresIbsCbs(node: XmlObject): RtcValoresIbsCbs {
+function parseRtcValoresIbsCbs(node: XmlObject): RtcValoresIbsCbsNt004 {
   return {
     vBC: coerceNumber(requireText(node, 'vBC')),
     ...optionalAssign('vCalcReeRepRes', optionalNumber(node, 'vCalcReeRepRes')),
@@ -834,7 +836,7 @@ function parseRtcValoresIbsCbsFed(node: XmlObject): RtcValoresIbsCbsFed {
   };
 }
 
-function parseRtcTotalCIbs(node: XmlObject): RtcTotalCIbs {
+function parseRtcTotalCIbs(node: XmlObject): RtcTotalCIbsNt004 {
   return {
     vTotNF: coerceNumber(requireText(node, 'vTotNF')),
     gIBS: parseRtcTotalIbs(requireChild(node, 'gIBS')),

@@ -5,8 +5,8 @@ import type {
   DPS,
   Endereco,
   IdentificadorPessoa,
-  InfDPS,
-  InfoPessoa,
+  InfDPSNt004,
+  InfoPessoaNt004,
   InfoPrestador,
   RegTrib,
   Serv,
@@ -96,7 +96,7 @@ export interface ValoresInput {
    * **Não use com `buildDps`.** `buildDps` sempre emite `tpEmit=1` (prestador é o
    * emitente), e `vReceb` só é válido com `tpEmit=3` (intermediário) — informá-lo
    * lança `RuleViolationError` (E0424). Para o cenário de intermediário, construa
-   * `InfDPS` manualmente.
+   * `InfDPSNt004` manualmente.
    */
   readonly vReceb?: number;
   /**
@@ -182,7 +182,7 @@ export interface BuildDpsParams {
   readonly skipCpfCnpjValidation?: boolean;
 }
 const DEFAULT_TP_AMB: TipoAmbienteDps = '2' as TipoAmbienteDps;
-const TP_EMIT_PRESTADOR = '1' as InfDPS['tpEmit'];
+const TP_EMIT_PRESTADOR = '1' as InfDPSNt004['tpEmit'];
 const DEFAULT_TRIB_ISSQN: TipoTribISSQN = '1' as TipoTribISSQN;
 const DEFAULT_TP_RET_ISSQN: TipoRetISSQN = '1' as TipoRetISSQN;
 const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTributos;
@@ -193,7 +193,7 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  * preenchendo todo o boilerplate do layout RTC v1.01.
  *
  * Para cenários avançados — exterior, obra, atvEvento, dedução/redução, IBSCBS —
- * construa `InfDPS` manualmente (todos os tipos da RTC estão exportados).
+ * construa `InfDPSNt004` manualmente (todos os tipos da RTC estão exportados).
  */
 export function buildDps(params: BuildDpsParams): DPS {
   assertSimplesNacionalConsistency(params.emitente.regime);
@@ -232,7 +232,7 @@ export function buildDps(params: BuildDpsParams): DPS {
   const verAplic = params.verAplic ?? DEFAULT_VER_APLIC;
   assertVerAplic(verAplic);
 
-  const infDPS: InfDPS = {
+  const infDPS: InfDPSNt004 = {
     Id,
     tpAmb,
     dhEmi,
@@ -248,7 +248,7 @@ export function buildDps(params: BuildDpsParams): DPS {
     valores,
   };
 
-  return { versao: '1.01', infDPS };
+  return { layout: 'nt004', versao: '1.01', infDPS };
 }
 
 // ---------------------------------------------------------------------------
@@ -272,7 +272,7 @@ function buildInfoPrestador(emit: EmitenteInput): InfoPrestador {
   };
 }
 
-function buildInfoPessoa(tomador: TomadorInput): InfoPessoa {
+function buildInfoPessoa(tomador: TomadorInput): InfoPessoaNt004 {
   const identificador: IdentificadorPessoa =
     'CNPJ' in tomador.documento ? { CNPJ: tomador.documento.CNPJ } : { CPF: tomador.documento.CPF };
   return {
@@ -450,7 +450,7 @@ function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario): vo
   // tpEmit=1 (prestador é o emitente), então vReceb aqui é rejeição garantida.
   if (v.vReceb !== undefined) {
     throw new RuleViolationError(
-      'vReceb não pode ser informado: buildDps usa tpEmit=1 (prestador é o emitente). vReceb só vale com tpEmit=3 (intermediário) — para esse cenário construa InfDPS manualmente — per E0424',
+      'vReceb não pode ser informado: buildDps usa tpEmit=1 (prestador é o emitente). vReceb só vale com tpEmit=3 (intermediário) — para esse cenário construa InfDPSNt004 manualmente — per E0424',
       'E0424',
     );
   }
@@ -496,7 +496,7 @@ function assertAliqIssRange(aliqIss: number | undefined): void {
   if (aliqIss > 0 && aliqIss < 0.5) {
     const asPercent = aliqIss * 100;
     throw new RuleViolationError(
-      `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPS manualmente.`,
+      `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPSNt004 manualmente.`,
       'aliqIss',
     );
   }

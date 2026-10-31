@@ -6,7 +6,7 @@ import type {
   InfoPrestador,
   NFSe,
   Signature,
-  ValoresNFSe,
+  ValoresNFSeNt004,
 } from '../nfse/domain.js';
 import { AmbienteGerador, SituacaoNfse, TipoEmissao } from '../nfse/enums.js';
 
@@ -30,6 +30,7 @@ export function synthChaveAcesso(sequential: number, cnpj: string): string {
 export function synthNfse(dps: DPS, chaveAcesso: string, _ambiente: TipoAmbiente): NFSe {
   const descServ = dps.infDPS.serv.cServ.xDescServ;
   return {
+    layout: 'nt004',
     versao: '1.01',
     infNFSe: {
       Id: `NFS${chaveAcesso}`,
@@ -80,7 +81,7 @@ function synthEmit(dps: DPS): Emitente {
   };
 }
 
-function synthValoresNFSe(dps: DPS): ValoresNFSe {
+function synthValoresNFSe(dps: DPS): ValoresNFSeNt004 {
   const vServ = dps.infDPS.valores.vServPrest.vServ;
   const trib = dps.infDPS.valores.trib;
   const pAliq = trib.tribMun.pAliq ?? 0;

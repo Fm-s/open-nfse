@@ -357,7 +357,7 @@ console.log(nfseAutorizada.chaveAcesso);
 | ME/EPP (`3`) | informe `pTotTribSN` (% aprox. do Simples) |
 | Não Optante (`1`) | informe `vTotTrib` **ou** `pTotTrib` (Lei da Transparência / IBPT) |
 
-Cobre ~85% dos casos; para **tomador exterior, obra, atividade-evento, dedução/redução, IBS/CBS**, construa `InfDPS` manualmente (todos os tipos RTC estão exportados).
+Cobre ~85% dos casos; para **tomador exterior, obra, atividade-evento, dedução/redução, IBS/CBS**, construa `InfDPSNt004` manualmente (todos os tipos RTC estão exportados).
 
 `emitirEmLote(dpsList, options)` segue o mesmo contrato — worker pool client-side sobre `DPS[]` pré-montado. A seção **5. Bulk com o mesmo fluxo seguro** acima é o equivalente idiomático para quem quer manter o `DpsCounter` + `RetryStore` no caminho.
 

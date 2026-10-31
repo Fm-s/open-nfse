@@ -29,6 +29,11 @@ describe('parseNfseXml — captured Simples Nacional sample', () => {
   const xml = readFileSync(SAMPLE_PATH, 'utf-8');
   const nfse = parseNfseXml(xml);
 
+  it('marca NFS-e do layout atual como nt004', () => {
+    expect(nfse.layout).toBe('nt004');
+    expect(nfse.infNFSe.DPS.layout).toBe('nt004');
+  });
+
   it('reads NFSe envelope attributes', () => {
     expect(nfse.versao).toBe('1.01');
   });
@@ -229,7 +234,7 @@ describe('parseNfseXml — phase 4 service variants (synthetic)', () => {
 describe('parseNfseXml — phase 4 substituição (synthetic)', () => {
   const base = readFileSync(SAMPLE_PATH, 'utf-8');
 
-  it('parses subst block on InfDPS when present', () => {
+  it('parses subst block on InfDPSNt004 when present', () => {
     const xml = base.replace(
       '<prest>',
       '<subst><chSubstda>00000000000000000000000000000000000000000000000001</chSubstda><cMotivo>01</cMotivo><xMotivo>motivo</xMotivo></subst><prest>',

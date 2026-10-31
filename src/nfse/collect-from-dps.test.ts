@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
-import type { DPS, InfDPS } from './domain.js';
+import type { DPS, InfDPSNt004 } from './domain.js';
 import { IndicadorDestinatario } from './enums.js';
 
 function base(): DPS {
-  const infDPS: InfDPS = {
+  const infDPS: InfDPSNt004 = {
     Id: 'DPS211130010057475300010000001000000000000001',
-    tpAmb: '2' as InfDPS['tpAmb'],
+    tpAmb: '2' as InfDPSNt004['tpAmb'],
     dhEmi: new Date('2026-04-17T14:30:00Z'),
     verAplic: 'test',
     serie: '1',
     nDPS: '1',
     dCompet: new Date('2026-04-17T00:00:00Z'),
-    tpEmit: '1' as InfDPS['tpEmit'],
+    tpEmit: '1' as InfDPSNt004['tpEmit'],
     cLocEmi: '2111300',
     prest: {
       identificador: { CNPJ: '00574753000100' },
@@ -30,7 +30,7 @@ function base(): DPS {
       },
     },
   };
-  return { versao: '1.01', infDPS };
+  return { layout: 'nt004', versao: '1.01', infDPS };
 }
 
 describe('collectCepsFromDps', () => {
