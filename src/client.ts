@@ -435,15 +435,23 @@ export class NfseClient<L extends Layout = Layout> {
 
   /**
    * Substitui uma NFS-e: emite a nova DPS com `infDPS/subst` apontando para a
-   * `chaveOriginal` (auto-preenchido se ausente) via `POST /nfse`. O **Sistema
+   * `chaveOriginal` (auto-preenchido se ausente; se a `novaDps` já trouxer
+   * `subst`, ele deve ser idêntico a `chaveOriginal`/`cMotivo`/`xMotivo`, senão
+   * `RuleViolationError` com rule `infDPS/subst`) via `POST /nfse`. O **Sistema
    * Nacional NFS-e** gera, de forma atômica com a emissão, o evento 105102
    * (Cancelamento por Substituição, autor=MEmis) que cancela a original, e
    * retorna a NFS-e substituta em `{ novaNfse }`.
    *
-   * O contribuinte **não** registra um pedRegEvento 105102 (autor=MEmis,
-   * assinado pelo município emissor); fazê-lo seria redundante (evento único →
-   * E0845) e com autor/assinante inválidos (E0813/E2032 (nt004) / E1638 (nt009)). Ref.: Manual dos
-   * Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+   * O contribuinte **não** registra um pedRegEvento 105102 (autor=MEmis na
+   * planilha Tipo Eventos do Anexo II); a Sefin rejeita o pedido com autor
+   * inválido (E0813) e, com o 105102 já vinculado à NFS-e pelo sistema, como
+   * redundante (E0845). Ref.: Manual dos Contribuintes — API Sistema Nacional
+   * NFS-e v1.2 §1.3.2.
+   *
+   * Pré-checks locais (lançam `RuleViolationError` antes de qualquer envio):
+   * E0078 (`cMotivo=99` exige `xMotivo`), `TSMotivo` (15–255 chars no pattern
+   * `TSString`) e E0042 (Cód.Mun./Tipo de Inscrição/Inscrição da chave
+   * substituída iguais aos do `infDPS.Id` da nova DPS).
    *
    * Resultado discriminado (igual a `emitir`): `'ok'` (`novaNfse`) ou
    * `'retry_pending'` — falha transiente no `POST /nfse` persistida no

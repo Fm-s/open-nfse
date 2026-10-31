@@ -68,7 +68,7 @@ try {
 Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e original**. Você envia *uma* mensagem (`POST /nfse`); o **Sistema Nacional NFS-e** gera, de forma atômica com a emissão, o evento **105102 (Cancelamento por Substituição, `autor=MEmis`)** que cancela a original, e retorna a NFS-e substituta.
 
 ::: tip Resultado e falhas
-É um **único write** (a DPS). O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. O contribuinte **não** registra o 105102 (autor `05 MEmis`, assinado pelo município emissor); postá-lo é rejeitado — redundante (evento único → E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
+É um **único write** (a DPS). O resultado é discriminado igual ao de `emitir`: `'ok'` (`novaNfse`) ou `'retry_pending'` (falha transiente no `POST /nfse`, persistida no `retryStore` para replay idempotente via `replayPendingEvents` — dedup por `infDPS.Id`). Rejeição **permanente** (regra fiscal) **lança**. O contribuinte **não** registra o 105102 (autor `05 MEmis` na planilha Tipo Eventos do Anexo II); a Sefin rejeita o pedido com autor inválido (E0813) e, com o 105102 já vinculado à NFS-e pelo sistema, como redundante (E0845). As regras de assinatura pelo município (E2032 no nt004 / E1638 no nt009) só rodam no ADN, não na recepção da Sefin. Ref.: Manual dos Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
 :::
 
 ### Chamada
@@ -84,7 +84,9 @@ const novaDps = buildDps({
   servico: { /* corrigido */ },
   valores: { /* corrigido */ },
   tomador: { /* ... */ },
-  // infDPS.subst é auto-preenchido pela lib com chaveOriginal
+  // infDPS.subst é auto-preenchido pela lib com chaveOriginal/cMotivo/xMotivo.
+  // Se você preencher subst manualmente, ele deve ser idêntico aos parâmetros
+  // de substituir — divergência lança RuleViolationError (rule 'infDPS/subst').
 });
 
 try {
@@ -187,6 +189,8 @@ Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de c
 3. **Chain check em `substituir`** — se a original já foi cancelada, o emit da nova falha upfront no `subst.chSubstda`. Sem dangling state.
 4. **Dedup server-side** — SEFIN rejeita `{chave, tipoEvento}` duplicado com código específico; retry nunca cria evento fantasma.
 5. **`cMotivo=99` exige `xMotivo`** (rule E0078 do Anexo I). A lib faz o pré-check local e lança `RuleViolationError` antes do wire — evita consumir `nDPS` num emit que seria rejeitado.
+6. **A chave substituída é do mesmo emitente** (rule E0042 do Anexo I): Cód.Mun., Tipo de Inscrição e Inscrição de `chaveOriginal` devem ser iguais aos do `infDPS.Id` da nova DPS. Pré-check local → `RuleViolationError` (rule `E0042`). O DV da chave (a outra metade da E0042) fica com a Sefin.
+7. **`xMotivo` segue `TSMotivo`** (`cancelar` e `substituir`): 15 a 255 caracteres, só U+0020–U+00FF (Latin-1) e sem espaço nas pontas — travessão `–`, aspas curvas, tab e quebra de linha colados de editor de texto são rejeitados localmente (`RuleViolationError`, rule `TSMotivo`) em vez de voltarem como erro de schema da Sefin.
 
 ### Classificação de erros transientes
 
