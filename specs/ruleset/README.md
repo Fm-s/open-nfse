@@ -5,7 +5,7 @@ Destilação **agent-friendly** da documentação técnica oficial da **NFS-e Pa
 **cancelamento** e **substituição**. Material de **referência** — vive sob `specs/`, não vai
 no tarball npm (`files: ["dist"]`).
 
-Gerado em 2026-05-29 a partir de `specs/oficial/documentacao-atual/` (+ `rtc/NT-008` para o
+Gerado em 2026-05-29 a partir de `.superpowers/oficial/documentacao-atual/` (+ `rtc/NT-008` para o
 DANFSe). Os dados tabulares (leiautes, regras de negócio, códigos de rejeição, matriz de
 eventos, IndOp) foram **extraídos deterministicamente célula a célula** — zero paráfrase de
 LLM — por `scripts/extract-ruleset.py`. As narrativas `.md` foram escritas e **verificadas
@@ -88,7 +88,7 @@ porque ela **é** o JSON.
 ## Escopo — fora (alinhado ao `CLAUDE.md`)
 
 Esta biblioteca é cliente do **contribuinte** para emissão/cancelamento/substituição.
-Deliberadamente **não** consolidamos, embora estejam em `specs/oficial/`:
+Deliberadamente **não** consolidamos, embora estejam em `.superpowers/oficial/`:
 
 - Manuais de **municípios** + Anexos III/IV/V (CNC, painel administrativo municipal).
 - `guia-emissorpubliconacionalweb` (UI web do Emissor Público).
@@ -98,11 +98,20 @@ Deliberadamente **não** consolidamos, embora estejam em `specs/oficial/`:
 Listas-referência grandes ficam por ponteiro (não inline): **NBS** (Anexo B), **municípios
 IBGE / países ISO-2** (Anexo A).
 
+## Layout `nt009` (`specs/ruleset/nt009/`)
+
+Mesmo conjunto de sidecars (`emissao.*`, `eventos.*`, `tributos.indop.json`, `_raw/`) e **as mesmas chaves JSON**, gerado a partir dos Anexos I/II de **Produção Restrita `v1-01-20261020`** (NT 009 release 1) + Anexo C prodrest `20260122`. A raiz de `specs/ruleset/` continua sendo o layout `nt004` (produção atual, `documentacao-atual`). Códigos de assinatura de evento renumerados no nt009 (ex.: E2032 → E1638; E1980–E1991 → E0714–E0718).
+
+Particularidades do Anexo I nt009: a aba `RN DPS_NFS-e 1.01` tem três trios de colunas (prestador / tomador-intermediário / decisão 102) para SEFIN e ADN; o sidecar mantém o conjunto de chaves do nt004 usando o cenário **prestador** (`execSefin`/`execAdn`) e a **decisão 102** (`sefinDecisao`/`adnDecisao`) — os demais cenários ficam no `_raw/`. Abas novas (`AJUSTE_BC_REPERCUSSÃO`, `RN_RECEP_PED.REG.EVENTO`) só em `_raw/`. A planilha do leiaute ainda lista `finNFSe` sob `IBSCBS/`; o XSD o coloca na raiz de `infDPS` (o XSD prevalece).
+
 ## Regenerar
 
 ```bash
-python3 scripts/extract-ruleset.py      # re-extrai _raw/ + *.json a partir dos Anexos XLSX
+python3 scripts/extract-ruleset.py                 # layout nt004 (default) -> specs/ruleset/
+python3 scripts/extract-ruleset.py --layout nt009  # layout nt009 -> specs/ruleset/nt009/
 ```
+
+Os Anexos XLSX ficam em `.superpowers/oficial/` (gitignored): `documentacao-atual/` (nt004) e `producao-restrita/` (nt009).
 
 Rode após a Receita atualizar qualquer Anexo (e atualize as versões acima). O script
 imprime as contagens — confira contra a tabela deste README.

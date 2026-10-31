@@ -132,7 +132,7 @@ Da `specs/ruleset/emissao.regras.json` (bloco `negocio`) e `specs/ruleset/evento
 | **E0718** | DPS `/Signature` | A assinatura deve ser feita com o cert. do **emitente da DPS** | `…:r649` |
 | **E1630/E1632/E1634/E1636/E1638** | NFS-e `/Signature` | Equivalentes para a NFS-e (E1638: cert. do **município emissor**) | `…:r650–r654` |
 | **E1980/E1983/E1986/E1989/E1991** | `pedRegEvento/Signature` | Assinatura do PRE válida / cert. válido / padrão / obrigatória / cert. do **emitente do PRE** | `AnexoII!RN EVENTO_PED.REG.EVENTO:r102–r106` |
-| **E2020/E2023/E2026/E2029/E2032** | `evento/Signature` | Equivalentes para o Evento gerado (cert. do município emissor) | `…:r107–r111` |
+| **E2020/E2023/E2026/E2029/E2032** (nt004; no nt009 → E1630/E1632/E1634/E1636/E1638 — ver `nt009/eventos.regras.json`) | `evento/Signature` | Equivalentes para o Evento gerado (cert. do município emissor) | `…:r107–r111` |
 
 > **Invariante da lib (não reintroduzir bug v0.7.2):** todo `PendingEvent.xmlAssinado` deve estar **assinado antes de persistir**. `cancelar`/`substituir` assinam up-front e passam `xmlJaAssinado: true` ao `postEvento`. Replay de dados legados não-assinados re-assina antes do POST (CLAUDE.md).
 

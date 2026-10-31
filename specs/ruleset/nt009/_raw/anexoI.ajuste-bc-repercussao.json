@@ -1,0 +1,270 @@
+{
+  "source": "anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx",
+  "sheet": "AJUSTE_BC_REPERCUSSÃO",
+  "dims": {
+    "rows": 21,
+    "cols": 8
+  },
+  "rows": [
+    {
+      "r": 1,
+      "cells": [
+        "Tipo de ajuste da Base de Cálculo",
+        "Tipo de ajuste da Base de Cálculo",
+        "Início",
+        "Fim",
+        "Ajusta Base de Cálculo do ISSQN *",
+        "Ajusta Bade de Cálculo do IBS/CBS",
+        "Ajusta Bade de Cálculo do IBS/CBS",
+        "Ajusta Receita Bruta do Simples Nacional"
+      ]
+    },
+    {
+      "r": 2,
+      "cells": [
+        "Tipo de ajuste da Base de Cálculo",
+        "Tipo de ajuste da Base de Cálculo",
+        "Início",
+        "Fim",
+        "Ajusta Base de Cálculo do ISSQN *",
+        null,
+        "Referência Legal",
+        "Ajusta Receita Bruta do Simples Nacional"
+      ]
+    },
+    {
+      "r": 3,
+      "cells": [
+        "Valor Percentual (pAjusteBCISSQN)",
+        "Valor Percentual (pAjusteBCISSQN)",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 4,
+      "cells": [
+        "Valor Monetário (vAjusteBCISSQN)",
+        "Valor Monetário (vAjusteBCISSQN)",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        "-",
+        "X"
+      ]
+    },
+    {
+      "r": 5,
+      "cells": [
+        "Por Documentos",
+        "Por Documentos",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "r": 6,
+      "cells": [
+        "Tipo de Ajuste (tpAjusteBC)",
+        "Descrição do tipo de ajuste",
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ]
+    },
+    {
+      "r": 7,
+      "cells": [
+        "2",
+        "Materiais",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 8,
+      "cells": [
+        "5",
+        "Repasse consorciado",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 9,
+      "cells": [
+        "6",
+        "Repasse plano de saúde",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 10,
+      "cells": [
+        "7",
+        "Serviços",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 11,
+      "cells": [
+        "8",
+        "Subempreitada de mão de obra",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 12,
+      "cells": [
+        "9",
+        "Profissional parceiro",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "V"
+      ]
+    },
+    {
+      "r": 13,
+      "cells": [
+        "99",
+        "Outras deduções exclusivas do ISSQN",
+        "2022-01-01 00:00:00",
+        null,
+        "V",
+        "X",
+        null,
+        "X"
+      ]
+    },
+    {
+      "r": 14,
+      "cells": [
+        "101",
+        "Repasses na intermediação de imóveis (...)",
+        "2026-01-01 00:00:00",
+        null,
+        "V",
+        "V",
+        "LC 214/2025:\nArt. 255, § 3º",
+        "V"
+      ]
+    },
+    {
+      "r": 15,
+      "cells": [
+        "102",
+        "Repasses na intermediação de agências de turismo",
+        "2026-01-01 00:00:00",
+        null,
+        "V",
+        "V",
+        "LC 214/2025:\nArt. 12, § 2º, inciso IV",
+        "V"
+      ]
+    },
+    {
+      "r": 16,
+      "cells": [
+        "103",
+        "Reembolso de agência de propaganda e publicidade (...)",
+        "2026-01-01 00:00:00",
+        null,
+        "V",
+        "V",
+        "LC 214/2025:\nArt. 12, § 2º, inciso IV",
+        "V"
+      ]
+    },
+    {
+      "r": 17,
+      "cells": [
+        "104",
+        "Reembolso de agência de propaganda e publicidade. ref serviço de mídias",
+        "2026-01-01 00:00:00",
+        null,
+        "V",
+        "V",
+        "LC 214/2025:\nArt. 12, § 2º, inciso IV",
+        "V"
+      ]
+    },
+    {
+      "r": 18,
+      "cells": [
+        "105",
+        "Glosa de Serviços de Saúde",
+        "2026-01-01 00:00:00",
+        null,
+        "X",
+        "V",
+        "LC 214/2025:\nArt. 130, § únicao",
+        "V"
+      ]
+    },
+    {
+      "r": 19,
+      "cells": [
+        "199",
+        "Outros reembolsos . (...)",
+        "2026-01-01 00:00:00",
+        null,
+        "V",
+        "V",
+        "LC 214/2025:\nArt. 12, § 2º, inciso IV",
+        "V"
+      ]
+    },
+    {
+      "r": 21,
+      "cells": [
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos.",
+        "* OBSERVAÇÃO sobre o \"Ajuste Base de Cálculo do ISSQN\": para que o ajuste tenha repercussão na Base de Cálculo do ISSQN, o Município de incidência desse imposto deverá, via parametrização no Painel Administrativo Municipal, autorizar a dedução conforme o código de tributação parametrizado e o tipo de dedução/redução: por valor percentual, por valor monetário ou por documentos."
+      ]
+    }
+  ]
+}

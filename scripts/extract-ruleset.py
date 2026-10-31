@@ -11,9 +11,10 @@ event x event state matrix, IndOp catalog) is extracted ROW-BY-ROW with no
 paraphrasing, so every clean row traces back to an exact source cell via `fonte`.
 Re-run after the Receita updates any source file.
 
-Usage:  python3 scripts/extract-ruleset.py
+Usage:  python3 scripts/extract-ruleset.py [--layout nt004|nt009]
 """
 from __future__ import annotations
+import argparse
 import json
 import os
 import re
@@ -23,16 +24,69 @@ import unicodedata
 import openpyxl
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DOC = os.path.join(ROOT, "specs/oficial/documentacao-atual")
-OUT = os.path.join(ROOT, "specs/ruleset")
-RAW = os.path.join(OUT, "_raw")
+OFICIAL = os.path.join(ROOT, ".superpowers/oficial")
 
-A1 = os.path.join(DOC, "anexo_i-sefin_adn-dps_nfse-snnfse-v1-01-20260209.xlsx")
-A2 = os.path.join(DOC, "anexo_ii-sefin_adn-pedregevt_evt-snnfse-v1-01-20260122.xlsx")
-AC = os.path.join(DOC, "anexo_c-indop_ibscbs-snnfse-v1-01-20260122.xlsx")
+# per-layout source/output table. nt004 = producao atual; nt009 = NT 009 release 1
+# (Producao Restrita, bundle 20261020).
+LAYOUTS = {
+    "nt004": {
+        "doc": os.path.join(OFICIAL, "documentacao-atual"),
+        "out": os.path.join(ROOT, "specs/ruleset"),
+        "a1": "anexo_i-sefin_adn-dps_nfse-snnfse-v1-01-20260209.xlsx",
+        "a2": "anexo_ii-sefin_adn-pedregevt_evt-snnfse-v1-01-20260122.xlsx",
+        "ac": "anexo_c-indop_ibscbs-snnfse-v1-01-20260122.xlsx",
+        "sheets": {
+            "leiaute_dps": "LEIAUTE DPS_NFS-e ",
+            "rn_dps": "RN DPS_NFS-e",
+            "recep_dps": "RN_RECEPCAO_DPS",
+        },
+        # RN columns: (sefin exec, sefin decisao, adn exec, adn decisao, obs)
+        "rn_dps_cols": (11, 12, 13, 14, 15),
+        "extra_raw": [],
+    },
+    "nt009": {
+        "doc": os.path.join(OFICIAL, "producao-restrita"),
+        "out": os.path.join(ROOT, "specs/ruleset/nt009"),
+        "a1": "anexo_i-sefin_adn-dps_nfse-snnfse_prodrest-v1-01-20261020.xlsx",
+        "a2": "anexo_ii-sefin_adn-pedregevt_evt-snnfse_prodrest-v1-01-20261020.xlsx",
+        "ac": "anexo_c-indop_ibscbs-snnfse-prodrest-v1-01-20260122.xlsx",
+        "sheets": {
+            "leiaute_dps": "LEIAUTE DPS_NFS-e 1.01",
+            "rn_dps": "RN DPS_NFS-e 1.01",
+            "recep_dps": "RN_RECEP_DPS",
+        },
+        # nt009 Anexo I RN has three column triplets (prestador / tomador-interm. /
+        # decisao 102) for SEFIN (K-M and N-P) and ADN (Q-S). The sidecar keeps the
+        # nt004 key set: prestador scenario + decisao (102) of the first SEFIN
+        # triplet and of the ADN triplet. The other scenarios stay lossless in _raw/.
+        "rn_dps_cols": (11, 13, 17, 19, 20),
+        # sheets new in nt009, dumped raw only (no clean sidecar)
+        "extra_raw": [
+            ("A1", "AJUSTE_BC_REPERCUSSÃO", "anexoI.ajuste-bc-repercussao"),
+            ("A2", "RN_RECEP_PED.REG.EVENTO", "anexoII.rn-recep-ped-reg-evento"),
+        ],
+    },
+}
+LAYOUT = "nt004"
+CFG = None
+DOC = OUT = RAW = A1 = A2 = AC = None
+SRC = {}
+
+
+def select_layout(name):
+    global LAYOUT, CFG, DOC, OUT, RAW, A1, A2, AC, SRC
+    cfg = LAYOUTS[name]
+    LAYOUT = name
+    CFG = cfg
+    DOC, OUT = cfg["doc"], cfg["out"]
+    RAW = os.path.join(OUT, "_raw")
+    A1, A2, AC = (os.path.join(DOC, cfg[k]) for k in ("a1", "a2", "ac"))
+    SRC = {A1: "AnexoI", A2: "AnexoII", AC: "AnexoC"}
+
+
+select_layout("nt004")
 
 # short tokens used in `fonte` strings
-SRC = {A1: "AnexoI", A2: "AnexoII", AC: "AnexoC"}
 
 
 # --------------------------------------------------------------------------- #
@@ -145,7 +199,7 @@ def extract_campos(path, sheet, src):
 #   | EFEITO(6) | COD(7) | MSG(8) | NIVEL(9) | SEFIN-exec(10) | SEFIN-dec(11)
 #   | ADN-exec(12) | ADN-dec(13) | OBS(14).  Data starts row 4 (3-row header).
 # --------------------------------------------------------------------------- #
-def extract_regras_rn(path, sheet, src, first_data_row=4):
+def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 15)):
     mr, mc, grid = load_grid(path, sheet)
     out = []
     for r in range(first_data_row, mr + 1):
@@ -153,7 +207,7 @@ def extract_regras_rn(path, sheet, src, first_data_row=4):
         seq, caminho, campo = g(1), g(2), g(3)
         regra, aplic, efeito, cod, msg = g(4), g(6), g(7), g(8), g(9)
         nivel = g(10)
-        sefin_exec, sefin_dec, adn_exec, adn_dec, obs = g(11), g(12), g(13), g(14), g(15)
+        sefin_exec, sefin_dec, adn_exec, adn_dec, obs = (g(c) for c in cols)
         # a real rule has rule text or a rejection code; otherwise it is a
         # structural/group row (covered by the campos layout) -> skip.
         has_rule = (regra not in (None, "-")) or (cod not in (None, "-"))
@@ -376,18 +430,22 @@ def permit(marker):
 
 # --------------------------------------------------------------------------- #
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--layout", choices=sorted(LAYOUTS), default="nt004")
+    select_layout(ap.parse_args().layout)
     os.makedirs(RAW, exist_ok=True)
     for p in (A1, A2, AC):
         if not os.path.exists(p):
             sys.exit(f"missing source: {p}")
 
     summary = {}
+    SH = CFG["sheets"]
 
     # raw dumps (lossless)
     raw_specs = [
-        (A1, "LEIAUTE DPS_NFS-e ", "anexoI.leiaute-dps-nfse"),
-        (A1, "RN DPS_NFS-e", "anexoI.rn-dps-nfse"),
-        (A1, "RN_RECEPCAO_DPS", "anexoI.rn-recepcao-dps"),
+        (A1, SH["leiaute_dps"], "anexoI.leiaute-dps-nfse"),
+        (A1, SH["rn_dps"], "anexoI.rn-dps-nfse"),
+        (A1, SH["recep_dps"], "anexoI.rn-recepcao-dps"),
         (A1, "MUN.INCID_INFO.SERV.", "anexoI.mun-incid-info-serv"),
         (A1, "EXPORTACAO_EMISSÃO_NFS-e", "anexoI.exportacao-emissao"),
         (A2, "TIPO EVENTOS DE NFSe", "anexoII.tipo-eventos"),
@@ -396,16 +454,18 @@ def main():
         (A2, "RN EVENTOSxEVENTOS", "anexoII.rn-eventos-x-eventos"),
         (AC, "IndOp", "anexoC.indop"),
     ]
+    paths = {"A1": A1, "A2": A2}
+    raw_specs += [(paths[k], sh, slug) for k, sh, slug in CFG["extra_raw"]]
     for path, sheet, slug in raw_specs:
         dump_raw(path, sheet, slug)
 
     # clean sidecars
-    campos_dps = extract_campos(A1, "LEIAUTE DPS_NFS-e ", "AnexoI")
+    campos_dps = extract_campos(A1, SH["leiaute_dps"], "AnexoI")
     write_json(os.path.join(OUT, "emissao.campos.json"), campos_dps)
     summary["emissao.campos"] = len(campos_dps)
 
-    regras_dps = extract_regras_rn(A1, "RN DPS_NFS-e", "AnexoI")
-    regras_recep = extract_regras_recepcao(A1, "RN_RECEPCAO_DPS", "AnexoI")
+    regras_dps = extract_regras_rn(A1, SH["rn_dps"], "AnexoI", cols=CFG["rn_dps_cols"])
+    regras_recep = extract_regras_recepcao(A1, SH["recep_dps"], "AnexoI")
     write_json(os.path.join(OUT, "emissao.regras.json"),
                {"recepcao": regras_recep, "negocio": regras_dps})
     summary["emissao.regras.recepcao"] = len(regras_recep)

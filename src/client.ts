@@ -442,7 +442,7 @@ export class NfseClient<L extends Layout = Layout> {
    *
    * O contribuinte **não** registra um pedRegEvento 105102 (autor=MEmis,
    * assinado pelo município emissor); fazê-lo seria redundante (evento único →
-   * E0845) e com autor/assinante inválidos (E0813/E2032). Ref.: Manual dos
+   * E0845) e com autor/assinante inválidos (E0813/E2032 (nt004) / E1638 (nt009)). Ref.: Manual dos
    * Contribuintes — API Sistema Nacional NFS-e v1.2 §1.3.2.
    *
    * Resultado discriminado (igual a `emitir`): `'ok'` (`novaNfse`) ou

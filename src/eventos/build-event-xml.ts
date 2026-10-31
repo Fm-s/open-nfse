@@ -87,7 +87,7 @@ export function buildCancelamentoXml(
  * pelo Sistema Nacional NFS-e (autor=MEmis) ao receber a nova DPS com
  * `infDPS/subst` via `POST /nfse` — use `substituir()`. Este builder permanece
  * como representação de baixo nível do evento (útil para leitura/inspeção e
- * testes de XSD), mas enviá-lo como contribuinte é rejeitado (E0845/E0813/E2032).
+ * testes de XSD), mas enviá-lo como contribuinte é rejeitado (E0845/E0813/E2032 (nt004) / E1638 (nt009)).
  */
 export function buildSubstituicaoXml(
   params: BuildSubstituicaoXmlParams,
