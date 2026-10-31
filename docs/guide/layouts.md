@@ -104,7 +104,11 @@ const dps = buildDps({
 });
 ```
 
-`finNFSe` é preenchido com `'0'` (único valor do release 1). Regras de rejeição fechadas do Anexo I `20261020` (E0453, E0464, E0465, E0467, E0469, E0472) são checadas antes de montar a DPS.
+`finNFSe` é preenchido com `'0'` (único valor do release 1). As regras de rejeição **fechadas** do Anexo I `20261020` — as que dependem só dos inputs — são checadas antes de montar a DPS e lançam `RuleViolationError` com o código da regra — entre elas E0313 (MEI sem `cTribMun`), as do ajuste de BC (E0435/E0436/E0445, E0453, E0462–E0465, E0467, E0469, E0470, E0472, E0476, E0479, E0492) e as do grupo IBS/CBS (E09xx). As que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN. Pontos que mudam o uso:
+
+- **`servico.cNBS` é obrigatório com `ibsCbs`** (E0322).
+- **Todo `cTribNac` 99.XX.XX exige `valores.tribISSQN: '4'`** (Não Incidência, E0532) — inclusive locação 99.03 e bens móveis 99.04.01; o default `'1'` lança.
+- **Locação (99.03):** `vDescIncond`/`vDescCond` da DPS são derivados de `pCopropriedade × vDescIncondTot`/`vDescCondTot` (E0434/E0443); `vServ` deve ser `pCopropriedade × vTotOper`, com `vTotOper` = valor total da operação, não a parte do coproprietário.
 
 O ajuste de BC do ISSQN também tem regras de **contexto**. As que dependem do município de incidência — situação do convênio, parametrização do código de serviço, alíquota efetiva — só o Sefin consegue aplicar e **não** são checadas localmente: E0447 (alíquota efetiva abaixo de 2%), E0449/E0450 (convênio/parametrização, prestador fora do SN) e E0451/E0452/E0455 (ME/EPP com apuração pelo SN, admitido só em alguns subitens). Valem ainda as restrições de regime e de tributação: ISSQN não tributável (E0435), MEI (E0436), regime especial ≠ 0 (E0445) e benefício municipal de isenção (E0448). Por isso o exemplo usa um prestador Não Optante: para um ME/EPP com `regApTribSN = 1` e `cTribNac` 01.01.01, qualquer ajuste por percentual/valor é rejeitado, com convênio ativo (E0455) ou não (E0452).
 

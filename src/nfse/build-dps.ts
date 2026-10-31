@@ -140,7 +140,12 @@ export interface ValoresInput {
    * definido (inclusive `0`) emite `<pAliq>` com aquele valor.
    */
   readonly aliqIss?: number;
-  /** Default `'1'` (operação tributável). */
+  /**
+   * Default `'1'` (operação tributável). Serviços sem incidência de ISSQN
+   * exigem `'4'` (Não Incidência) — senão `RuleViolationError` E0532: no
+   * `nt004`, só o 99.01.01; no `nt009`, todo 99.XX.XX (inclui locação 99.03 e
+   * bens móveis 99.04.01).
+   */
   readonly tribISSQN?: TipoTribISSQN;
   /** Default `'1'` (sem retenção). */
   readonly tpRetISSQN?: TipoRetISSQN;

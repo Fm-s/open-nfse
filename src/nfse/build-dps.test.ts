@@ -749,7 +749,7 @@ describe('nt009 inputs de alto nível', () => {
           codMunicipio: '2111300',
           locacao: {
             pCopropriedade: 50,
-            vTotOper: 1000,
+            vTotOper: 2000,
             vDescIncondTot: 10,
             vDescCondTot: 30,
             dVencOrig: new Date('2026-12-10T12:00:00Z'),
@@ -857,6 +857,12 @@ describe('nt009 inputs de alto nível', () => {
       cNBS: '123456789',
     });
     expect(dps.infDPS.valores.trib.tribMun.tribISSQN).toBe(TipoTribISSQN.NaoIncidencia);
+    // Anotação de TCVServPrest/vServ (E1547): no 99.03, vServ = pCopropriedade ×
+    // vTotOper — vTotOper é o total da operação, não a parte do coproprietário.
+    const gLocacao = dps.infDPS.IBSCBS?.imovel?.gLocacao;
+    expect(dps.infDPS.valores.vServPrest.vServ).toBe(
+      ((gLocacao?.pCopropriedade ?? 0) / 100) * (gLocacao?.vTotOper ?? 0),
+    );
     // E0434/E0443: vDescIncond/vDescCond = pCopropriedade × vDesc*Tot (50% de 10 e de 30).
     expect(dps.infDPS.valores.vDescCondIncond).toEqual({ vDescIncond: 5, vDescCond: 15 });
     expect(dps.infDPS.valores.vAjusteBC).toEqual({
@@ -914,7 +920,7 @@ describe('nt009 inputs de alto nível', () => {
         cMun: '2111300',
         gLocacao: {
           pCopropriedade: 50,
-          vTotOper: 1000,
+          vTotOper: 2000,
           vDescIncondTot: 10,
           vDescCondTot: 30,
           dVencOrig: new Date('2026-12-10T12:00:00Z'),
