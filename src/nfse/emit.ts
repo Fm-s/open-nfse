@@ -333,6 +333,7 @@ function toEmitResult<L extends Layout>(
   body: SefinPostSuccessBody,
   expectedLayout: L | undefined,
   logger: Logger | undefined,
+  options?: { readonly logUnreadable?: boolean },
 ): NfseEmitResult<L> {
   const meta = {
     chaveAcesso: body.chaveAcesso,
@@ -352,10 +353,10 @@ function toEmitResult<L extends Layout>(
     // Estreitamento checado logo acima (ou L = Layout quando não há expectativa).
     return { ...meta, xmlNfse, nfse: nfse as NfseFor<L> };
   } catch (cause) {
-    throw unreadableAuthorizedNfse(
-      { ...meta, ...(xmlNfse !== undefined ? { xmlNfse } : {}), cause },
-      logger,
-    );
+    const dadosNota = { ...meta, ...(xmlNfse !== undefined ? { xmlNfse } : {}), cause };
+    throw options?.logUnreadable === false
+      ? new UnreadableAuthorizedNfseError(dadosNota)
+      : unreadableAuthorizedNfse(dadosNota, logger);
   }
 }
 
@@ -365,12 +366,20 @@ export function unreadableAuthorizedNfse(
   logger: Logger | undefined,
 ): UnreadableAuthorizedNfseError {
   const error = new UnreadableAuthorizedNfseError(options);
+  logUnreadableAuthorizedNfse(error, logger);
+  return error;
+}
+
+/** `error` `nfse.emit.authorized_unreadable` — só depois de saber que a nota é desta DPS. */
+export function logUnreadableAuthorizedNfse(
+  error: UnreadableAuthorizedNfseError,
+  logger: Logger | undefined,
+): void {
   logger?.error('nfse.emit.authorized_unreadable', {
     chaveAcesso: error.chaveAcesso,
     idDps: error.idDps,
     error: error.cause instanceof Error ? error.cause.message : String(error.cause),
   });
-  return error;
 }
 
 // ---------------------------------------------------------------------------
@@ -738,7 +747,9 @@ interface SefinNfseGetBody {
  * Reconciliação do replay: dado o `GET /dps/{id}` que confirmou a NFS-e,
  * baixa-a (`GET /nfse/{chave}`) e monta o mesmo `NfseEmitResult` de uma
  * emissão (`alertas` vazio — o GET não os devolve). XML ilegível →
- * `UnreadableAuthorizedNfseError`; erros HTTP propagam.
+ * `UnreadableAuthorizedNfseError` **sem** log: a nota pode ser de outra DPS
+ * com o mesmo Id, então quem chama loga (`logUnreadableAuthorizedNfse`) só
+ * depois de conferir a DPS embutida. Erros HTTP propagam.
  */
 export async function fetchEmissionByDpsStatus(
   httpClient: HttpClient,
@@ -759,6 +770,7 @@ export async function fetchEmissionByDpsStatus(
     },
     undefined,
     logger,
+    { logUnreadable: false },
   );
 }
 

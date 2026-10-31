@@ -1447,9 +1447,11 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     replyPost(400, rejeicao('E0014'));
     replyDpsStatus(200);
     replyNfseGet(200, XML_ILEGIVEL);
+    const { logger, errors } = recordingLogger();
     const store = await storeComEmissao();
-    const c = client({ retryStore: store });
+    const c = client({ retryStore: store, logger });
     const [item] = await c.replayPendingEvents();
+    expect(errors.filter(([m]) => m === 'nfse.emit.authorized_unreadable')).toHaveLength(1);
     expect(item?.status).toBe('success_emission_unreadable');
     if (item?.status !== 'success_emission_unreadable') throw new Error('status inesperado');
     expect(item.error).toMatchObject({ chaveAcesso: CHAVE, idDps: ID_DPS, xmlNfse: XML_ILEGIVEL });
@@ -1546,14 +1548,18 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     replyPost(400, rejeicao('E0014'));
     replyDpsStatus(200);
     replyNfseGet(200, XML_ILEGIVEL);
+    const { logger, warns, errors } = recordingLogger();
     const store = await storeComEmissao(
       undefined,
       dpsPersistida({ signatureValue: 'b3V0cmEtYXNzaW5hdHVyYQ==' }),
     );
-    const c = client({ retryStore: store });
+    const c = client({ retryStore: store, logger });
     const [item] = await c.replayPendingEvents();
     expect(item?.status).toBe('failed_permanent');
     expect(await store.list()).toHaveLength(0);
+    // A nota é de outra DPS: nada de error "autorizada a partir da nossa DPS".
+    expect(errors.map(([m]) => m)).not.toContain('nfse.emit.authorized_unreadable');
+    expect(warns.map(([m]) => m)).toContain('nfse.replay.reconcile_mismatch');
     await c.close();
   });
 

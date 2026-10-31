@@ -38,6 +38,7 @@ import {
   emitMany as emitManyInternal,
   emitSeguro,
   fetchEmissionByDpsStatus,
+  logUnreadableAuthorizedNfse,
   type NfseEmitResult,
   replayEmission,
   unreadableAuthorizedNfse,
@@ -773,6 +774,8 @@ export class NfseClient<L extends Layout = Layout> {
       if (err instanceof UnreadableAuthorizedNfseError) {
         const mismatch = await this.rejectForeignNfse(store, entry, rejection, err);
         if (mismatch) return mismatch;
+        // Só agora (a nota é desta DPS) o error "autorizada e ilegível" procede.
+        logUnreadableAuthorizedNfse(err, this.logger);
         await store.delete(entry.id);
         return { id: entry.id, status: 'success_emission_unreadable', error: err };
       }
