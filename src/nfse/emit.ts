@@ -20,6 +20,7 @@ import {
   type RetryStore,
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
+import { parseXml, TEXT_NODE, type XmlNode, type XmlObject } from '../xml/parser.js';
 import { type BuildDpsParamsFor, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
@@ -731,6 +732,70 @@ export async function fetchEmissionByDpsStatus(
     undefined,
     logger,
   );
+}
+
+/**
+ * Reconciliação do replay: a NFS-e achada por `GET /dps/{id}` nasceu da DPS
+ * persistida no store? O `infDPS.Id` só codifica cMun + CNPJ/CPF + série +
+ * nDPS — uma colisão de numeração (contador em memória reiniciado, `nDPS`
+ * explícito) faz o GET devolver a nota de **outra** DPS. A NFS-e embute a
+ * DPS assinada (`TCDPS` = `infDPS` + `ds:Signature`), então compara:
+ * - o `SignatureValue` da DPS (whitespace ignorado), quando os dois lados o têm;
+ * - senão, o `infDPS/dhEmi` (como instante), quando os dois lados o têm.
+ *
+ * `true` = mesma DPS; `false` = outra DPS; `undefined` = não verificável
+ * (DPS persistida sem assinatura nem `dhEmi`, como dados legados/stubs, ou
+ * XML que não parseia) — o caller segue confiando no `GET /dps`.
+ */
+export function embeddedDpsMatches(xmlNfse: string, xmlSignedDps: string): boolean | undefined {
+  const persisted = dpsFingerprint(() => asObject(parseXml(xmlSignedDps).DPS));
+  const embedded = dpsFingerprint(() => {
+    const nfse = asObject(parseXml(xmlNfse).NFSe);
+    return asObject(asObject(nfse?.infNFSe)?.DPS);
+  });
+  if (!persisted || !embedded) return undefined;
+  if (persisted.signatureValue !== undefined && embedded.signatureValue !== undefined) {
+    return persisted.signatureValue === embedded.signatureValue;
+  }
+  if (persisted.dhEmi !== undefined && embedded.dhEmi !== undefined) {
+    const a = Date.parse(persisted.dhEmi);
+    const b = Date.parse(embedded.dhEmi);
+    return Number.isNaN(a) || Number.isNaN(b) ? persisted.dhEmi === embedded.dhEmi : a === b;
+  }
+  return undefined;
+}
+
+interface DpsFingerprint {
+  readonly signatureValue: string | undefined;
+  readonly dhEmi: string | undefined;
+}
+
+function dpsFingerprint(getDps: () => XmlObject | undefined): DpsFingerprint | undefined {
+  let dps: XmlObject | undefined;
+  try {
+    dps = getDps();
+  } catch {
+    return undefined;
+  }
+  if (!dps) return undefined;
+  const signature = textOf(asObject(dps.Signature)?.SignatureValue)?.replace(/\s+/g, '');
+  const dhEmi = textOf(asObject(dps.infDPS)?.dhEmi)?.trim();
+  return {
+    signatureValue: signature ? signature : undefined,
+    dhEmi: dhEmi ? dhEmi : undefined,
+  };
+}
+
+function asObject(node: XmlNode | undefined): XmlObject | undefined {
+  return node !== undefined && typeof node === 'object' && !Array.isArray(node)
+    ? (node as XmlObject)
+    : undefined;
+}
+
+function textOf(node: XmlNode | undefined): string | undefined {
+  if (typeof node === 'string') return node;
+  const text = asObject(node)?.[TEXT_NODE];
+  return typeof text === 'string' ? text : undefined;
 }
 
 function pickStr(obj: Record<string, unknown>, ...keys: string[]): string | undefined {

@@ -33,6 +33,7 @@ import {
   type EmitLoteOptions,
   type EmitLoteResult,
   type EmitOptions,
+  embeddedDpsMatches,
   emitDpsPronta as emitDpsProntaInternal,
   emitMany as emitManyInternal,
   emitSeguro,
@@ -94,7 +95,9 @@ import { defaultIsTransient } from './retry/transient.js';
  * - `still_pending` — falha transiente (do re-POST ou da reconciliação); a
  *   entrada fica no store.
  * - `failed_permanent` — rejeição permanente e nenhuma NFS-e gerada a partir
- *   da DPS (`GET /dps/{id}` → 404), ou a reconciliação não pôde ser feita
+ *   da DPS (`GET /dps/{id}` → 404), a NFS-e achada nasceu de **outra** DPS
+ *   com o mesmo `infDPS.Id` (colisão de numeração; logada em
+ *   `nfse.replay.reconcile_mismatch`), ou a reconciliação não pôde ser feita
  *   (falha permanente da consulta, logada em `nfse.replay.reconcile_failed`).
  *   A entrada sai do store; `error` é a rejeição do re-POST.
  */
@@ -327,8 +330,10 @@ export class NfseClient<L extends Layout = Layout> {
    * **Não envolva esta chamada num retry loop próprio para 429 / 5xx.** Cada
    * `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta
    * e retenta queima números da série e cria buracos permanentes. A lib já
-   * persiste o pendente no `RetryStore` e dedupica server-side via `infDPS.Id`
-   * — use `replayPendingEvents()` (tipicamente num cron) para retomar.
+   * persiste o pendente no `RetryStore` com o XML assinado — o replay re-posta
+   * o mesmo `infDPS.Id` (não cria nota nova) e reconcilia via `GET /dps/{id}`
+   * uma rejeição E0014/E1235 de DPS já autorizada. Use `replayPendingEvents()`
+   * (tipicamente num cron) para retomar.
    *
    * Para emitir uma DPS já montada manualmente (bypass counter + retry flow),
    * use `emitirDpsPronta(dps)`.
@@ -421,8 +426,10 @@ export class NfseClient<L extends Layout = Layout> {
    *
    * Em 429 a falha é capturada como `failure` com `error instanceof
    * TooManyRequestsError`; o caller pode inspecionar `error.getRetryAfterMs()`
-   * para decidir quando re-emitir os itens que falharam (mesmo `nDPS` —
-   * SEFIN deduplica via `infDPS.Id`).
+   * para decidir quando re-emitir os itens que falharam (mesmo `nDPS`, logo
+   * mesmo `infDPS.Id`: uma DPS que na verdade já foi autorizada volta como
+   * rejeição E0014 — confira com `fetchDpsStatus(idDps)` antes de tratar como
+   * falha).
    *
    * Todas as DPS precisam ser do layout do cliente: um único item de outro
    * layout rejeita o lote inteiro com `LayoutMismatchError` antes do primeiro
@@ -556,8 +563,13 @@ export class NfseClient<L extends Layout = Layout> {
    * — o XML `nt004` persistido não valida no `nt009`). Por isso, numa rejeição
    * permanente de emissão a lib consulta `GET /dps/{idDps}` antes de remover a
    * entrada:
-   * - NFS-e encontrada → baixa-a (`GET /nfse/{chave}`) e devolve
-   *   `success_emission` com `reconciledFrom` = a rejeição;
+   * - NFS-e encontrada → baixa-a (`GET /nfse/{chave}`), confere que a DPS
+   *   embutida nela é a persistida (`SignatureValue`, ou `dhEmi` sem
+   *   assinatura) e devolve `success_emission` com `reconciledFrom` = a
+   *   rejeição;
+   * - NFS-e de **outra** DPS com o mesmo `infDPS.Id` (colisão de série/nDPS —
+   *   E0014 legítimo) → `failed_permanent` + `warn`
+   *   `nfse.replay.reconcile_mismatch`;
    * - 404 → `failed_permanent` (nenhuma NFS-e saiu dessa DPS; reemitir é
    *   seguro);
    * - falha transiente na consulta → `still_pending` (a entrada fica; nunca se
@@ -742,6 +754,8 @@ export class NfseClient<L extends Layout = Layout> {
 
     try {
       const emission = await fetchEmissionByDpsStatus(state.sefin, status, this.logger);
+      const mismatch = await this.rejectForeignNfse(store, entry, rejection, emission);
+      if (mismatch) return mismatch;
       await store.delete(entry.id);
       this.logger.info('nfse.replay.reconciled', {
         id: entry.id,
@@ -751,6 +765,8 @@ export class NfseClient<L extends Layout = Layout> {
       return { id: entry.id, status: 'success_emission', emission, reconciledFrom: rejection };
     } catch (err) {
       if (err instanceof UnreadableAuthorizedNfseError) {
+        const mismatch = await this.rejectForeignNfse(store, entry, rejection, err);
+        if (mismatch) return mismatch;
         await store.delete(entry.id);
         return { id: entry.id, status: 'success_emission_unreadable', error: err };
       }
@@ -775,6 +791,31 @@ export class NfseClient<L extends Layout = Layout> {
       await store.delete(entry.id);
       return { id: entry.id, status: 'success_emission_unreadable', error };
     }
+  }
+
+  /**
+   * Reconciliação: a NFS-e baixada nasceu de outra DPS com o mesmo
+   * `infDPS.Id`? (E0014 legítimo — série/nDPS reaproveitados.) Nesse caso a
+   * entrada sai como `failed_permanent` com a rejeição do re-POST: o serviço
+   * pendente **não** foi faturado. Sem XML ou sem como comparar, confia no
+   * `GET /dps` (devolve `undefined`).
+   */
+  private async rejectForeignNfse(
+    store: RetryStore,
+    entry: PendingEmission,
+    rejection: Error,
+    found: { readonly chaveAcesso: string; readonly xmlNfse?: string | undefined },
+  ): Promise<ReplayItem | undefined> {
+    if (found.xmlNfse === undefined) return undefined;
+    if (embeddedDpsMatches(found.xmlNfse, entry.xmlAssinado) !== false) return undefined;
+    this.logger.warn('nfse.replay.reconcile_mismatch', {
+      id: entry.id,
+      idDps: entry.idDps,
+      chaveAcesso: found.chaveAcesso,
+      rejection: rejection.message,
+    });
+    await store.delete(entry.id);
+    return { id: entry.id, status: 'failed_permanent', error: rejection };
   }
 
   /**

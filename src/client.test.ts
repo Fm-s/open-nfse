@@ -9,7 +9,7 @@ import type { CepInfo, CepValidator } from './cep/types.js';
 import type { CertificateProvider } from './certificate/types.js';
 import { ClientClosedError, NfseClient, type NfseClientConfig } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
-import { ForbiddenError, ServerError } from './errors/http.js';
+import { ForbiddenError, NotFoundError, ServerError } from './errors/http.js';
 import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from './errors/receita.js';
 import {
   InvalidChaveAcessoError,
@@ -1234,7 +1234,10 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     });
   }
 
-  async function storeComEmissao(layout?: 'nt004' | 'nt009') {
+  async function storeComEmissao(
+    layout?: 'nt004' | 'nt009',
+    xmlAssinado = `<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="${ID_DPS}"/></DPS>`,
+  ) {
     const store = createInMemoryRetryStore();
     await store.save({
       id: `emission:${ID_DPS}`,
@@ -1244,7 +1247,7 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
       emitenteCnpj: '00574753000100',
       serie: '1',
       nDPS: '1',
-      xmlAssinado: `<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="${ID_DPS}"/></DPS>`,
+      xmlAssinado,
       firstAttemptAt: new Date('2026-11-30T23:59:00Z'),
       lastAttemptAt: new Date('2026-11-30T23:59:00Z'),
       attempts: 1,
@@ -1451,6 +1454,144 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     if (item?.status !== 'success_emission_unreadable') throw new Error('status inesperado');
     expect(item.error).toMatchObject({ chaveAcesso: CHAVE, idDps: ID_DPS, xmlNfse: XML_ILEGIVEL });
     expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  // DPS persistida no store com a assinatura/dhEmi dados — a NFS-e do
+  // XML_SAMPLE embute a DPS de dhEmi 2026-03-03T12:17:25-03:00.
+  const SIGNATURE_VALUE_SAMPLE = (() => {
+    const dps = XML_SAMPLE.slice(XML_SAMPLE.indexOf('<DPS '), XML_SAMPLE.indexOf('</DPS>'));
+    const m = /<SignatureValue>([^<]*)<\/SignatureValue>/.exec(dps);
+    if (!m?.[1]) throw new Error('fixture sem SignatureValue na DPS');
+    return m[1];
+  })();
+  const dpsPersistida = (opts: { signatureValue?: string; dhEmi?: string }) =>
+    `<DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infDPS Id="${ID_DPS}">` +
+    (opts.dhEmi ? `<dhEmi>${opts.dhEmi}</dhEmi>` : '') +
+    '</infDPS>' +
+    (opts.signatureValue !== undefined
+      ? `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo/><SignatureValue>${opts.signatureValue}</SignatureValue></Signature>`
+      : '') +
+    '</DPS>';
+
+  it('replay: reconciliação confere a DPS embutida — assinatura igual (whitespace à parte) → success_emission', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200);
+    const sigQuebrada = SIGNATURE_VALUE_SAMPLE.replace(/\s+/g, '').replace(/(.{64})/g, '$1\n');
+    const store = await storeComEmissao(undefined, dpsPersistida({ signatureValue: sigQuebrada }));
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission');
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: GET /dps devolve NFS-e de OUTRA DPS (assinatura diferente) → failed_permanent + warn reconcile_mismatch', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200);
+    const { logger, warns } = recordingLogger();
+    const store = await storeComEmissao(
+      undefined,
+      dpsPersistida({
+        signatureValue: 'b3V0cmEtYXNzaW5hdHVyYQ==',
+        dhEmi: '2026-03-03T12:17:25-03:00',
+      }),
+    );
+    const c = client({ retryStore: store, logger });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('failed_permanent');
+    if (item?.status !== 'failed_permanent') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(ReceitaRejectionError);
+    expect(item.error).toMatchObject({ codigo: 'E0014' });
+    expect(warns).toContainEqual([
+      'nfse.replay.reconcile_mismatch',
+      expect.objectContaining({ id: `emission:${ID_DPS}`, idDps: ID_DPS, chaveAcesso: CHAVE }),
+    ]);
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: DPS persistida sem assinatura mas com dhEmi diferente do da NFS-e → failed_permanent', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200);
+    const store = await storeComEmissao(
+      undefined,
+      dpsPersistida({ dhEmi: '2026-11-30T20:58:00-03:00' }),
+    );
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('failed_permanent');
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: DPS persistida sem assinatura e com o mesmo dhEmi (outro fuso) → success_emission', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200);
+    const store = await storeComEmissao(
+      undefined,
+      dpsPersistida({ dhEmi: '2026-03-03T15:17:25Z' }),
+    );
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission');
+    await c.close();
+  });
+
+  it('replay: NFS-e baixada ilegível mas de OUTRA DPS → failed_permanent (não success_emission_unreadable)', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(200, XML_ILEGIVEL);
+    const store = await storeComEmissao(
+      undefined,
+      dpsPersistida({ signatureValue: 'b3V0cmEtYXNzaW5hdHVyYQ==' }),
+    );
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('failed_permanent');
+    expect(await store.list()).toHaveLength(0);
+    await c.close();
+  });
+
+  it('replay: GET /dps confirma a NFS-e mas GET /nfse falha permanente (404) → success_emission_unreadable com a chave, sem XML', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(200);
+    replyNfseGet(404);
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('success_emission_unreadable');
+    if (item?.status !== 'success_emission_unreadable') throw new Error('status inesperado');
+    expect(item.error.chaveAcesso).toBe(CHAVE);
+    expect(item.error.idDps).toBe(ID_DPS);
+    expect(item.error.xmlNfse).toBeUndefined();
+    expect(item.error.cause).toBeInstanceOf(NotFoundError);
+    expect(await store.list()).toHaveLength(0);
+    mockAgent.assertNoPendingInterceptors();
+    await c.close();
+  });
+
+  it('replay: rejeição permanente + GET /dps falha permanente (403) → failed_permanent com a rejeição + warn reconcile_failed', async () => {
+    replyPost(400, rejeicao('E0014'));
+    replyDpsStatus(403);
+    const { logger, warns } = recordingLogger();
+    const store = await storeComEmissao();
+    const c = client({ retryStore: store, logger });
+    const [item] = await c.replayPendingEvents();
+    expect(item?.status).toBe('failed_permanent');
+    if (item?.status !== 'failed_permanent') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(ReceitaRejectionError);
+    expect(item.error).toMatchObject({ codigo: 'E0014' });
+    expect(warns).toContainEqual([
+      'nfse.replay.reconcile_failed',
+      expect.objectContaining({ id: `emission:${ID_DPS}`, idDps: ID_DPS }),
+    ]);
+    expect(await store.list()).toHaveLength(0);
+    mockAgent.assertNoPendingInterceptors();
     await c.close();
   });
 
