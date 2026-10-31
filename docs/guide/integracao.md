@@ -317,8 +317,9 @@ for (const r of results) {
 // success_emission com r.reconciledFrom: o re-POST foi rejeitado (E0014/E1235…), mas
 // GET /dps/{id} mostrou que a NFS-e já existia. failed_permanent de emissão: o GET /dps
 // respondeu 404 (nenhuma nota saiu da DPS) ou a nota achada embute outra DPS (warn
-// nfse.replay.reconcile_mismatch) — reemitir com novo nDPS é seguro — ou, com
-// warn nfse.replay.reconcile_failed, a consulta falhou: confira com fetchDpsStatus antes.
+// nfse.replay.reconcile_mismatch) — reemitir com novo nDPS é seguro. Se a consulta não
+// decide (403, corpo malformado — warn nfse.replay.reconcile_failed), o item é
+// still_pending e a entrada fica: a lib nunca apaga uma emissão sem saber se a nota existe.
 ```
 
 **Contratos críticos do cron:**

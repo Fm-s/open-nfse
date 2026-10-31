@@ -174,8 +174,8 @@ Tudo que cai em `retry_pending` (de `emitir`, `cancelar` ou `substituir`) é per
 | NFS-e encontrada            | `success_emission` (baixada via `GET /nfse/{chave}`), `reconciledFrom` = a rejeição | removida |
 | NFS-e de **outra** DPS      | `failed_permanent` + `warn` `nfse.replay.reconcile_mismatch` (ver abaixo)       | removida    |
 | 404                         | `failed_permanent` (`error` = a rejeição) — nenhuma NFS-e saiu dessa DPS       | removida    |
-| falha transiente            | `still_pending`                                                                | mantida     |
-| outra falha permanente      | `failed_permanent` + `warn` `nfse.replay.reconcile_failed`                     | removida    |
+| falha transiente            | `still_pending` + `warn` `nfse.replay.reconcile_pending`                       | mantida     |
+| outra falha (401/403/400, corpo malformado) | `still_pending` + `warn` `nfse.replay.reconcile_failed` — investigue: volta a cada varredura | mantida |
 
 O `infDPS.Id` só codifica município, CNPJ/CPF, série e `nDPS`. Se a numeração colidiu (contador em memória reiniciado, `nDPS` explícito reaproveitado), o E0014 é legítimo e o `GET /dps/{id}` devolve a nota **antiga**. Por isso a lib confere a DPS embutida na NFS-e baixada contra a persistida — `SignatureValue` da DPS, ou `dhEmi` quando a persistida não tem assinatura — e, se divergem, devolve `failed_permanent`: o serviço pendente **não** foi faturado; reemita com um `nDPS` novo.
 
@@ -230,9 +230,9 @@ for (const item of items) {
     case 'failed_permanent':
       // Permanente — lib removeu do store. Para emissões, o GET /dps/{id}
       // confirmou que não há NFS-e dessa DPS (404, ou a nota achada é de outra
-      // DPS — warn nfse.replay.reconcile_mismatch), ou a consulta falhou de forma
-      // permanente (warn nfse.replay.reconcile_failed). Caller decide (alerta,
-      // ticket, reemissão consciente com novo nDPS).
+      // DPS — warn nfse.replay.reconcile_mismatch). Consulta que não decide
+      // (403, corpo malformado…) nunca cai aqui: vira still_pending. Caller
+      // decide (alerta, ticket, reemissão consciente com novo nDPS).
       logger.error('replay permanent', { id: item.id, err: item.error.message });
       break;
   }

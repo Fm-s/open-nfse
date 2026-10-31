@@ -9,7 +9,7 @@ import type { CepInfo, CepValidator } from './cep/types.js';
 import type { CertificateProvider } from './certificate/types.js';
 import { ClientClosedError, NfseClient, type NfseClientConfig } from './client.js';
 import { StatusDistribuicao } from './dfe/types.js';
-import { ForbiddenError, NotFoundError, ServerError } from './errors/http.js';
+import { ForbiddenError, NetworkError, NotFoundError, ServerError } from './errors/http.js';
 import { ReceitaRejectionError, UnreadableAuthorizedNfseError } from './errors/receita.js';
 import {
   InvalidChaveAcessoError,
@@ -1575,23 +1575,43 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     await c.close();
   });
 
-  it('replay: rejeição permanente + GET /dps falha permanente (403) → failed_permanent com a rejeição + warn reconcile_failed', async () => {
+  it.each([401, 403, 400])(
+    'replay: rejeição permanente + GET /dps falha permanente (%i) → still_pending, entrada mantida + warn reconcile_failed (não deleta sem saber)',
+    async (httpStatus) => {
+      replyPost(400, rejeicao('E0014'));
+      replyDpsStatus(httpStatus);
+      const { logger, warns } = recordingLogger();
+      const store = await storeComEmissao();
+      const c = client({ retryStore: store, logger });
+      const [item] = await c.replayPendingEvents();
+      expect(item?.status).toBe('still_pending');
+      if (item?.status !== 'still_pending') throw new Error('status inesperado');
+      expect(item.error).not.toBeInstanceOf(ReceitaRejectionError);
+      expect(warns).toContainEqual([
+        'nfse.replay.reconcile_failed',
+        expect.objectContaining({ id: `emission:${ID_DPS}`, idDps: ID_DPS }),
+      ]);
+      const stored = await store.list();
+      expect(stored).toHaveLength(1);
+      expect(stored[0]?.attempts).toBe(2);
+      mockAgent.assertNoPendingInterceptors();
+      await c.close();
+    },
+  );
+
+  it('replay: rejeição permanente + GET /dps 200 com corpo vazio → still_pending (erro de rede tipado, não TypeError)', async () => {
     replyPost(400, rejeicao('E0014'));
-    replyDpsStatus(403);
-    const { logger, warns } = recordingLogger();
+    mockAgent
+      .get(SEFIN)
+      .intercept({ path: `/SefinNacional/dps/${ID_DPS}`, method: 'GET' })
+      .reply(200, '');
     const store = await storeComEmissao();
-    const c = client({ retryStore: store, logger });
+    const c = client({ retryStore: store });
     const [item] = await c.replayPendingEvents();
-    expect(item?.status).toBe('failed_permanent');
-    if (item?.status !== 'failed_permanent') throw new Error('status inesperado');
-    expect(item.error).toBeInstanceOf(ReceitaRejectionError);
-    expect(item.error).toMatchObject({ codigo: 'E0014' });
-    expect(warns).toContainEqual([
-      'nfse.replay.reconcile_failed',
-      expect.objectContaining({ id: `emission:${ID_DPS}`, idDps: ID_DPS }),
-    ]);
-    expect(await store.list()).toHaveLength(0);
-    mockAgent.assertNoPendingInterceptors();
+    expect(item?.status).toBe('still_pending');
+    if (item?.status !== 'still_pending') throw new Error('status inesperado');
+    expect(item.error).toBeInstanceOf(NetworkError);
+    expect(await store.list()).toHaveLength(1);
     await c.close();
   });
 

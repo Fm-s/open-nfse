@@ -92,14 +92,15 @@ import { defaultIsTransient } from './retry/transient.js';
  * - `success_emission_unreadable` — NFS-e **autorizada** cuja resposta não pôde
  *   ser interpretada; `error` (`UnreadableAuthorizedNfseError`) carrega
  *   `chaveAcesso`/`idDps`/`xmlNfse`. A entrada sai do store. Não reemita.
- * - `still_pending` — falha transiente (do re-POST ou da reconciliação); a
- *   entrada fica no store.
+ * - `still_pending` — falha transiente do re-POST, ou reconciliação que não
+ *   pôde decidir se a DPS virou NFS-e (qualquer falha de `GET /dps/{id}` que
+ *   não seja 404 — inclusive 401/403 ou resposta malformada, logadas em
+ *   `nfse.replay.reconcile_failed`); a entrada fica no store.
  * - `failed_permanent` — rejeição permanente e nenhuma NFS-e gerada a partir
- *   da DPS (`GET /dps/{id}` → 404), a NFS-e achada nasceu de **outra** DPS
+ *   da DPS (`GET /dps/{id}` → 404), ou a NFS-e achada nasceu de **outra** DPS
  *   com o mesmo `infDPS.Id` (colisão de numeração; logada em
- *   `nfse.replay.reconcile_mismatch`), ou a reconciliação não pôde ser feita
- *   (falha permanente da consulta, logada em `nfse.replay.reconcile_failed`).
- *   A entrada sai do store; `error` é a rejeição do re-POST.
+ *   `nfse.replay.reconcile_mismatch`). A entrada sai do store; `error` é a
+ *   rejeição do re-POST.
  */
 export type ReplayItem =
   | { readonly id: string; readonly status: 'success'; readonly evento: EventoResult }
@@ -572,10 +573,12 @@ export class NfseClient<L extends Layout = Layout> {
    *   `nfse.replay.reconcile_mismatch`;
    * - 404 → `failed_permanent` (nenhuma NFS-e saiu dessa DPS; reemitir é
    *   seguro);
-   * - falha transiente na consulta → `still_pending` (a entrada fica; nunca se
-   *   deleta sem saber);
-   * - outra falha permanente na consulta → `failed_permanent` com a rejeição
-   *   original + `warn` `nfse.replay.reconcile_failed`.
+   * - qualquer outra falha na consulta → `still_pending` com o erro da
+   *   consulta (a entrada fica; nunca se deleta sem saber). Transiente loga
+   *   `warn` `nfse.replay.reconcile_pending`; permanente (401/403/400,
+   *   resposta malformada) loga `warn` `nfse.replay.reconcile_failed` com a
+   *   rejeição do re-POST — investigue, porque a entrada volta a cada
+   *   varredura até a consulta decidir.
    *
    * Resposta 201 (ou NFS-e baixada na reconciliação) que o parser não consegue
    * ler → `success_emission_unreadable` com `UnreadableAuthorizedNfseError`
@@ -731,25 +734,28 @@ export class NfseClient<L extends Layout = Layout> {
         await store.delete(entry.id);
         return { id: entry.id, status: 'failed_permanent', error: rejection };
       }
+      // Só o 404 prova que não há nota. Qualquer outra falha da consulta
+      // (transiente, 401/403/400, resposta malformada) deixa em aberto se a
+      // DPS virou NFS-e — e a rejeição que dispara a reconciliação costuma ser
+      // a E0014 ("já existe em uma NFS-e gerada"). Sem saber, não deleta: um
+      // failed_permanent aqui levaria o chamador a reemitir e duplicar a nota.
       if (isRetryableError(lookupError)) {
-        // Sem saber se a nota existe, não deleta.
         this.logger.warn('nfse.replay.reconcile_pending', {
           id: entry.id,
           rejection: rejection.message,
           error: lookupError.message,
         });
-        await this.keepPending(store, entry, lookupError);
-        return { id: entry.id, status: 'still_pending', error: lookupError };
+      } else {
+        this.logger.warn('nfse.replay.reconcile_failed', {
+          id: entry.id,
+          idDps: entry.idDps,
+          rejection: rejection.message,
+          error: lookupError.message,
+          errorName: lookupError.name,
+        });
       }
-      this.logger.warn('nfse.replay.reconcile_failed', {
-        id: entry.id,
-        idDps: entry.idDps,
-        rejection: rejection.message,
-        error: lookupError.message,
-        errorName: lookupError.name,
-      });
-      await store.delete(entry.id);
-      return { id: entry.id, status: 'failed_permanent', error: rejection };
+      await this.keepPending(store, entry, lookupError);
+      return { id: entry.id, status: 'still_pending', error: lookupError };
     }
 
     try {

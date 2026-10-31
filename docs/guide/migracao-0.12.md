@@ -153,7 +153,7 @@ O leiaute atual vale até **30/11/2026**; em 01/12 o `nt009` entra em produção
    - a NFS-e achada embute **outra** DPS (série/nDPS reaproveitados) → `failed_permanent` + `warn` `nfse.replay.reconcile_mismatch`: trate como o 404 abaixo.
    - 404 → `failed_permanent`: nenhuma nota saiu dessa DPS. Refaça a emissão com o cliente `nt009` (novo `nDPS` do counter). O `id` do item é `emission:<idDps>`; se você precisa de `serie`/`nDPS`/`emitenteCnpj` para remontar, leia-os do `store.list()` **antes** do replay.
    - falha transiente na consulta → `still_pending`; a entrada fica para a próxima passada.
-   - outra falha permanente na consulta → `failed_permanent` + `warn` `nfse.replay.reconcile_failed`: confira com `fetchDpsStatus(idDps)` antes de reemitir.
+   - outra falha na consulta (401/403/400, corpo malformado) → também `still_pending` + `warn` `nfse.replay.reconcile_failed`: a entrada fica até a consulta decidir. Investigue (permissão do certificado no `GET /dps`, proxy) em vez de reemitir.
 
 A mesma reconciliação vale fora da virada: um re-POST rejeitado com E0014 (série/número já existe) de uma DPS que o SEFIN autorizou antes do timeout volta como `success_emission`, não como falha.
 

@@ -1,5 +1,5 @@
 import { TipoAmbiente } from '../ambiente.js';
-import { NotFoundError } from '../errors/http.js';
+import { NetworkError, NotFoundError } from '../errors/http.js';
 import { InvalidDpsIdError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
 
@@ -35,8 +35,9 @@ interface SefinDpsGetResponse {
  * se a Receita chegou a gerar a NFS-e.
  *
  * Retorna `DpsStatusResult` (com `chaveAcesso`) quando há NFS-e; lança
- * `NotFoundError` (HTTP 404) quando não há; lança `InvalidDpsIdParamError`
- * se o formato do id for inválido.
+ * `NotFoundError` (HTTP 404) quando não há; lança `InvalidDpsIdError`
+ * se o formato do id for inválido e `NetworkError` se o 200 vier sem
+ * `chaveAcesso` no corpo.
  */
 export async function fetchDpsStatus(
   httpClient: HttpClient,
@@ -45,7 +46,12 @@ export async function fetchDpsStatus(
   if (!REGEX_DPS_ID.test(idDps)) {
     throw new InvalidDpsIdError(idDps);
   }
-  const raw = await httpClient.get<SefinDpsGetResponse>(`/dps/${idDps}`);
+  const raw = await httpClient.get<SefinDpsGetResponse | undefined | null>(`/dps/${idDps}`);
+  // 200 sem corpo (ou sem chaveAcesso) não diz nada sobre a NFS-e: erro de rede
+  // tipado (transiente) em vez de um TypeError — quem reconcilia não deleta.
+  if (raw == null || typeof raw !== 'object' || typeof raw.chaveAcesso !== 'string') {
+    throw new NetworkError(`GET /dps/${idDps} devolveu 200 sem chaveAcesso no corpo`);
+  }
   return {
     chaveAcesso: raw.chaveAcesso,
     idDps: raw.idDps,
