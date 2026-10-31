@@ -22,6 +22,7 @@ import sys
 import unicodedata
 
 import openpyxl
+from openpyxl.utils import column_index_from_string
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 OFICIAL = os.path.join(ROOT, ".superpowers/oficial")
@@ -65,14 +66,15 @@ LAYOUTS = {
             "rn_dps": "RN DPS_NFS-e 1.01",
             "recep_dps": "RN_RECEP_DPS",
         },
-        # nt009 Anexo I RN has three column triplets (prestador / tomador-interm. /
-        # decisao 102) for SEFIN (K-M and N-P) and ADN (Q-S). The sidecar keeps the
-        # nt004 key set: prestador scenario + decisao (102) of the first SEFIN
-        # triplet and of the ADN triplet. The other scenarios stay lossless in _raw/.
-        "rn_dps_cols": (11, 13, 17, 19, 20),
+        # nt009 Anexo I RN has two SEFIN triplets (prestador / tomador / decisao 102)
+        # with identical headers: K-M (K and M hidden in the sheet — superseded) and
+        # N-P (visible, current); ADN is Q-S. The sidecar keeps the nt004 key set:
+        # prestador scenario + decisao (102) of the visible SEFIN triplet and of the
+        # ADN triplet. The other scenarios stay lossless in _raw/.
+        "rn_dps_cols": (14, 16, 17, 19, 20),
         "rn_dps_header": (
-            (2, 11, "EMITENTE PRESTADOR"),
-            (2, 13, "cStat = 102"),
+            (2, 14, "EMITENTE PRESTADOR"),
+            (2, 16, "cStat = 102"),
             (2, 17, "ADN NFS-e COM EMITENTE PRESTADOR"),
             (2, 19, "cStat = 102"),
             (1, 20, "OBSERVAÇÕES"),
@@ -139,6 +141,21 @@ def load_grid(path, sheet):
                     grid[r][c] = tl
     wb.close()
     return mr, mc, grid
+
+
+def hidden_columns(path, sheet):
+    """1-based indices of the columns hidden in the sheet. The Receita hides
+    superseded columns instead of deleting them, and a hidden column may carry
+    the same header as the current one."""
+    wb = openpyxl.load_workbook(path)
+    ws = wb[sheet]
+    out = set()
+    for key, dim in ws.column_dimensions.items():
+        if dim.hidden:
+            lo = dim.min or column_index_from_string(key)
+            out.update(range(lo, (dim.max or lo) + 1))
+    wb.close()
+    return out
 
 
 def flat(s):
@@ -219,14 +236,20 @@ def extract_campos(path, sheet, src):
 def extract_regras_rn(path, sheet, src, first_data_row=4, cols=(11, 12, 13, 14, 15),
                       header=()):
     mr, mc, grid = load_grid(path, sheet)
-    assert len(header) in (0, len(cols)), "header checks must cover every rn column"
+    # explicit raises (not assert) so the guards survive `python -O`
+    hidden = sorted(set(cols) & hidden_columns(path, sheet))
+    if hidden:
+        sys.exit(f"{sheet}: rn columns {hidden} are hidden in the sheet (superseded) "
+                 "-- pick the visible ones in rn_dps_cols")
+    if len(header) not in (0, len(cols)):
+        sys.exit(f"{sheet}: header checks must cover every rn column")
     for (hr, hc, expected), col in zip(header, cols):
-        assert hc == col, f"{sheet}: header check col {hc} != rn column {col}"
+        if hc != col:
+            sys.exit(f"{sheet}: header check col {hc} != rn column {col}")
         got = flat(grid[hr][hc]) if hc <= mc else None
-        assert got is not None and expected in got, (
-            f"{sheet}: header r{hr}c{hc} should contain {expected!r}, got {got!r} "
-            "-- Anexo column layout changed; update rn_dps_cols"
-        )
+        if got is None or expected not in got:
+            sys.exit(f"{sheet}: header r{hr}c{hc} should contain {expected!r}, got {got!r} "
+                     "-- Anexo column layout changed; update rn_dps_cols")
     out = []
     for r in range(first_data_row, mr + 1):
         g = lambda c: grid[r][c] if c <= mc else None

@@ -102,7 +102,7 @@ IBGE / países ISO-2** (Anexo A).
 
 Mesmo conjunto de sidecars (`emissao.*`, `eventos.*`, `tributos.indop.json`, `_raw/`) e **as mesmas chaves JSON**, gerado a partir dos Anexos I/II de **Produção Restrita `v1-01-20261020`** (NT 009 release 1) + Anexo C prodrest `20260122`. A raiz de `specs/ruleset/` continua sendo o layout `nt004` (produção atual, `documentacao-atual`). Códigos de assinatura de evento renumerados no nt009 (ex.: E2032 → E1638; E1980–E1991 → E0714–E0718).
 
-Particularidades do Anexo I nt009: a aba `RN DPS_NFS-e 1.01` tem três trios de colunas (prestador / tomador-intermediário / decisão 102) para SEFIN e ADN; o sidecar mantém o conjunto de chaves do nt004 usando o cenário **prestador** (`execSefin`/`execAdn`) e a **decisão 102** (`sefinDecisao`/`adnDecisao`) — os demais cenários ficam no `_raw/`. Abas novas (`AJUSTE_BC_REPERCUSSÃO`, `RN_RECEP_PED.REG.EVENTO`) só em `_raw/`. A planilha do leiaute ainda lista `finNFSe` sob `IBSCBS/`; o XSD o coloca na raiz de `infDPS` (o XSD prevalece).
+Particularidades do Anexo I nt009: a aba `RN DPS_NFS-e 1.01` tem dois trios de colunas SEFIN (prestador / tomador / decisão 102) com cabeçalhos idênticos — `K–M` (K e M **ocultas** na planilha, versão substituída) e `N–P` (visíveis, vigentes) — e um trio ADN (`Q–S`); o sidecar mantém o conjunto de chaves do nt004 usando o cenário **prestador** (`execSefin`/`execAdn`) e a **decisão 102** (`sefinDecisao`/`adnDecisao`) do trio SEFIN visível e do trio ADN — os demais cenários ficam no `_raw/`. O extrator recusa colunas ocultas. Abas novas (`AJUSTE_BC_REPERCUSSÃO`, `RN_RECEP_PED.REG.EVENTO`) só em `_raw/`. A planilha do leiaute ainda lista `finNFSe` sob `IBSCBS/`; o XSD o coloca na raiz de `infDPS` (o XSD prevalece).
 
 ## Regenerar
 
