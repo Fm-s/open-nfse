@@ -42,23 +42,77 @@ describe('toVerAplic', () => {
   it.each([
     ['0.11.0', 'open-nfse/0.11.0'],
     ['0.12.0-rc.1', 'open-nfse/0.12.0rc1'],
-    // 'open-nfse/0.12.0beta1' teria 21 chars → abrevia (beta → b) sem perder dígitos.
+    ['0.12.0-rc.10', 'open-nfse/0.12.0rc10'],
+    ['0.12.0-rc.11', 'open-nfse/0.12.0rc11'],
     ['0.12.0-beta.1', 'open-nfse/0.12.0b1'],
-    // 'open-nfse/1.10.10rc10' teria 21 chars → abrevia (rc → c) sem perder dígitos.
-    ['1.10.10-rc.10', 'open-nfse/1.10.10c10'],
+    ['1.0.0-beta.2', 'open-nfse/1.0.0b2'],
     ['1.0.0-alpha.2', 'open-nfse/1.0.0a2'],
+    // Pré-release conhecido sempre na mesma grafia (rc9 e rc100, nunca c100).
+    ['0.12.0-rc.9', 'open-nfse/0.12.0rc9'],
+    ['0.12.0-rc.100', 'onfse/0.12.0rc100'],
+    // Não cabe com o prefixo longo → prefixo curto `onfse/`, sem perder dígito.
+    ['1.10.10-rc.10', 'onfse/1.10.10rc10'],
+    ['10.10.10-rc.10', 'onfse/10.10.10rc10'],
+    ['10.20.30-rc.123', 'onfse/10.20.30rc123'],
+    // Pré-release fora do padrão `<alpha|beta|rc>.<n>` mantém o `-` e os `.`.
+    ['0.12.1-0', 'open-nfse/0.12.1-0'],
+    ['1.0.0-rc.1.1', 'onfse/1.0.0-rc.1.1'],
     // Build metadata (+…) não identifica a release: descartado.
     ['1.2.3+build.7', 'open-nfse/1.2.3'],
+    ['0.12.0-rc.1+sha.abc', 'open-nfse/0.12.0rc1'],
+    // Fallback de readLibVersion quando o package.json não é legível.
+    ['unknown', 'open-nfse/unknown'],
   ])('%s → %s', (version, expected) => {
     expect(toVerAplic(version)).toBe(expected);
     assertTsVerAplic(toVerAplic(version));
   });
 
-  it('é determinístico e sempre válido, mesmo quando só truncando cabe', () => {
-    const longa = '10.20.30-snapshot.20261031';
-    const v = toVerAplic(longa);
-    expect(v).toBe(toVerAplic(longa));
-    expect(v.startsWith('open-nfse/')).toBe(true);
-    assertTsVerAplic(v);
+  it.each([
+    ['10.10.10-rc.10', '10.10.10-rc.1'],
+    ['10.10.10-beta.11', '10.10.10-beta.1'],
+    ['0.12.1-0', '0.12.10'],
+    ['0.12.0-1', '0.12.01'],
+    ['1.0.0-rc.1.1', '1.0.0-rc.11'],
+    ['1.0.0-rc1', '1.0.0-rc.1'],
+    ['1.0.0-c.1', '1.0.0-rc.1'],
+  ])('%s e %s geram verAplic distintos', (a, b) => {
+    expect(toVerAplic(a)).not.toBe(toVerAplic(b));
+  });
+
+  it('é injetivo no espaço de versões realistas (sem colisão, sempre ≤ 20 chars)', () => {
+    const versoes: string[] = [];
+    for (const major of [0, 1, 2, 9, 10, 12, 99]) {
+      for (const minor of [0, 1, 9, 10, 12, 99]) {
+        for (const patch of [0, 1, 9, 10, 30, 99]) {
+          const core = `${major}.${minor}.${patch}`;
+          versoes.push(core);
+          for (const tag of ['alpha', 'beta', 'rc']) {
+            for (const n of [0, 1, 2, 9, 10, 11, 99, 100, 123]) {
+              const v = `${core}-${tag}.${n}`;
+              // Só versões que cabem de algum jeito (as demais lançam, ver abaixo).
+              try {
+                toVerAplic(v);
+                versoes.push(v);
+              } catch {}
+            }
+          }
+          for (const n of [0, 1, 10]) versoes.push(`${core}-${n}`);
+        }
+      }
+    }
+    const vistos = new Map<string, string>();
+    for (const v of versoes) {
+      const ver = toVerAplic(v);
+      assertTsVerAplic(ver);
+      expect(vistos.get(ver), `${v} colide com ${vistos.get(ver)} em ${ver}`).toBeUndefined();
+      vistos.set(ver, v);
+    }
+    // Cobertura: o pior caso realista (2 dígitos em tudo + rc de 3 dígitos) entrou.
+    expect(vistos.get('onfse/99.99.99rc123')).toBe('99.99.99-rc.123');
+  });
+
+  it('lança em vez de truncar quando a versão não cabe sem perda em 20 chars', () => {
+    expect(() => toVerAplic('10.20.30-snapshot.20261031')).toThrow(/verAplic/);
+    expect(() => toVerAplic('0.12.0-x.7.z.92')).toThrow(/verAplic/);
   });
 });

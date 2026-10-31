@@ -26,25 +26,37 @@ function readLibVersion(): string {
 /** Versão corrente da lib, lida do `package.json` em runtime. */
 export const LIB_VERSION = readLibVersion();
 
-const VER_APLIC_PREFIX = 'open-nfse/';
-/** `maxLength` do `TSVerAplic` (tiposSimples_v1.01.xsd). */
+/**
+ * Prefixos que identificam a lib no `verAplic`, em ordem de preferência. O curto
+ * só entra quando a versão não cabe com o longo — trocar o prefixo nunca corta
+ * dígito da versão.
+ */
+const VER_APLIC_PREFIXES = ['open-nfse/', 'onfse/'] as const;
+/** `maxLength` do `TSVerAplic` (tiposSimples_v1.01.xsd, nos dois layouts). */
 const VER_APLIC_MAX = 20;
-/** Abreviações de identificadores de pré-release (grafias do PEP 440: `a`, `b`, `c`). */
-const PRE_RELEASE_ABBREV: Readonly<Record<string, string>> = { alpha: 'a', beta: 'b', rc: 'c' };
+/** Grafias compactas (PEP 440: `a`, `b`, `rc`) dos pré-releases convencionais. */
+const PRE_RELEASE_COMPACTO: Readonly<Record<string, string>> = { alpha: 'a', beta: 'b', rc: 'rc' };
+/** Pré-release convencional: exatamente `<alpha|beta|rc>.<n>`, `n` sem zero à esquerda. */
+const PRE_RELEASE_CONVENCIONAL = /^(alpha|beta|rc)\.(0|[1-9]\d*)$/;
 
 /**
  * Monta o `verAplic` (`TSVerAplic`: 1 a 20 chars imprimíveis) a partir de uma
- * versão semver, sempre com o prefixo `open-nfse/`. Determinístico; regras, na
- * ordem:
+ * versão semver. Determinístico e **injetivo**: versões distintas (ignorando
+ * build metadata) nunca geram o mesmo `verAplic`. Regras:
  *
  * 1. Build metadata (`+…`) é descartado — não identifica a release.
- * 2. Pré-release é compactado juntando os identificadores sem `-`/`.`:
- *    `0.12.0-rc.1` → `open-nfse/0.12.0rc1`.
- * 3. Se passar de 20 chars, os identificadores conhecidos são abreviados
- *    (`alpha` → `a`, `beta` → `b`, `rc` → `c`), preservando todos os dígitos:
- *    `0.12.0-beta.1` → `open-nfse/0.12.0b1`, `1.10.10-rc.10` → `open-nfse/1.10.10c10`.
- * 4. Se ainda passar de 20 chars (pré-release longo/desconhecido), o resultado é
- *    truncado em 20 chars — último recurso, para nunca violar o `maxLength`.
+ * 2. Pré-release convencional `<alpha|beta|rc>.<n>` é compactado colado ao core
+ *    (sem `-`): `0.12.0-rc.1` → `0.12.0rc1`, `1.0.0-beta.2` → `1.0.0b2`,
+ *    `1.0.0-alpha.2` → `1.0.0a2`. Sem ambiguidade: o core só tem dígitos e `.`,
+ *    e o número vem inteiro depois da tag.
+ * 3. Qualquer outro pré-release é mantido literal, com `-` e `.`
+ *    (`0.12.1-0` → `0.12.1-0`, nunca `0.12.10`).
+ * 4. Prefixo `open-nfse/`; se não couber em 20 chars, `onfse/`
+ *    (`10.20.30-rc.123` → `onfse/10.20.30rc123`). Os dois prefixos são
+ *    distintos, então trocar de prefixo não cria colisão.
+ * 5. Se nem com o prefixo curto couber, lança — nunca trunca (truncar faria
+ *    duas releases dividirem o mesmo `verAplic`). Como o default é calculado no
+ *    load do módulo, uma versão assim quebra a suíte de testes antes do publish.
  *
  * Versão estável (`X.Y.Z`) fica intacta: `open-nfse/X.Y.Z` cabe até `99.99.9`.
  */
@@ -52,12 +64,23 @@ export function toVerAplic(version: string): string {
   const semver = version.split('+', 1)[0] ?? '';
   const dash = semver.indexOf('-');
   const core = dash === -1 ? semver : semver.slice(0, dash);
-  const pre = dash === -1 ? [] : semver.slice(dash + 1).split('.');
+  const pre = dash === -1 ? '' : semver.slice(dash + 1);
 
-  const compacta = `${VER_APLIC_PREFIX}${core}${pre.join('')}`;
-  if (compacta.length <= VER_APLIC_MAX) return compacta;
-  const abreviada = `${VER_APLIC_PREFIX}${core}${pre.map((id) => PRE_RELEASE_ABBREV[id] ?? id).join('')}`;
-  return abreviada.slice(0, VER_APLIC_MAX);
+  const conv = PRE_RELEASE_CONVENCIONAL.exec(pre);
+  const corpo =
+    pre === ''
+      ? core
+      : conv
+        ? `${core}${PRE_RELEASE_COMPACTO[conv[1] as string]}${conv[2]}`
+        : `${core}-${pre}`;
+
+  for (const prefixo of VER_APLIC_PREFIXES) {
+    const v = `${prefixo}${corpo}`;
+    if (v.length <= VER_APLIC_MAX) return v;
+  }
+  throw new RangeError(
+    `versão ${JSON.stringify(version)} não cabe sem perda no verAplic (TSVerAplic, máx. ${VER_APLIC_MAX} chars)`,
+  );
 }
 
 /**
