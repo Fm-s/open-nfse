@@ -1,12 +1,15 @@
 // Fixtures DTO compartilhadas do layout nt009 (fora do dist — ver tsconfig.build.json).
-// Os códigos (CST, cClassTrib, cNBS, cIndOp…) só precisam casar com os patterns
-// do XSD `schemas/1.01-nt009/`; não representam um cenário fiscal real aceito
-// pelas regras de negócio do Sistema Nacional.
+// Locação de imóvel (99.03.01) que respeita as regras de rejeição fechadas do
+// Anexo I 20261020 (as que dependem só da DPS) — build-dps.test.ts confere que
+// buildDps, com seus guards, produz exatamente esta DPS. Única exceção, de
+// propósito: `bensMoveis` (só 99.04.01, E0963/E0967) não cabe numa DPS com
+// `gLocacao` (só 99.03, E0936/E0937), e a fixture cobre os dois grupos.
+// Regras abertas (cadastros, tabelas IBGE/NBS/CIB, calculadora IBS/CBS) não
+// são garantidas.
 import type { DpsNt009, InfDPSNt009 } from '../domain.js';
 import {
   FinalidadeNFSe,
   IndicadorDestinatario,
-  IndicadorTotalTributos,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAjusteBC,
@@ -18,9 +21,11 @@ import {
   TipoTribISSQN,
 } from '../enums.js';
 
+const CHAVE_NFSE = '21113002200574753000100000000000146726037032711025';
+
 function infDPSNt009Completa(): InfDPSNt009 {
   return {
-    Id: 'DPS211130010057475300010000001000000000000001',
+    Id: 'DPS211130020057475300010000001000000000000001', // tipoInsc 2 = CNPJ (como buildDpsId)
     tpAmb: TipoAmbienteDps.Homologacao,
     dhEmi: new Date('2026-12-01T14:30:00Z'),
     verAplic: 'test-1.0.0',
@@ -51,7 +56,7 @@ function infDPSNt009Completa(): InfDPSNt009 {
     serv: {
       locPrest: { cLocPrestacao: '2111300' },
       cServ: {
-        cTribNac: '250101',
+        cTribNac: '990301',
         xDescServ: 'Locação de imóvel',
         cNBS: '123456789',
         cIntContrib: 'INT001',
@@ -59,48 +64,58 @@ function infDPSNt009Completa(): InfDPSNt009 {
     },
     valores: {
       vServPrest: { vServ: 1000 },
+      // E0434: vDescIncond = pCopropriedade (100%) × vDescIncondTot (10).
+      vDescCondIncond: { vDescIncond: 10 },
       vAjusteBC: {
         ajusteIssqn: { pAjusteBCISSQN: 10 },
         documentos: {
           docAjusteBC: [
             {
-              tpAjusteBC: TipoAjusteBC.Materiais,
+              // 102: convive com pAjusteBCISSQN (E0462), admite docOutro (E0479)
+              // e dispensa E0435 com tribISSQN=4.
+              tpAjusteBC: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
               vTotDoc: 200,
               vAjusteAplic: 100.5,
               dtEmiDoc: new Date('2026-11-20T12:00:00Z'),
-              documento: {
-                dFeNacional: {
-                  tipoChaveDFe: TipoChaveDFe.Nfse,
-                  chaveDFe: '21113002200574753000100000000000146726037032711025',
-                },
-              },
+              documento: { docOutro: { nDoc: 'REC-41', xDoc: 'Recibo' } },
               fornec: {
                 identificador: { CNPJ: '11222333000181' },
                 xNome: 'Fornecedor de Teste',
+                // E0492: fornecedor com CPF/CNPJ exige endereço nacional.
+                end: {
+                  localidade: { endNac: { cMun: '2111300', CEP: '65020000' } },
+                  xLgr: 'Rua F',
+                  nro: '5',
+                  xBairro: 'Centro',
+                },
               },
             },
             {
+              // 199 exige documento fiscal (E0479).
               tpAjusteBC: TipoAjusteBC.OutrosReembolsos,
               xTpAjusteBC: 'Reembolso de despesas',
               vTotDoc: 50,
               vAjusteAplic: 50,
               dtCompDoc: new Date('2026-11-25T12:00:00Z'),
-              documento: { docOutro: { nDoc: 'REC-42', xDoc: 'Recibo' } },
+              documento: { dFeNacional: { tipoChaveDFe: TipoChaveDFe.Nfse, chaveDFe: CHAVE_NFSE } },
             },
           ],
         },
       },
       trib: {
+        // E0532 (nt009): 99.XX.XX exige tribISSQN=4 — e então sem pAliq (E0602).
         tribMun: {
-          tribISSQN: TipoTribISSQN.OperacaoTributavel,
+          tribISSQN: TipoTribISSQN.NaoIncidencia,
           tpRetISSQN: TipoRetISSQN.NaoRetido,
-          pAliq: 2,
         },
-        totTrib: { indTotTrib: IndicadorTotalTributos.Nao },
+        // Não Optante não usa indTotTrib (E0713).
+        totTrib: { pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
       },
     },
     IBSCBS: {
-      cIndOp: '100301',
+      // 99.03 exige cIndOp 02XXXX (E0902); 020101 admite imovel (E0928/E0932) e
+      // exige gUnidImob (E0938).
+      cIndOp: '020101',
       indDest: IndicadorDestinatario.TomadorEhDestinatario,
       imovel: {
         cMun: '2111300',

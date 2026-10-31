@@ -9,6 +9,7 @@ import {
   RuleViolationError,
 } from '../errors/validation.js';
 import { NfseClientFake } from '../testing/index.js';
+import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import {
   type BuildDpsParamsNt004,
   type BuildDpsParamsNt009,
@@ -956,6 +957,127 @@ describe('nt009 inputs de alto nível', () => {
         },
       },
     });
+  });
+
+  it('fixture dpsNt009Completa é a DPS que buildDps (com os guards) produz — exceto bensMoveis', () => {
+    // A fixture cobre todos os grupos do nt009; gLocacao (só 99.03, E0936/E0937)
+    // e bensMoveis (só 99.04.01, E0963/E0967) não cabem na mesma DPS válida,
+    // então bensMoveis é a única regra fechada que ela viola, de propósito.
+    const fixture = dpsNt009Completa();
+    const { bensMoveis, ...ibsCbsSemBens } = fixture.infDPS.IBSCBS ?? {};
+    expect(bensMoveis).toHaveLength(2);
+    const params: BuildDpsParamsNt009 = {
+      layout: 'nt009',
+      emitente: {
+        cnpj: '00574753000100',
+        codMunicipio: '2111300',
+        inscricaoMunicipal: '6123007',
+        regime: {
+          opSimpNac: OpcaoSimplesNacional.NaoOptante,
+          regEspTrib: RegimeEspecialTributacao.Nenhum,
+        },
+      },
+      serie: '1',
+      nDPS: '1',
+      tpAmb: TipoAmbienteDps.Homologacao,
+      dhEmi: new Date('2026-12-01T14:30:00Z'),
+      dCompet: new Date('2026-12-01T12:00:00Z'),
+      verAplic: 'test-1.0.0',
+      servico: {
+        cTribNac: '990301',
+        cNBS: '123456789',
+        descricao: 'Locação de imóvel',
+        codigoInterno: 'INT001',
+      },
+      valores: {
+        vServ: 1000,
+        tribISSQN: TipoTribISSQN.NaoIncidencia,
+        pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 },
+      },
+      tomador: {
+        documento: { CPF: '12345678909' },
+        nome: 'Tomador de Teste',
+        endereco: {
+          codMunicipio: '2111300',
+          cep: '65000000',
+          logradouro: 'Rua A',
+          numero: '10',
+          bairro: 'Centro',
+        },
+      },
+      ajusteBC: {
+        issqn: { percentual: 10 },
+        documentos: [
+          {
+            tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+            valorTotal: 200,
+            valorAplicado: 100.5,
+            dataEmissao: new Date('2026-11-20T12:00:00Z'),
+            documento: { docOutro: { nDoc: 'REC-41', xDoc: 'Recibo' } },
+            fornecedor: {
+              documento: { CNPJ: '11222333000181' },
+              nome: 'Fornecedor de Teste',
+              endereco: ENDERECO_FORNECEDOR,
+            },
+          },
+          {
+            tipo: TipoAjusteBC.OutrosReembolsos,
+            descricao: 'Reembolso de despesas',
+            valorTotal: 50,
+            valorAplicado: 50,
+            dataCompetencia: new Date('2026-11-25T12:00:00Z'),
+            documento: {
+              dFeNacional: { tipoChaveDFe: TipoChaveDFe.Nfse, chaveDFe: CHAVE_NFSE },
+            },
+          },
+        ],
+      },
+      ibsCbs: {
+        classificacao: { CST: '000', cClassTrib: '000001' },
+        cIndOp: '020101',
+        imovel: {
+          codMunicipio: '2111300',
+          locacao: {
+            pCopropriedade: 100,
+            vTotOper: 1000,
+            vDescIncondTot: 10,
+            dVencOrig: new Date('2026-12-10T12:00:00Z'),
+          },
+          unidades: [
+            {
+              inscricaoImobiliaria: 'IMOB-1',
+              identificacao: { cCIB: 'ABC12345' },
+              ajustesBC: [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 150 }],
+            },
+            {
+              identificacao: {
+                endereco: {
+                  cep: '65010000',
+                  logradouro: 'Av. B',
+                  numero: '200',
+                  complemento: 'Apto 3',
+                  bairro: 'Jardim',
+                },
+              },
+            },
+          ],
+        },
+      },
+    };
+    expect(buildDps(params)).toEqual({
+      ...fixture,
+      infDPS: { ...fixture.infDPS, IBSCBS: ibsCbsSemBens },
+    });
+    expect(() =>
+      buildDps({
+        ...params,
+        ibsCbs: {
+          ...params.ibsCbs,
+          classificacao: { CST: '000', cClassTrib: '000001' },
+          bensMoveis: [{ ncm: '94036000', descricao: 'Móveis de madeira', quantidade: '3' }],
+        },
+      }),
+    ).toThrow(expect.objectContaining({ rule: 'E0967' }));
   });
 
   it('bens móveis: buildDps mapeia bensMoveis', () => {
