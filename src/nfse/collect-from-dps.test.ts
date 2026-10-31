@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
+import { dpsNt009Max } from './__fixtures__/dps-nt009-max.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
 import { IndicadorDestinatario } from './enums.js';
@@ -225,6 +226,14 @@ describe('layout nt009', () => {
       path: 'infDPS.IBSCBS.dest.CNPJ',
       type: 'CNPJ',
       value: '33000167000101',
+    });
+  });
+
+  it('collectCepsFromDps inclui IBSCBS.dest.end no nt009', () => {
+    const ceps = collectCepsFromDps(dpsNt009Max());
+    expect(ceps).toContainEqual({
+      path: 'infDPS.IBSCBS.dest.end.localidade.endNac.CEP',
+      cep: '65020000',
     });
   });
 
