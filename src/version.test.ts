@@ -18,6 +18,12 @@ describe('DEFAULT_VER_APLIC', () => {
     assertTsVerAplic(DEFAULT_VER_APLIC);
   });
 
+  it('a versão da própria lib cabe na forma legível (sem cair no fallback com hash)', () => {
+    // Guard de publish: uma release da lib com versão longa demais quebra aqui,
+    // não no import do consumidor.
+    expect(DEFAULT_VER_APLIC).toMatch(/^(?:open-nfse|onfse)\//);
+  });
+
   it('é aceito pelo guard de verAplic do buildDps (default sem override)', () => {
     const dps = buildDps({
       layout: 'nt004',
@@ -93,11 +99,7 @@ describe('toVerAplic', () => {
           for (const tag of ['alpha', 'beta', 'rc']) {
             for (const n of [0, 1, 2, 9, 10, 11, 99, 100, 123]) {
               const v = `${core}-${tag}.${n}`;
-              // Só versões que cabem de algum jeito (as demais lançam, ver abaixo).
-              try {
-                toVerAplic(v);
-                versoes.push(v);
-              } catch {}
+              versoes.push(v);
             }
           }
           for (const n of [0, 1, 10]) versoes.push(`${core}-${n}`);
@@ -115,8 +117,23 @@ describe('toVerAplic', () => {
     expect(vistos.get('onfse/99.99.99rc123')).toBe('99.99.99-rc.123');
   });
 
-  it('lança em vez de truncar quando a versão não cabe sem perda em 20 chars', () => {
-    expect(() => toVerAplic('10.20.30-snapshot.20261031')).toThrow(/verAplic/);
-    expect(() => toVerAplic('0.12.0-x.7.z.92')).toThrow(/verAplic/);
+  it.each([
+    '10.20.30-snapshot.20261031',
+    '0.12.0-x.7.z.92',
+    // Placeholder do semantic-release, canary e nightly — também o que se lê de um
+    // package.json do app hospedeiro quando a lib é empacotada num bundle ESM.
+    '0.0.0-development',
+    '0.12.0-next.20261101',
+    '1.0.0-canary.5f3a2b1',
+  ])('%s não cabe legível: fallback determinístico onfse#<hash>, sem lançar', (version) => {
+    const v = toVerAplic(version);
+    expect(v).toMatch(/^onfse#[0-9a-f]{14}$/);
+    assertTsVerAplic(v);
+    expect(toVerAplic(version)).toBe(v);
+  });
+
+  it('fallback com hash distingue versões e ignora build metadata', () => {
+    expect(toVerAplic('0.0.0-development')).not.toBe(toVerAplic('0.0.0-developmentx'));
+    expect(toVerAplic('0.12.0-next.20261101+sha.1')).toBe(toVerAplic('0.12.0-next.20261101'));
   });
 });

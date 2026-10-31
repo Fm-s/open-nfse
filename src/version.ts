@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,9 +55,16 @@ const PRE_RELEASE_CONVENCIONAL = /^(alpha|beta|rc)\.(0|[1-9]\d*)$/;
  * 4. Prefixo `open-nfse/`; se não couber em 20 chars, `onfse/`
  *    (`10.20.30-rc.123` → `onfse/10.20.30rc123`). Os dois prefixos são
  *    distintos, então trocar de prefixo não cria colisão.
- * 5. Se nem com o prefixo curto couber, lança — nunca trunca (truncar faria
- *    duas releases dividirem o mesmo `verAplic`). Como o default é calculado no
- *    load do módulo, uma versão assim quebra a suíte de testes antes do publish.
+ * 5. Se nem com o prefixo curto couber, cai num fallback determinístico de 20
+ *    chars: `onfse#` + 14 hex do SHA-256 da versão sem build metadata
+ *    (`0.0.0-development` → `onfse#…`). Nunca trunca (truncar faria duas
+ *    releases dividirem o mesmo `verAplic`) e nunca lança: o default é
+ *    calculado no load do módulo, e num bundle ESM o `package.json` lido pode
+ *    ser o do app hospedeiro — lançar aqui impediria o import da lib inteira.
+ *    O `#` não aparece nas formas legíveis, então o fallback não colide com
+ *    elas; entre si, as colisões são só as do hash (2⁻⁵⁶). As versões da
+ *    própria lib cabem na forma legível — a suíte de testes garante isso antes
+ *    do publish.
  *
  * Versão estável (`X.Y.Z`) fica intacta e usa `open-nfse/` enquanto tiver até
  * 10 chars (`99.99.99`, `100.100.10`); acima disso (`100.100.100`) cai em `onfse/`.
@@ -79,16 +87,16 @@ export function toVerAplic(version: string): string {
     const v = `${prefixo}${corpo}`;
     if (v.length <= VER_APLIC_MAX) return v;
   }
-  throw new RangeError(
-    `versão ${JSON.stringify(version)} não cabe sem perda no verAplic (TSVerAplic, máx. ${VER_APLIC_MAX} chars)`,
-  );
+  const prefixoHash = 'onfse#';
+  const hash = createHash('sha256').update(semver, 'utf8').digest('hex');
+  return `${prefixoHash}${hash.slice(0, VER_APLIC_MAX - prefixoHash.length)}`;
 }
 
 /**
  * Valor default de `verAplic` usado pelos builders quando o caller não passa um
  * override: {@link toVerAplic} da versão corrente — `open-nfse/<versão
  * compactada>`, ou `onfse/<versão compactada>` quando aquele não cabe nos 20
- * chars do `TSVerAplic`. Nunca trunca: se nem o prefixo curto couber, o
- * `RangeError` de {@link toVerAplic} é lançado no load do módulo.
+ * chars do `TSVerAplic`, ou o fallback `onfse#<hash>` quando nem esse cabe.
+ * Nunca trunca e nunca lança no load do módulo.
  */
 export const DEFAULT_VER_APLIC = toVerAplic(LIB_VERSION);
