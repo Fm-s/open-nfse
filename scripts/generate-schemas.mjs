@@ -49,9 +49,12 @@ export interface RtcSchemaFile {
   readonly contents: string;
 }
 
-export const RTC_SCHEMAS = {
+// Anotado (não \`as const\`): com \`as const\` o tsc copiaria cada XSD como tipo
+// literal para o .d.ts publicado. A anotação ainda exige um bundle por Layout
+// (chave faltando = erro) e recusa chaves extras (excess property check).
+export const RTC_SCHEMAS: Readonly<Record<Layout, readonly RtcSchemaFile[]>> = {
 ${blocks.join('\n')}
-} as const satisfies Record<Layout, readonly RtcSchemaFile[]>;
+};
 `;
 
 writeFileSync(OUTPUT, output, 'utf-8');
