@@ -16,16 +16,16 @@ import { NfseClientFake, type NfseClientLike } from 'open-nfse/testing';
 
 ## Tipando suas dependências
 
-Nos pontos onde seu serviço recebe o cliente, tipe como `NfseClientLike`:
+Nos pontos onde seu serviço recebe o cliente, tipe como `NfseClientLike<L>`, com o layout que o serviço emite:
 
 ```ts
 import type { NfseClientLike } from 'open-nfse/testing';
 
 export class PedidoService {
-  constructor(private readonly nfse: NfseClientLike) {}
+  constructor(private readonly nfse: NfseClientLike<'nt004'>) {}
 
   async criar(pedido: Pedido) {
-    return this.nfse.emitir({ ... });
+    return this.nfse.emitir({ ... }); // só aceita params do nt004
   }
 }
 
@@ -35,6 +35,8 @@ new PedidoService(new NfseClient({ layout: 'nt004', ambiente, certificado }));
 // em teste:
 new PedidoService(new NfseClientFake({ layout: 'nt004' }));
 ```
+
+Com o layout no tipo, um campo exclusivo do outro layout (ex.: `ibsCbs`/`ajusteBC` do `nt009` num serviço `nt004`) é erro de compilação, e um cliente de outro layout não pode ser injetado. Use `NfseClientLike` sem argumento só em serviços que apenas leem (`fetchByChave`, `fetchByNsu`, …): nele, `emitir` aceita os params dos dois layouts e o erro só aparece em runtime (`LayoutMismatchError`).
 
 ## API de seed — pré-populando estado
 
@@ -80,7 +82,9 @@ fake.failNextEmit({ kind: 'transient', message: 'simulated timeout' });
 fake.failNextCancel({ kind: 'rejection', codigo: 'E8001', descricao: 'Prazo expirado' });
 ```
 
-A falha é **consumida na próxima chamada** — se você programar uma e o teste não acionar a chamada esperada, a próxima chamada futura pegaria a falha. Use `reset()` entre testes.
+A falha simula a resposta do POST e é **consumida na próxima chamada que chegaria à rede** — se você programar uma e o teste não acionar a chamada esperada, a próxima chamada futura pegaria a falha. Use `reset()` entre testes.
+
+Como no cliente real, as validações offline rodam **antes** da falha programada: params inválidos (guards do `buildDps`, `LayoutMismatchError`, `xMotivo` fora de `TSMotivo`, E0078 em `substituir`, …) lançam o erro de validação, e a falha continua programada. O `dryRun` também não a consome.
 
 ## Introspecção — verificando o que foi feito
 
@@ -129,7 +133,7 @@ import { NfseClientFake } from 'open-nfse/testing';
 import { PedidoService } from '../src/pedido-service.js';
 
 describe('PedidoService', () => {
-  let fake: NfseClientFake;
+  let fake: NfseClientFake<'nt004'>;
   let service: PedidoService;
 
   beforeEach(() => {
@@ -162,8 +166,15 @@ describe('PedidoService', () => {
 });
 ```
 
+## A NFS-e sintetizada
+
+`emitir`/`emitirDpsPronta`/`substituir` devolvem uma NFS-e montada por `synthNfse` (também exportado em `open-nfse/testing`) a partir da DPS. O grupo `infNFSe.valores` segue as fórmulas do Anexo I: `vCalcDR` (`nt004`) / `vCalcAjusteBCISSQN` (`nt009`) a partir do ajuste da BC informado, `vBC`, `vISSQN = vBC × pAliq`, `vTotalRet` e `vLiq` (ISSQN, PIS e COFINS só são subtraídos quando retidos). Em `substituir`, a DPS embutida carrega `infDPS.subst` com a chave original. No `nt009`, DPS com `IBSCBS` gera `infNFSe.IBSCBS.totCIBS.vTotNF = vLiq` (regra de 2026).
+
+O fake não conhece parâmetros municipais nem alíquotas de IBS/CBS: usa a alíquota de ISSQN informada na DPS (`aliqIss`), não sintetiza `tpBM`, `cLocIncid` nem os valores de IBS/CBS (`gIBS`, `gCBS`), e não soma IBS/CBS a `vTotNF` (regra a partir de 2027). Não use o fake para validar cálculos que dependem desses parâmetros.
+
 ## O que o fake NÃO faz
 
+- **Não valida o XML contra o XSD nem consulta CEP** — só os guards offline do `buildDps` e dos eventos.
 - **Não valida assinatura XMLDSig** — a NFS-e sintetizada traz uma `Signature` com valores `FAKE_*`. Se seu código verifica a signature, faça mock também.
 - **Não executa o `replayPendingEvents` completo** — a função existe mas retorna `[]`. Se quiser testar replay, use um `RetryStore` de verdade + `NfseClient` com `MockAgent`.
 - **Não persiste pendentes em `failNextCancel({kind:'transient'})`** — cancelamento transiente joga `TimeoutError` direto. Emissão transiente retorna `retry_pending` com o pending objeto sintético, mas sem tocar no store real.
