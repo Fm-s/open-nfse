@@ -7,7 +7,7 @@ Assinaturas compactas de toda a superfície pública. Para parâmetros completos
 ### `NfseClient`
 
 ```ts
-new NfseClient(config: NfseClientConfig): NfseClient
+new NfseClient<L extends Layout>(config: NfseClientConfig<L>): NfseClient<L>  // layout: 'nt004' | 'nt009' obrigatório
 ```
 
 Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api/classes/NfseClient).
@@ -24,7 +24,7 @@ Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api
 | Método                | Assinatura                                                                                         | Comportamento                                                  |
 |-----------------------|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | `emitir`              | `(params: EmitirParams) → EmitirResult \| DpsDryRunResult`                                          | Counter após validação; transiente → `retry_pending`; permanente → throw |
-| `emitirDpsPronta`     | `(dps: DPS, options?: EmitOptions) → NfseEmitResult \| DpsDryRunResult`                             | Escape hatch: sem counter, sem retry store, throw em tudo      |
+| `emitirDpsPronta`     | `(dps: DPS /* tem .layout */, options?: EmitOptions) → NfseEmitResult \| DpsDryRunResult`                             | Escape hatch: sem counter, sem retry store, throw em tudo      |
 | `emitirEmLote`        | `(dpsList: readonly DPS[], options?: EmitLoteOptions) → EmitLoteResult`                             | Worker pool client-side; `stopOnError` opcional                |
 
 #### Eventos
@@ -84,13 +84,13 @@ Reexportados do pacote raiz; não precisam de `NfseClient`.
 
 | Função                     | Assinatura                                                                          | Para quê                                                 |
 |----------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------|
-| `buildDps`                 | `(params: BuildDpsParams) → DPS`                                                    | Monta DPS de ~10 campos; `totTrib` por regime (MEI `indTotTrib` / ME-EPP `pTotTribSN` / Não Optante `vTotTrib`·`pTotTrib`); valida DV CPF/CNPJ |
+| `buildDps`                 | `(params: BuildDpsParams) → DpsFor<L>`                                                 | Monta DPS de ~10 campos; `totTrib` por regime (MEI `indTotTrib` / ME-EPP `pTotTribSN` / Não Optante `vTotTrib`·`pTotTrib`); valida DV CPF/CNPJ |
 | `buildDpsId`               | `(params: BuildDpsIdParams) → string`                                               | Gera os 45 chars do `infDPS.Id`                          |
 | `buildDpsXml`              | `(dps: DPS, options?: BuildDpsXmlOptions) → string`                                 | Serializa DPS em XML (sem assinar)                       |
 | `signDpsXml`               | `(xml: string, cert: A1Certificate) → string`                                       | XMLDSig (RSA-SHA256 + exc-c14n + enveloped)              |
-| `parseNfseXml`             | `(xml: string) → NFSe`                                                              | XML → DTO tipado                                          |
+| `parseNfseXml`             | `(xml: string, options?: { logger? }) → NFSe`                                                          | XML → DTO tipado                                          |
 | `parseEventoXml`           | `(xml: string) → EventoProcessado`                                                  | XML de evento → DTO tipado                                |
-| `validateDpsXml`           | `(xml: string, options?: ValidateDpsXmlOptions) → ValidateDpsXmlResult \| void`     | XSD RTC v1.01 via libxml2 WASM                           |
+| `validateDpsXml`           | `(xml: string, options: ValidateDpsXmlOptions /* { layout } */) → ValidateDpsXmlResult \| void`     | XSD RTC v1.01 via libxml2 WASM                           |
 | `validateCnpj`             | `(cnpj: string) → void`                                                             | Formato + DV; lança `InvalidCnpjError`                   |
 | `validateCpf`              | `(cpf: string) → void`                                                              | Formato + DV; lança `InvalidCpfError`                    |
 | `createViaCepValidator`    | `(options?: ViaCepOptions) → CepValidator`                                          | ViaCEP com cache em memória                              |

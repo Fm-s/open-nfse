@@ -23,6 +23,7 @@ import {
 } from 'open-nfse';
 
 const cliente = new NfseClient({
+  layout: 'nt004',                       // 'nt004' (produção hoje) ou 'nt009' (NT 009, a partir de 01/12/2026)
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx: readFileSync('./cert.pfx'), password: process.env.CERT_PASSWORD! },
   dpsCounter: createInMemoryDpsCounter(),

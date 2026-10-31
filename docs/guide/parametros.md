@@ -124,7 +124,7 @@ const redisCache: ParametrosCache = {
   },
 };
 
-const cliente = new NfseClient({ ..., parametrosCache: redisCache });
+const cliente = new NfseClient({ layout: 'nt004', ..., parametrosCache: redisCache });
 ```
 
 ## Opções por chamada

@@ -59,7 +59,7 @@ try {
 import { validateDpsXml, XsdValidationError } from 'open-nfse';
 
 try {
-  await validateDpsXml(xml);
+  await validateDpsXml(xml, { layout: 'nt004' });
 } catch (err) {
   if (err instanceof XsdValidationError) {
     for (const v of err.violations) {
@@ -69,7 +69,7 @@ try {
 }
 
 // ou sem throw — coletar violações:
-const r = await validateDpsXml(xml, { throwOnInvalid: false });
+const r = await validateDpsXml(xml, { layout: 'nt004', throwOnInvalid: false });
 if (!r.valid) {
   for (const v of r.violations) console.log(v.message, v.line);
 }
@@ -137,7 +137,7 @@ const brasilApi: CepValidator = {
   },
 };
 
-const cliente = new NfseClient({..., cepValidator: brasilApi});
+const cliente = new NfseClient({ layout: 'nt004', ..., cepValidator: brasilApi});
 ```
 
 ### CEPs coletados da DPS

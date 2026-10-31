@@ -35,6 +35,7 @@ import { readFileSync } from 'node:fs';
 import { NfseClient, Ambiente } from 'open-nfse';
 
 const cliente = new NfseClient({
+  layout: 'nt004',                         // obrigatório: 'nt004' | 'nt009' — veja Leiautes
   ambiente: Ambiente.ProducaoRestrita,     // ou Ambiente.Producao
   certificado: {
     pfx: readFileSync('./certificado.pfx'),
@@ -56,6 +57,7 @@ import {
 } from 'open-nfse';
 
 const cliente = new NfseClient({
+  layout: 'nt004',
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx, password },
   dpsCounter: createInMemoryDpsCounter(),  // em prod: wrap Postgres UPDATE ... RETURNING
@@ -157,7 +159,7 @@ const provider: CertificateProvider = {
   },
 };
 
-const cliente = new NfseClient({ ambiente: Ambiente.Producao, certificado: provider });
+const cliente = new NfseClient({ layout: 'nt004', ambiente: Ambiente.Producao, certificado: provider });
 ```
 
 Ou use `providerFromFile` para o caso comum:
@@ -180,7 +182,7 @@ const logger: Logger = {
   error: (msg, ctx) => console.error(`[ERROR ${msg}]`, ctx),
 };
 
-const cliente = new NfseClient({ ambiente, certificado, logger });
+const cliente = new NfseClient({ layout: 'nt004', ambiente, certificado, logger });
 ```
 
 Eventos emitidos: `http.request`, `http.response` com `method`, `url`, `status`, `latencyMs`.

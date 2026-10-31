@@ -80,6 +80,7 @@ Default 60s (`timeoutMs: 60_000`). Ajuste via config:
 
 ```typescript
 new NfseClient({
+  layout: 'nt004',
   ambiente: Ambiente.Producao,
   certificado,
   timeoutMs: 120_000,   // 2 min — SEFIN pode ser lento em horário de pico
@@ -103,6 +104,7 @@ const mock = new MockAgent();
 mock.disableNetConnect();
 
 const cliente = new NfseClient({
+  layout: 'nt004',
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx, password },
   dispatcher: mock,

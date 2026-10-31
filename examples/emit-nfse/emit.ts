@@ -86,6 +86,7 @@ async function main() {
   console.log(`  expira em: ${cert.expiresOn.toISOString().slice(0, 10)}`);
 
   const cliente = new NfseClient({
+    layout: 'nt004',
     ambiente: Ambiente.ProducaoRestrita,
     certificado: provider,
     // Em produção seria uma impl durável (Postgres); aqui só demonstra o

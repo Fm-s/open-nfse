@@ -29,6 +29,7 @@ export const LIB_VERSION = readLibVersion();
 /**
  * Valor default de `verAplic` usado pelos builders quando o caller não passa um
  * override. `TSVerAplic` (tiposSimples_v1.01.xsd) tem maxLength=20, então
- * `'open-nfse/X.Y.Z'` (≤ 17 chars até v9.9.9) cabe com folga.
+ * `'open-nfse/X.Y.Z'` (≤ 17 chars até v9.9.9) cabe com folga. Pré-releases usam forma compacta (`0.12.0-rc.1` → `0.12.0rc1`) e o
+ * resultado é truncado em 20 chars para nunca violar o `maxLength`.
  */
-export const DEFAULT_VER_APLIC = `open-nfse/${LIB_VERSION}`;
+export const DEFAULT_VER_APLIC = `open-nfse/${LIB_VERSION.replace(/-rc\./, 'rc')}`.slice(0, 20);

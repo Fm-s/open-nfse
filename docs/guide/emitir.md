@@ -27,6 +27,7 @@ import {
 } from 'open-nfse';
 
 const cliente = new NfseClient({
+  layout: 'nt004',                          // define também o tipo de `emitir`/`emitirDpsPronta`
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx, password },
   dpsCounter: createInMemoryDpsCounter(),   // produção: UPDATE ... RETURNING
@@ -337,6 +338,7 @@ Quando você precisa controlar a pipeline inteira (replay determinístico, pré-
 import { buildDps } from 'open-nfse';
 
 const dps = buildDps({
+  layout: 'nt004',                               // obrigatório
   emitente: { /* ... */ },
   serie: '1', nDPS: '42',                        // obrigatório
   servico: { /* ... */ },

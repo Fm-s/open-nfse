@@ -34,6 +34,7 @@ function montarDps(indice: number): DPS {
   const base = Math.floor(Date.now() / 1000) * 10;
   const nDPS = String(base + indice);
   return buildDps({
+    layout: 'nt004',
     emitente: {
       cnpj: cnpj!,
       codMunicipio: codMun!,
@@ -59,6 +60,7 @@ function montarDps(indice: number): DPS {
 async function main() {
   const provider = providerFromFile(certPath!, password!);
   const cliente = new NfseClient({
+    layout: 'nt004',
     ambiente: Ambiente.ProducaoRestrita,
     certificado: provider,
   });

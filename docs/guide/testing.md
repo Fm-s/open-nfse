@@ -30,16 +30,16 @@ export class PedidoService {
 }
 
 // em prod:
-new PedidoService(new NfseClient({ ambiente, certificado }));
+new PedidoService(new NfseClient({ layout: 'nt004', ambiente, certificado }));
 
 // em teste:
-new PedidoService(new NfseClientFake());
+new PedidoService(new NfseClientFake({ layout: 'nt004' }));
 ```
 
 ## API de seed — pré-populando estado
 
 ```ts
-const fake = new NfseClientFake({ ambiente: TipoAmbiente.Homologacao });
+const fake = new NfseClientFake({ layout: 'nt004', ambiente: TipoAmbiente.Homologacao });
 
 // Uma NFS-e que `fetchByChave(chave)` deve retornar:
 fake.seed.nfse('21113...', mockNfseEmitResult);
@@ -111,7 +111,7 @@ Limpa todo o estado — seeds + failures + emissões registradas. Chame em `befo
 
 ```ts
 describe('PedidoService', () => {
-  const fake = new NfseClientFake();
+  const fake = new NfseClientFake({ layout: 'nt004' });
   const service = new PedidoService(fake);
 
   beforeEach(() => fake.reset());
@@ -133,7 +133,7 @@ describe('PedidoService', () => {
   let service: PedidoService;
 
   beforeEach(() => {
-    fake = new NfseClientFake();
+    fake = new NfseClientFake({ layout: 'nt004' });
     service = new PedidoService(fake);
   });
 

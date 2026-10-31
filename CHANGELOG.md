@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-rc.1] — 2026-10-31
+
+Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `nt004` (produção atual, bundle 20260727) e `nt009` (**NT 009/2026 release 1**, bundle `esquemas_prod_restrita_20261020`, produção em 01/12/2026). Os tipos e inputs `nt009` podem mudar entre RCs até a `0.12.0` final.
+
+### Changed (breaking)
+
+- **`layout: 'nt004' | 'nt009'` é obrigatório**, sem default nem seleção por data, em `new NfseClient({ layout })`, `new NfseClientFake({ layout, ambiente? })` e `buildDps({ layout, … })`.
+- **`NfseClient<L>` é genérico**: `emitir`, `emitirDpsPronta`, `emitirEmLote` e `substituir` só aceitam os tipos do layout do client em tempo de compilação; `EmitirParams<L>` não tem campo `layout`. Em runtime, `InvalidLayoutError` (valor desconhecido) e `LayoutMismatchError` (DPS ≠ config, lançado antes de consumir contador/assinar/fazer I/O; `emitirEmLote` valida o lote antes do primeiro item). `NfseClientLike<L = Layout>` e `NfseClientFake<L>` seguem o mesmo genérico.
+- **Validadores XSD exigem `{ layout }`**: `validateDpsXml`, `validatePedRegEventoXml`, `validateEventoXml`.
+- **Tipos que diferem entre os leiautes ganharam sufixo `Nt004`/`Nt009`, sem alias sem sufixo**: `InfoValores`, `InfoDedRed`, `RtcInfoIbsCbs`, `ValoresNFSe`, `InfDPS`, `InfNFSe` e demais (veja o [guia de migração](https://fm-s.github.io/open-nfse/guide/migracao-0.12)). `DPS`/`NFSe` viram uniões discriminadas pelo campo sintético `layout` (nunca serializado).
+- `cancelar`/`substituir` (funções livres) ganharam `layout?` opcional ao final.
+
+### Added
+
+- **`Layout`, `LAYOUTS`, `InvalidLayoutError`, `LayoutMismatchError`** (com `field?`), `DpsFor<L>`, `NfseFor<L>`.
+- **`schemas/1.01-nt009/`** (verbatim `esquemas_prod_restrita_20261020`) e `RTC_SCHEMAS` por layout; um schema libxml2 compilado e cacheado por layout.
+- **Tipos, enums e serialização `nt009`**: `vAjusteBC`, `finNFSe` na raiz da `infDPS`, `trib` (`CST`/`cClassTrib`/`gIBSCBS?`), imóvel reestruturado (`gLocacao`, `gUnidImob`), `bensMoveis`, campos da NFS-e que passam a opcionais, `xDescServ` após `cIntContrib`; enums `TipoAjusteBC` e `TipoAjusteBCLocImoveis`.
+- **Parser lê os dois leiautes sem perda**, detectando por `infDPS/finNFSe`; campos inesperados geram `warn` `nfse.parse.unexpected_field` (`parseNfseXml(xml, { logger? })`).
+- **Inputs de alto nível do `nt009` em `buildDps`/`emitir`**: `ajusteBC` (`AjusteBCInput`, `DocumentoAjusteBCInput`) e `ibsCbs` (`IbsCbsInput`, `ClassificacaoIbsCbsInput`, `DestinatarioInput`, `ImovelInput`, `UnidadeImobiliariaInput`, `BemMovelInput`), com guards do Anexo I `20261020` (E0453, E0464, E0465, E0467, E0469, E0472), DV de fornecedor/destinatário e texto do E0424.
+- `PendingEvent.layout?` (observabilidade).
+- `specs/ruleset/nt009/` e `scripts/extract-ruleset.py --layout`.
+- Guias [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts) e [Migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12); `CLAUDE.md` com invariantes de layout e a receita para novos layouts.
+
 ## [0.11.1] — 2026-10-31
 
 Patch de segurança de dependências de runtime. Sem mudança de API.

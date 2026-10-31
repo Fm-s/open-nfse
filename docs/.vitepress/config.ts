@@ -52,6 +52,8 @@ export default defineConfig({
             { text: 'O que é', link: '/guide/introducao' },
             { text: 'Começando', link: '/guide/getting-started' },
             { text: 'Princípios de design', link: '/guide/principios' },
+            { text: 'Leiautes (nt004 / nt009)', link: '/guide/layouts' },
+            { text: 'Migração 0.11 → 0.12', link: '/guide/migracao-0.12' },
           ],
         },
         {

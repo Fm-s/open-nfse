@@ -153,7 +153,7 @@ const exponentialPolicy: RetryPolicy = {
   },
 };
 
-const cliente = new NfseClient({ /* ... */, retryPolicy: exponentialPolicy });
+const cliente = new NfseClient({ layout: 'nt004', /* ... */, retryPolicy: exponentialPolicy });
 ```
 
 A lib embrulha a sua policy num wrapper defensivo: se `computeNotBefore` lançar, captura, loga `warn`, e cai para `notBefore: undefined` — a entrada permanece no store, elegível na próxima passada. Não confie no wrapper como rede de segurança; faça a sua policy à prova de bala.

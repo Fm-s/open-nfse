@@ -921,7 +921,7 @@ function assertAliqIssRange(aliqIss: number | undefined): void {
   if (aliqIss > 0 && aliqIss < 0.5) {
     const asPercent = aliqIss * 100;
     throw new RuleViolationError(
-      `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPSNt004 manualmente.`,
+      `aliqIss=${aliqIss} parece ser uma fração, não um percentual. Para emitir alíquota de ${asPercent}%, passe aliqIss=${asPercent}. Se a alíquota é realmente abaixo de 0,5%, construa InfDPSNt004 (ou InfDPSNt009, conforme o layout) manualmente.`,
       'aliqIss',
     );
   }

@@ -77,6 +77,7 @@ Substituir é **emitir a nova DPS com `infDPS/subst` apontando para a NFS-e orig
 import { JustificativaSubstituicao, buildDps } from 'open-nfse';
 
 const novaDps = buildDps({
+  layout: 'nt004',                    // o mesmo layout do client
   emitente: { /* mesmo do original */ },
   serie: '1',
   nDPS: '42',                         // obrigatório — use seu DpsCounter
