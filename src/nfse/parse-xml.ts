@@ -46,7 +46,6 @@ import type {
   InfoValoresNt009,
   ListaDocDedRedNt004,
   LocPrest,
-  MotivoEmissaoTomadorIntermediarioNt009,
   NFSe,
   ReferenciaDocDedRedNt004,
   RegTrib,
@@ -150,8 +149,10 @@ import { FOREIGN_LAYOUT_FIELDS, type Layout } from './layout.js';
 export interface ParseNfseXmlOptions {
   /**
    * Recebe `warn('nfse.parse.unexpected_field', { layout, field, path })` para
-   * cada campo inesperado no layout detectado (`path` relativo a `infNFSe`,
-   * separado por `/`; `value` quando o inesperado é o valor, não o campo).
+   * cada campo exclusivo do outro layout (ignorado; `path` relativo a
+   * `infNFSe`, separado por `/`) e `warn('nfse.parse.rule_violation', { layout,
+   * field, path, value, rule })` para um valor que o XSD aceita mas que o
+   * Anexo I do layout sempre rejeita (mantido no DTO; nt009: E0031, E0034).
    */
   readonly logger?: Logger;
 }
@@ -187,12 +188,31 @@ function detectDpsLayout(infDPS: XmlObject): Layout {
 }
 
 /** Avisa sobre um campo inesperado no layout detectado (o chamador o ignora). */
-function warnUnexpected(ctx: ParseContext, xmlPath: readonly string[], value?: string): void {
+function warnUnexpected(ctx: ParseContext, xmlPath: readonly string[]): void {
   ctx.logger.warn('nfse.parse.unexpected_field', {
     layout: ctx.layout,
     field: xmlPath[xmlPath.length - 1],
     path: xmlPath.join('/'),
-    ...(value !== undefined ? { value } : {}),
+  });
+}
+
+/**
+ * Avisa sobre um valor válido no XSD do layout, mas que uma regra fechada
+ * (Rej.) do Anexo I desse layout sempre rejeita. O chamador **mantém** o valor
+ * no DTO (o parser é sem perdas); o guard fica na emissão (`buildDpsXml`).
+ */
+function warnRuleViolation(
+  ctx: ParseContext,
+  xmlPath: readonly string[],
+  value: string,
+  rule: string,
+): void {
+  ctx.logger.warn('nfse.parse.rule_violation', {
+    layout: ctx.layout,
+    field: xmlPath[xmlPath.length - 1],
+    path: xmlPath.join('/'),
+    value,
+    rule,
   });
 }
 
@@ -1040,9 +1060,21 @@ function parseDpsNt009(node: XmlObject, ctx: ParseContext): DpsNt009 {
 }
 
 function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
-  // chNFSeRej está no XSD nt009, mas fora do contrato (E0034: nenhuma chave de
-  // NFS-e é aceita) — nenhuma NFS-e nt009 autorizada o carrega. Avisa e ignora.
-  if (node.chNFSeRej !== undefined) warnUnexpected(ctx, ['DPS', 'infDPS', 'chNFSeRej']);
+  const cMotivoEmisTI = optionalText(node, 'cMotivoEmisTI') as
+    | MotivoEmissaoTomadorIntermediario
+    | undefined;
+  const chNFSeRej = optionalText(node, 'chNFSeRej');
+  // Os dois estão no XSD nt009, mas o Anexo I `20261020` sempre os rejeita
+  // (ver InfDPSNt009). O parser é sem perdas: mantém o valor e só avisa.
+  if (
+    cMotivoEmisTI !== undefined &&
+    cMotivoEmisTI !== MotivoEmissaoTomadorIntermediario.ImportacaoServico
+  ) {
+    warnRuleViolation(ctx, ['DPS', 'infDPS', 'cMotivoEmisTI'], cMotivoEmisTI, 'E0031');
+  }
+  if (chNFSeRej !== undefined) {
+    warnRuleViolation(ctx, ['DPS', 'infDPS', 'chNFSeRej'], chNFSeRej, 'E0034');
+  }
   return {
     Id: requireAttr(node, 'Id'),
     tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
@@ -1052,8 +1084,9 @@ function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
     nDPS: requireText(node, 'nDPS'),
     dCompet: coerceDateOnly(requireText(node, 'dCompet')),
     tpEmit: requireText(node, 'tpEmit') as TipoEmitenteDps,
-    ...optionalAssign('cMotivoEmisTI', parseMotivoEmisTINt009(node, ctx)),
+    ...optionalAssign('cMotivoEmisTI', cMotivoEmisTI),
     finNFSe: requireText(node, 'finNFSe') as FinalidadeNFSe,
+    ...optionalAssign('chNFSeRej', chNFSeRej),
     cLocEmi: requireText(node, 'cLocEmi'),
     ...optionalAssign('subst', mapIfPresent(optionalChild(node, 'subst'), parseSubstituicao)),
     prest: parseInfoPrestador(requireChild(node, 'prest')),
@@ -1066,23 +1099,6 @@ function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
       mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcInfoIbsCbsNt009),
     ),
   };
-}
-
-/**
- * `cMotivoEmisTI` no nt009 só admite `1` (E0031; ver
- * `MotivoEmissaoTomadorIntermediarioNt009`). Outro valor não aparece numa NFS-e
- * nt009 autorizada — se aparecer, avisa (com o valor) e ignora.
- */
-function parseMotivoEmisTINt009(
-  node: XmlObject,
-  ctx: ParseContext,
-): MotivoEmissaoTomadorIntermediarioNt009 | undefined {
-  const raw = optionalText(node, 'cMotivoEmisTI');
-  if (raw === undefined || raw === MotivoEmissaoTomadorIntermediario.ImportacaoServico) {
-    return raw;
-  }
-  warnUnexpected(ctx, ['DPS', 'infDPS', 'cMotivoEmisTI'], raw);
-  return undefined;
 }
 
 function parseInfoPessoaNt009(node: XmlObject): InfoPessoaNt009 {

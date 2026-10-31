@@ -659,43 +659,65 @@ describe('parseNfseXml — campos de outro layout (FOREIGN_LAYOUT_FIELDS)', () =
 });
 
 describe('parseNfseXml — nt009: campos que o Anexo I rejeita (E0034/E0031)', () => {
-  it('chNFSeRej (E0034) é ignorado com warn', () => {
+  // O parser é sem perdas: um valor que o XSD nt009 aceita é mantido no DTO
+  // mesmo quando o Anexo I o rejeita sempre — só o warn sinaliza. O guard fica
+  // na emissão (buildDpsXml lança RuleViolationError).
+  it('chNFSeRej (E0034) é mantido no DTO, com warn nfse.parse.rule_violation', () => {
     const warn = vi.fn();
+    const chave = '21113002200574753000100000000000146726037032711025';
     const xml = fixtureNt009Max().replace(
       '<finNFSe>0</finNFSe>',
-      '<finNFSe>0</finNFSe><chNFSeRej>21113002200574753000100000000000146726037032711025</chNFSeRej>',
+      `<finNFSe>0</finNFSe><chNFSeRej>${chave}</chNFSeRej>`,
     );
     const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
     if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
-    expect(nfse.infNFSe.DPS.infDPS).not.toHaveProperty('chNFSeRej');
-    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+    expect(nfse.infNFSe.DPS.infDPS.chNFSeRej).toBe(chave);
+    expect(warn).toHaveBeenCalledWith('nfse.parse.rule_violation', {
       layout: 'nt009',
       field: 'chNFSeRej',
       path: 'DPS/infDPS/chNFSeRej',
+      value: chave,
+      rule: 'E0034',
     });
+    expect(() => buildDpsXml(nfse.infNFSe.DPS)).toThrow(
+      expect.objectContaining({ name: 'RuleViolationError', rule: 'E0034' }),
+    );
   });
 
-  it("cMotivoEmisTI diferente de '1' (E0031) é ignorado com warn; '1' é mantido", () => {
+  it.each([
+    MotivoEmissaoTomadorIntermediario.TomadorObrigadoEmitir,
+    MotivoEmissaoTomadorIntermediario.RecusaEmissaoPrestador,
+    MotivoEmissaoTomadorIntermediario.RejeicaoNfsePrestador,
+  ])('cMotivoEmisTI=%s (E0031) é mantido no DTO, com warn nfse.parse.rule_violation', (motivo) => {
     const warn = vi.fn();
     const xml = fixtureNt009Max().replace(
       '<cMotivoEmisTI>1</cMotivoEmisTI>',
-      '<cMotivoEmisTI>4</cMotivoEmisTI>',
+      `<cMotivoEmisTI>${motivo}</cMotivoEmisTI>`,
     );
     expect(xml).not.toBe(fixtureNt009Max());
     const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
     if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
-    expect(nfse.infNFSe.DPS.infDPS).not.toHaveProperty('cMotivoEmisTI');
-    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+    expect(nfse.infNFSe.DPS.infDPS.cMotivoEmisTI).toBe(motivo);
+    expect(warn).toHaveBeenCalledWith('nfse.parse.rule_violation', {
       layout: 'nt009',
       field: 'cMotivoEmisTI',
       path: 'DPS/infDPS/cMotivoEmisTI',
-      value: '4',
+      value: motivo,
+      rule: 'E0031',
     });
-    const ok = parseNfseXml(fixtureNt009Max());
+    expect(() => buildDpsXml(nfse.infNFSe.DPS)).toThrow(
+      expect.objectContaining({ name: 'RuleViolationError', rule: 'E0031' }),
+    );
+  });
+
+  it("cMotivoEmisTI='1' é mantido sem warn", () => {
+    const warn = vi.fn();
+    const ok = parseNfseXml(fixtureNt009Max(), { logger: { ...noopLogger, warn } });
     if (ok.layout !== 'nt009') throw new Error('esperava nt009');
     expect(ok.infNFSe.DPS.infDPS.cMotivoEmisTI).toBe(
       MotivoEmissaoTomadorIntermediario.ImportacaoServico,
     );
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('nt004 continua lendo chNFSeRej e cMotivoEmisTI', () => {

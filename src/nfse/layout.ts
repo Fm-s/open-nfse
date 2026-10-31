@@ -136,7 +136,8 @@ export const FOREIGN_LAYOUT_FIELDS: Readonly<Record<Layout, readonly ForeignLayo
  *   caminho do campo (`null` conta como ausente);
  * - campo que o XSD do layout ainda aceita, mas que o Anexo I desse layout
  *   rejeita sempre → `RuleViolationError` (nt009: E0034 `chNFSeRej`, E0031
- *   `cMotivoEmisTI`).
+ *   `cMotivoEmisTI`). Aqui o tipo segue o XSD (o parser mantém esses valores
+ *   lidos de uma NFS-e), então só este guard os barra na emissão.
  */
 export function assertNoForeignLayoutFields(dps: DPS): void {
   const layout = assertLayout((dps as { readonly layout?: unknown }).layout);

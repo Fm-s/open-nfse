@@ -58,7 +58,7 @@ if (nfse.layout === 'nt009') {
 }
 ```
 
-`layout` no DTO é um campo **sintético**: nunca é serializado. O parser é leniente — um campo inesperado para o layout detectado é ignorado com um `warn` (`nfse.parse.unexpected_field`), não lançado. Métodos de leitura devolvem a união `NFSe`, independentemente do `layout` do cliente.
+`layout` no DTO é um campo **sintético**: nunca é serializado. O parser é leniente e sem perdas — um campo exclusivo do outro layout é ignorado com um `warn` (`nfse.parse.unexpected_field`), não lançado; um valor que o XSD do layout aceita, mas que o Anexo I sempre rejeita (nt009: `cMotivoEmisTI` 2–4 pela E0031, `chNFSeRej` pela E0034), é **mantido** no DTO com um `warn` `nfse.parse.rule_violation` (`{ layout, field, path, value, rule }`). A emissão continua barrando esses valores (`RuleViolationError`). Métodos de leitura devolvem a união `NFSe`, independentemente do `layout` do cliente.
 
 ## Tipos
 

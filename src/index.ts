@@ -192,7 +192,6 @@ export type {
   ListaDocAjusteBCNt009,
   ListaDocDedRedNt004,
   LocPrest,
-  MotivoEmissaoTomadorIntermediarioNt009,
   NFSe,
   NfseFor,
   NfseNt004,

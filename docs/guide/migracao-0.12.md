@@ -120,7 +120,7 @@ const fake9 = new NfseClientFake({ layout: 'nt009', ambiente: TipoAmbiente.Homol
 
 ## 6. Outras mudanças
 
-- `parseNfseXml(xml, { logger? })` lê os dois leiautes; campos inesperados geram `warn` `nfse.parse.unexpected_field`.
+- `parseNfseXml(xml, { logger? })` lê os dois leiautes; campos do outro leiaute geram `warn` `nfse.parse.unexpected_field` (e são ignorados); valores aceitos pelo XSD mas sempre rejeitados pelo Anexo I (nt009: E0031, E0034) são mantidos, com `warn` `nfse.parse.rule_violation`.
 - `cancelar`/`substituir` (funções livres) ganharam um `layout?` opcional ao final; pelo `NfseClient` nada muda.
 - `PendingEvent.layout?` (opcional, observabilidade) — dados já persistidos continuam válidos.
 - Novos enums `TipoAjusteBC` e `TipoAjusteBCLocImoveis`, novos erros `InvalidLayoutError` e `LayoutMismatchError` (com `field` opcional).

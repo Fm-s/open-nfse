@@ -190,17 +190,6 @@ export interface RtcInfoIbsCbsNt009 {
   readonly valores: RtcInfoValoresIbsCbsNt009;
 }
 
-/**
- * `cMotivoEmisTI` no nt009. O XSD (`TSMotivoEmisTI`) ainda lista 1–4, mas a
- * **E0031** do Anexo I `20261020` exige, com tpEmit 2 ou 3, o valor `1`
- * (Importação de Serviço) — os motivos 2–4 do nt004 são sempre rejeitados.
- * `buildDpsXml` lança `RuleViolationError('E0031')` para outro valor (ou para a
- * ausência com tpEmit 2/3); o parser ignora um valor diferente de `1` com
- * `warn` `nfse.parse.unexpected_field`.
- */
-export type MotivoEmissaoTomadorIntermediarioNt009 =
-  MotivoEmissaoTomadorIntermediario.ImportacaoServico;
-
 export interface InfDPSNt009 {
   readonly Id: string;
   readonly tpAmb: TipoAmbienteDps;
@@ -210,18 +199,26 @@ export interface InfDPSNt009 {
   readonly nDPS: string;
   readonly dCompet: Date;
   readonly tpEmit: TipoEmitenteDps;
-  /** Ver {@link MotivoEmissaoTomadorIntermediarioNt009} (E0031: só `1` no nt009). */
-  readonly cMotivoEmisTI?: MotivoEmissaoTomadorIntermediarioNt009;
+  /**
+   * O XSD nt009 (`TSMotivoEmisTI`) ainda aceita 1–4, mas a **E0031** do Anexo I
+   * `20261020` exige, com tpEmit 2 ou 3, o valor `1` (Importação de Serviço) —
+   * os motivos 2–4 do nt004 são sempre rejeitados. `buildDpsXml` lança
+   * `RuleViolationError('E0031')` para outro valor (ou para a ausência com
+   * tpEmit 2/3). O tipo segue o XSD para o parser ser sem perdas: um valor 2–4
+   * lido de uma NFS-e é mantido, com `warn` `nfse.parse.rule_violation`.
+   */
+  readonly cMotivoEmisTI?: MotivoEmissaoTomadorIntermediario;
   /** Obrigatório no nt009 — serializado logo após `cMotivoEmisTI`. */
   readonly finNFSe: FinalidadeNFSe;
   /**
-   * Não existe no contrato nt009: o XSD ainda aceita `chNFSeRej`, mas a
+   * Fora do contrato de emissão nt009: o XSD ainda aceita `chNFSeRej`, mas a
    * **E0034** do Anexo I `20261020` rejeita sempre ("Não é permitido informar
    * nenhuma chave de acesso de NFSe"). `buildDpsXml` lança
-   * `RuleViolationError('E0034')` se vier preenchido (chamador JS); o parser
-   * ignora o elemento com `warn` `nfse.parse.unexpected_field`.
+   * `RuleViolationError('E0034')` se vier preenchido. O tipo segue o XSD para o
+   * parser ser sem perdas: o valor lido de uma NFS-e é mantido, com `warn`
+   * `nfse.parse.rule_violation`.
    */
-  readonly chNFSeRej?: never;
+  readonly chNFSeRej?: string;
   readonly cLocEmi: string;
   readonly subst?: Substituicao;
   readonly prest: InfoPrestador;
