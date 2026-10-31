@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ATTR_PREFIX, parseXml } from '../xml/parser.js';
 import { dpsNt009ComArraysVazios, dpsNt009Completa } from './__fixtures__/dps-nt009.js';
+import { dpsNt009Max } from './__fixtures__/dps-nt009-max.js';
+import { comDatasBrt } from './__fixtures__/normalize-dto.js';
 import { buildDpsXml } from './build-xml.js';
 import type { DPS, DpsNt009, InfDPSNt004 } from './domain.js';
 import { parseNfseXml } from './parse-xml.js';
@@ -295,13 +297,46 @@ describe('buildDpsXml — layout nt009', () => {
     );
   });
 
-  it('nt009 põe finNFSe após cMotivoEmisTI e xDescServ após cIntContrib', () => {
+  it('nt009 põe finNFSe após tpEmit e xDescServ após cIntContrib', () => {
     const xml = buildDpsXml(dpsNt009Completa());
     expect(xml.indexOf('<finNFSe>')).toBeGreaterThan(xml.indexOf('</tpEmit>'));
     expect(xml.indexOf('<finNFSe>')).toBeLessThan(xml.indexOf('<cLocEmi>'));
     expect(xml.indexOf('<xDescServ>')).toBeGreaterThan(xml.indexOf('</cIntContrib>'));
     expect(xml).not.toContain('<vDedRed>');
     expect(xml).not.toContain('<layout>');
+  });
+
+  it('nt009 põe finNFSe entre cMotivoEmisTI e cLocEmi (TCInfDPS)', async () => {
+    const xml = buildDpsXml(dpsNt009Max());
+    const ordem = ['</tpEmit>', '<cMotivoEmisTI>1</cMotivoEmisTI>', '<finNFSe>', '<cLocEmi>'].map(
+      (tag) => xml.indexOf(tag),
+    );
+    expect(ordem.every((pos) => pos >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    const result = await validateDpsXml(xml, { layout: 'nt009', throwOnInvalid: false });
+    expect(result.violations).toEqual([]);
+  });
+
+  it('DPS nt009 máxima (todo opcional preenchido) valida no XSD nt009', async () => {
+    const result = await validateDpsXml(buildDpsXml(dpsNt009Max()), {
+      layout: 'nt009',
+      throwOnInvalid: false,
+    });
+    expect(result.violations).toEqual([]);
+    expect(result.valid).toBe(true);
+  });
+
+  it('DPS nt009 máxima: parse(build(dps)) é igual ao DTO original', () => {
+    // Comparação no nível do DTO: um campo descartado pelo serializer (ou pelo
+    // parser) aparece aqui — comparar build(parse(build(x))) com build(x) não pega
+    // o que o serializer descarta, porque some dos dois lados.
+    const dps = dpsNt009Max();
+    expect(parseDpsNt009ViaEnvelope(dps)).toEqual(dps);
+  });
+
+  it('DPS nt009 completa: parse(build(dps)) é igual ao DTO (datas date-only em BRT)', () => {
+    const dps = dpsNt009Completa();
+    expect(parseDpsNt009ViaEnvelope(dps)).toEqual(comDatasBrt(dps));
   });
 
   it('serializa os grupos novos (vAjusteBC, imovel, bensMoveis, trib)', () => {
@@ -432,6 +467,31 @@ describe('buildDpsXml — layout nt009', () => {
     const parsed = parseDpsNt009ViaEnvelope(dps);
     const doc = parsed.infDPS.valores.vAjusteBC?.documentos?.docAjusteBC[0];
     expect(doc?.documento).toEqual({ docFiscalOutro });
+    expect(parsed).toEqual(comDatasBrt(dps));
+  });
+
+  it('grupos opcionais vazios (vAjusteBC, gIBSCBS) são omitidos e o round-trip é estável', () => {
+    const base = dpsNt009Completa();
+    const ibscbs = base.infDPS.IBSCBS;
+    if (!ibscbs) throw new Error('fixture sem IBSCBS');
+    const dps: DpsNt009 = {
+      ...base,
+      infDPS: {
+        ...base.infDPS,
+        // `documentos` sem docAjusteBC também equivale a grupo vazio.
+        valores: { ...base.infDPS.valores, vAjusteBC: { documentos: { docAjusteBC: [] } } },
+        IBSCBS: {
+          ...ibscbs,
+          valores: { trib: { CST: '000', cClassTrib: '000001', gIBSCBS: {} } },
+        },
+      },
+    };
+    const xml = buildDpsXml(dps);
+    expect(xml).not.toMatch(/<vAjusteBC[/>]/);
+    expect(xml).not.toMatch(/<gIBSCBS[/>]/);
+    const parsed = parseDpsNt009ViaEnvelope(dps);
+    expect(parsed.infDPS.valores.vAjusteBC).toBeUndefined();
+    expect(parsed.infDPS.IBSCBS?.valores.trib.gIBSCBS).toBeUndefined();
     expect(buildDpsXml(parsed)).toBe(xml);
   });
 

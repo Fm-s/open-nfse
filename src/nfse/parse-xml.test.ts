@@ -4,21 +4,27 @@ import { describe, expect, it, vi } from 'vitest';
 import { InvalidXmlError } from '../errors/validation.js';
 import { noopLogger } from '../logging.js';
 import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
+import { dpsNt009Max } from './__fixtures__/dps-nt009-max.js';
+import { comDatasBrt } from './__fixtures__/normalize-dto.js';
+import { RTC_SCHEMAS } from './_rtc-schemas.generated.js';
 import { buildDpsXml } from './build-xml.js';
 import type { NfseNt004 } from './domain.js';
 import {
   AmbienteGerador,
   FinalidadeNFSe,
+  MotivoEmissaoTomadorIntermediario,
   OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   TipoAmbienteDps,
+  TipoBeneficioMunicipal,
   TipoEmissao,
   TipoEmitenteDps,
   TipoRetISSQN,
   TipoTribISSQN,
   UF,
 } from './enums.js';
+import { FOREIGN_LAYOUT_FIELDS, LAYOUTS, type Layout } from './layout.js';
 import { parseNfseXml } from './parse-xml.js';
 
 /** Os XMLs deste arquivo são todos nt004 — estreita o `NFSe` (union) para os asserts. */
@@ -287,57 +293,58 @@ describe('parseNfseXml — phase 4 DPS-side IBS/CBS (synthetic)', () => {
   });
 });
 
-describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', () => {
-  const xml =
-    '<?xml version="1.0" encoding="utf-8"?><NFSe versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">' +
-    '<infNFSe Id="NFS11111111111111111111111111111111111111111111119999">' +
-    '<xLocEmi>A</xLocEmi><xLocPrestacao>B</xLocPrestacao><nNFSe>1</nNFSe>' +
-    '<cLocIncid>3550308</cLocIncid><xLocIncid>São Paulo</xLocIncid>' +
-    '<xTribNac>desc</xTribNac><xTribMun>m</xTribMun><xNBS>n</xNBS>' +
-    '<verAplic>v</verAplic><ambGer>2</ambGer><tpEmis>1</tpEmis><procEmi>1</procEmi>' +
-    '<cStat>100</cStat><dhProc>2026-04-16T10:00:00-03:00</dhProc><nDFSe>1</nDFSe>' +
-    '<emit><CNPJ>11111111111111</CNPJ><IM>1</IM><xNome>E</xNome><xFant>F</xFant>' +
-    '<enderNac><xLgr>L</xLgr><nro>1</nro><xCpl>c</xCpl><xBairro>B</xBairro><cMun>3550308</cMun><UF>SP</UF><CEP>01000000</CEP></enderNac>' +
-    '<fone>11999999999</fone><email>e@x.com</email></emit>' +
-    '<valores><vCalcDR>1</vCalcDR><tpBM>2</tpBM><vCalcBM>1</vCalcBM><vBC>100</vBC><pAliqAplic>5</pAliqAplic><vISSQN>5</vISSQN><vTotalRet>0</vTotalRet><vLiq>95</vLiq><xOutInf>x</xOutInf></valores>' +
-    '<IBSCBS><cLocalidadeIncid>3550308</cLocalidadeIncid><xLocalidadeIncid>SP</xLocalidadeIncid><pRedutor>0</pRedutor>' +
-    '<valores><vBC>100</vBC><vCalcReeRepRes>0</vCalcReeRepRes><uf><pIBSUF>10</pIBSUF><pRedAliqUF>0</pRedAliqUF><pAliqEfetUF>10</pAliqEfetUF></uf><mun><pIBSMun>5</pIBSMun><pRedAliqMun>0</pRedAliqMun><pAliqEfetMun>5</pAliqEfetMun></mun><fed><pCBS>1</pCBS><pRedAliqCBS>0</pRedAliqCBS><pAliqEfetCBS>1</pAliqEfetCBS></fed></valores>' +
-    '<totCIBS><vTotNF>100</vTotNF><gIBS><vIBSTot>15</vIBSTot><gIBSCredPres><pCredPresIBS>0</pCredPresIBS><vCredPresIBS>0</vCredPresIBS></gIBSCredPres><gIBSUFTot><vDifUF>0</vDifUF><vIBSUF>10</vIBSUF></gIBSUFTot><gIBSMunTot><vDifMun>0</vDifMun><vIBSMun>5</vIBSMun></gIBSMunTot></gIBS>' +
-    '<gCBS><gCBSCredPres><pCredPresCBS>0</pCredPresCBS><vCredPresCBS>0</vCredPresCBS></gCBSCredPres><vDifCBS>0</vDifCBS><vCBS>1</vCBS></gCBS>' +
-    '<gTribRegular><pAliqEfeRegIBSUF>10</pAliqEfeRegIBSUF><vTribRegIBSUF>10</vTribRegIBSUF><pAliqEfeRegIBSMun>5</pAliqEfeRegIBSMun><vTribRegIBSMun>5</vTribRegIBSMun><pAliqEfeRegCBS>1</pAliqEfeRegCBS><vTribRegCBS>1</vTribRegCBS></gTribRegular>' +
-    '<gTribCompraGov><pIBSUF>10</pIBSUF><vIBSUF>10</vIBSUF><pIBSMun>5</pIBSMun><vIBSMun>5</vIBSMun><pCBS>1</pCBS><vCBS>1</vCBS></gTribCompraGov></totCIBS></IBSCBS>' +
-    '<DPS versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">' +
-    '<infDPS Id="DPSXYZ">' +
-    '<tpAmb>2</tpAmb><dhEmi>2026-04-16T10:00:00-03:00</dhEmi><verAplic>v</verAplic><serie>1</serie><nDPS>1</nDPS><dCompet>2026-04-16</dCompet><tpEmit>2</tpEmit><cMotivoEmisTI>1</cMotivoEmisTI><chNFSeRej>00000000000000000000000000000000000000000000000001</chNFSeRej>' +
-    '<cLocEmi>3550308</cLocEmi>' +
-    '<subst><chSubstda>00000000000000000000000000000000000000000000000002</chSubstda><cMotivo>99</cMotivo><xMotivo>m</xMotivo></subst>' +
-    '<prest><NIF>INT-1</NIF><CAEPF>1</CAEPF><IM>1</IM><xNome>P</xNome><fone>1</fone><email>p@x</email><regTrib><opSimpNac>1</opSimpNac><regEspTrib>0</regEspTrib></regTrib></prest>' +
-    '<toma><cNaoNIF>1</cNaoNIF><CAEPF>1</CAEPF><IM>1</IM><xNome>T</xNome><end><endExt><cPais>US</cPais><cEndPost>12345</cEndPost><xCidade>NY</xCidade><xEstProvReg>NY</xEstProvReg></endExt><xLgr>L</xLgr><nro>1</nro><xCpl>c</xCpl><xBairro>B</xBairro></end><fone>1</fone><email>t@x</email></toma>' +
-    '<interm><CPF>00000000000</CPF><xNome>I</xNome></interm>' +
-    '<serv>' +
-    '<locPrest><cPaisPrestacao>US</cPaisPrestacao></locPrest>' +
-    '<cServ><cTribNac>100101</cTribNac><xDescServ>s</xDescServ></cServ>' +
-    '<comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>USD</tpMoeda><vServMoeda>100</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><nDI>di1</nDI><nRE>re1</nRE><mdic>0</mdic></comExt>' +
-    '<obra><cCIB>99999</cCIB></obra>' +
-    '<atvEvento><xNome>E</xNome><dtIni>2026-04-16</dtIni><dtFim>2026-04-17</dtFim><end><CEP>01000000</CEP><xLgr>L</xLgr><nro>1</nro><xBairro>B</xBairro></end></atvEvento>' +
-    '<infoCompl><idDocTec>art1</idDocTec><docRef>c1</docRef><xPed>P1</xPed><gItemPed><xItemPed>1</xItemPed></gItemPed><xInfComp>info</xInfComp></infoCompl>' +
-    '</serv>' +
-    '<valores>' +
-    '<vServPrest><vReceb>50</vReceb><vServ>100</vServ></vServPrest>' +
-    '<vDescCondIncond><vDescIncond>1</vDescIncond><vDescCond>2</vDescCond></vDescCondIncond>' +
-    '<vDedRed><documentos><docDedRed><chNFSe>x</chNFSe><tpDedRed>99</tpDedRed><xDescOutDed>o</xDescOutDed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>10</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><NFSeMun><cMunNFSeMun>3550308</cMunNFSeMun><nNFSeMun>1</nNFSeMun><cVerifNFSeMun>abc</cVerifNFSeMun></NFSeMun><tpDedRed>1</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><NFNFS><nNFS>1</nNFS><modNFS>55</modNFS><serieNFS>1</serieNFS></NFNFS><tpDedRed>2</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><nDocFisc>abc</nDocFisc><tpDedRed>5</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><nDoc>xyz</nDoc><tpDedRed>6</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><chNFe>y</chNFe><tpDedRed>7</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed></documentos></vDedRed>' +
-    '<trib><tribMun><tribISSQN>2</tribISSQN><cPaisResult>BR</cPaisResult><tpImunidade>1</tpImunidade><exigSusp><tpSusp>1</tpSusp><nProcesso>123</nProcesso></exigSusp><BM><nBM>35503080100001</nBM><vRedBCBM>10</vRedBCBM></BM><tpRetISSQN>1</tpRetISSQN><pAliq>5</pAliq></tribMun><tribFed><piscofins><CST>01</CST><vBCPisCofins>100</vBCPisCofins><pAliqPis>1</pAliqPis><pAliqCofins>2</pAliqCofins><vPis>1</vPis><vCofins>2</vCofins><tpRetPisCofins>2</tpRetPisCofins></piscofins><vRetCP>1</vRetCP><vRetIRRF>2</vRetIRRF><vRetCSLL>3</vRetCSLL></tribFed><totTrib><vTotTrib><vTotTribFed>5</vTotTribFed><vTotTribEst>1</vTotTribEst><vTotTribMun>2</vTotTribMun></vTotTrib></totTrib></trib>' +
-    '</valores>' +
-    '<IBSCBS><finNFSe>0</finNFSe><indFinal>1</indFinal><cIndOp>010101</cIndOp><tpOper>1</tpOper><gRefNFSe><refNFSe>00000000000000000000000000000000000000000000000003</refNFSe></gRefNFSe><tpEnteGov>1</tpEnteGov><indDest>1</indDest><dest><NIF>N1</NIF><xNome>D</xNome><fone>1</fone><email>d@x</email></dest>' +
-    '<imovel><inscImobFisc>1</inscImobFisc><cCIB>99999</cCIB></imovel>' +
-    '<valores><gReeRepRes><documentos><dFeNacional><tipoChaveDFe>1</tipoChaveDFe><xTipoChaveDFe>x</xTipoChaveDFe><chaveDFe>00000000000000000000000000000000000000000000000004</chaveDFe></dFeNacional><fornec><CPF>00000000000</CPF><xNome>F</xNome></fornec><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><xTpReeRepRes>x</xTpReeRepRes><vlrReeRepRes>10</vlrReeRepRes></documentos><documentos><docFiscalOutro><cMunDocFiscal>3550308</cMunDocFiscal><nDocFiscal>1</nDocFiscal><xDocFiscal>x</xDocFiscal></docFiscalOutro><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><vlrReeRepRes>5</vlrReeRepRes></documentos><documentos><docOutro><nDoc>1</nDoc><xDoc>x</xDoc></docOutro><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><vlrReeRepRes>5</vlrReeRepRes></documentos></gReeRepRes>' +
-    '<trib><gIBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib><cCredPres>0</cCredPres><gTribRegular><CSTReg>000</CSTReg><cClassTribReg>000001</cClassTribReg></gTribRegular><gDif><pDifUF>0</pDifUF><pDifMun>0</pDifMun><pDifCBS>0</pDifCBS></gDif></gIBSCBS></trib></valores></IBSCBS>' +
-    '</infDPS>' +
-    '</DPS></infNFSe>' +
-    '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="x"/><SignatureMethod Algorithm="x"/><Reference URI="#NFS11111111111111111111111111111111111111111111119999"><Transforms><Transform Algorithm="x"/></Transforms><DigestMethod Algorithm="x"/><DigestValue>d</DigestValue></Reference></SignedInfo><SignatureValue>s</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature>' +
-    '</NFSe>';
+/** NFS-e nt004 sintética com todos os grupos (inclusive IBSCBS da NFS-e e do DPS). */
+const KITCHEN_SINK_NT004 =
+  '<?xml version="1.0" encoding="utf-8"?><NFSe versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">' +
+  '<infNFSe Id="NFS11111111111111111111111111111111111111111111119999">' +
+  '<xLocEmi>A</xLocEmi><xLocPrestacao>B</xLocPrestacao><nNFSe>1</nNFSe>' +
+  '<cLocIncid>3550308</cLocIncid><xLocIncid>São Paulo</xLocIncid>' +
+  '<xTribNac>desc</xTribNac><xTribMun>m</xTribMun><xNBS>n</xNBS>' +
+  '<verAplic>v</verAplic><ambGer>2</ambGer><tpEmis>1</tpEmis><procEmi>1</procEmi>' +
+  '<cStat>100</cStat><dhProc>2026-04-16T10:00:00-03:00</dhProc><nDFSe>1</nDFSe>' +
+  '<emit><CNPJ>11111111111111</CNPJ><IM>1</IM><xNome>E</xNome><xFant>F</xFant>' +
+  '<enderNac><xLgr>L</xLgr><nro>1</nro><xCpl>c</xCpl><xBairro>B</xBairro><cMun>3550308</cMun><UF>SP</UF><CEP>01000000</CEP></enderNac>' +
+  '<fone>11999999999</fone><email>e@x.com</email></emit>' +
+  '<valores><vCalcDR>1</vCalcDR><tpBM>2</tpBM><vCalcBM>1</vCalcBM><vBC>100</vBC><pAliqAplic>5</pAliqAplic><vISSQN>5</vISSQN><vTotalRet>0</vTotalRet><vLiq>95</vLiq><xOutInf>x</xOutInf></valores>' +
+  '<IBSCBS><cLocalidadeIncid>3550308</cLocalidadeIncid><xLocalidadeIncid>SP</xLocalidadeIncid><pRedutor>0</pRedutor>' +
+  '<valores><vBC>100</vBC><vCalcReeRepRes>0</vCalcReeRepRes><uf><pIBSUF>10</pIBSUF><pRedAliqUF>0</pRedAliqUF><pAliqEfetUF>10</pAliqEfetUF></uf><mun><pIBSMun>5</pIBSMun><pRedAliqMun>0</pRedAliqMun><pAliqEfetMun>5</pAliqEfetMun></mun><fed><pCBS>1</pCBS><pRedAliqCBS>0</pRedAliqCBS><pAliqEfetCBS>1</pAliqEfetCBS></fed></valores>' +
+  '<totCIBS><vTotNF>100</vTotNF><gIBS><vIBSTot>15</vIBSTot><gIBSCredPres><pCredPresIBS>0</pCredPresIBS><vCredPresIBS>0</vCredPresIBS></gIBSCredPres><gIBSUFTot><vDifUF>0</vDifUF><vIBSUF>10</vIBSUF></gIBSUFTot><gIBSMunTot><vDifMun>0</vDifMun><vIBSMun>5</vIBSMun></gIBSMunTot></gIBS>' +
+  '<gCBS><gCBSCredPres><pCredPresCBS>0</pCredPresCBS><vCredPresCBS>0</vCredPresCBS></gCBSCredPres><vDifCBS>0</vDifCBS><vCBS>1</vCBS></gCBS>' +
+  '<gTribRegular><pAliqEfeRegIBSUF>10</pAliqEfeRegIBSUF><vTribRegIBSUF>10</vTribRegIBSUF><pAliqEfeRegIBSMun>5</pAliqEfeRegIBSMun><vTribRegIBSMun>5</vTribRegIBSMun><pAliqEfeRegCBS>1</pAliqEfeRegCBS><vTribRegCBS>1</vTribRegCBS></gTribRegular>' +
+  '<gTribCompraGov><pIBSUF>10</pIBSUF><vIBSUF>10</vIBSUF><pIBSMun>5</pIBSMun><vIBSMun>5</vIBSMun><pCBS>1</pCBS><vCBS>1</vCBS></gTribCompraGov></totCIBS></IBSCBS>' +
+  '<DPS versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse">' +
+  '<infDPS Id="DPSXYZ">' +
+  '<tpAmb>2</tpAmb><dhEmi>2026-04-16T10:00:00-03:00</dhEmi><verAplic>v</verAplic><serie>1</serie><nDPS>1</nDPS><dCompet>2026-04-16</dCompet><tpEmit>2</tpEmit><cMotivoEmisTI>1</cMotivoEmisTI><chNFSeRej>00000000000000000000000000000000000000000000000001</chNFSeRej>' +
+  '<cLocEmi>3550308</cLocEmi>' +
+  '<subst><chSubstda>00000000000000000000000000000000000000000000000002</chSubstda><cMotivo>99</cMotivo><xMotivo>m</xMotivo></subst>' +
+  '<prest><NIF>INT-1</NIF><CAEPF>1</CAEPF><IM>1</IM><xNome>P</xNome><fone>1</fone><email>p@x</email><regTrib><opSimpNac>1</opSimpNac><regEspTrib>0</regEspTrib></regTrib></prest>' +
+  '<toma><cNaoNIF>1</cNaoNIF><CAEPF>1</CAEPF><IM>1</IM><xNome>T</xNome><end><endExt><cPais>US</cPais><cEndPost>12345</cEndPost><xCidade>NY</xCidade><xEstProvReg>NY</xEstProvReg></endExt><xLgr>L</xLgr><nro>1</nro><xCpl>c</xCpl><xBairro>B</xBairro></end><fone>1</fone><email>t@x</email></toma>' +
+  '<interm><CPF>00000000000</CPF><xNome>I</xNome></interm>' +
+  '<serv>' +
+  '<locPrest><cPaisPrestacao>US</cPaisPrestacao></locPrest>' +
+  '<cServ><cTribNac>100101</cTribNac><xDescServ>s</xDescServ></cServ>' +
+  '<comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>USD</tpMoeda><vServMoeda>100</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><nDI>di1</nDI><nRE>re1</nRE><mdic>0</mdic></comExt>' +
+  '<obra><cCIB>99999</cCIB></obra>' +
+  '<atvEvento><xNome>E</xNome><dtIni>2026-04-16</dtIni><dtFim>2026-04-17</dtFim><end><CEP>01000000</CEP><xLgr>L</xLgr><nro>1</nro><xBairro>B</xBairro></end></atvEvento>' +
+  '<infoCompl><idDocTec>art1</idDocTec><docRef>c1</docRef><xPed>P1</xPed><gItemPed><xItemPed>1</xItemPed></gItemPed><xInfComp>info</xInfComp></infoCompl>' +
+  '</serv>' +
+  '<valores>' +
+  '<vServPrest><vReceb>50</vReceb><vServ>100</vServ></vServPrest>' +
+  '<vDescCondIncond><vDescIncond>1</vDescIncond><vDescCond>2</vDescCond></vDescCondIncond>' +
+  '<vDedRed><documentos><docDedRed><chNFSe>x</chNFSe><tpDedRed>99</tpDedRed><xDescOutDed>o</xDescOutDed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>10</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><NFSeMun><cMunNFSeMun>3550308</cMunNFSeMun><nNFSeMun>1</nNFSeMun><cVerifNFSeMun>abc</cVerifNFSeMun></NFSeMun><tpDedRed>1</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><NFNFS><nNFS>1</nNFS><modNFS>55</modNFS><serieNFS>1</serieNFS></NFNFS><tpDedRed>2</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><nDocFisc>abc</nDocFisc><tpDedRed>5</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><nDoc>xyz</nDoc><tpDedRed>6</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed><docDedRed><chNFe>y</chNFe><tpDedRed>7</tpDedRed><dtEmiDoc>2026-04-16</dtEmiDoc><vDedutivelRedutivel>5</vDedutivelRedutivel><vDeducaoReducao>5</vDeducaoReducao></docDedRed></documentos></vDedRed>' +
+  '<trib><tribMun><tribISSQN>2</tribISSQN><cPaisResult>BR</cPaisResult><tpImunidade>1</tpImunidade><exigSusp><tpSusp>1</tpSusp><nProcesso>123</nProcesso></exigSusp><BM><nBM>35503080100001</nBM><vRedBCBM>10</vRedBCBM></BM><tpRetISSQN>1</tpRetISSQN><pAliq>5</pAliq></tribMun><tribFed><piscofins><CST>01</CST><vBCPisCofins>100</vBCPisCofins><pAliqPis>1</pAliqPis><pAliqCofins>2</pAliqCofins><vPis>1</vPis><vCofins>2</vCofins><tpRetPisCofins>2</tpRetPisCofins></piscofins><vRetCP>1</vRetCP><vRetIRRF>2</vRetIRRF><vRetCSLL>3</vRetCSLL></tribFed><totTrib><vTotTrib><vTotTribFed>5</vTotTribFed><vTotTribEst>1</vTotTribEst><vTotTribMun>2</vTotTribMun></vTotTrib></totTrib></trib>' +
+  '</valores>' +
+  '<IBSCBS><finNFSe>0</finNFSe><indFinal>1</indFinal><cIndOp>010101</cIndOp><tpOper>1</tpOper><gRefNFSe><refNFSe>00000000000000000000000000000000000000000000000003</refNFSe></gRefNFSe><tpEnteGov>1</tpEnteGov><indDest>1</indDest><dest><NIF>N1</NIF><xNome>D</xNome><fone>1</fone><email>d@x</email></dest>' +
+  '<imovel><inscImobFisc>1</inscImobFisc><cCIB>99999</cCIB></imovel>' +
+  '<valores><gReeRepRes><documentos><dFeNacional><tipoChaveDFe>1</tipoChaveDFe><xTipoChaveDFe>x</xTipoChaveDFe><chaveDFe>00000000000000000000000000000000000000000000000004</chaveDFe></dFeNacional><fornec><CPF>00000000000</CPF><xNome>F</xNome></fornec><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><xTpReeRepRes>x</xTpReeRepRes><vlrReeRepRes>10</vlrReeRepRes></documentos><documentos><docFiscalOutro><cMunDocFiscal>3550308</cMunDocFiscal><nDocFiscal>1</nDocFiscal><xDocFiscal>x</xDocFiscal></docFiscalOutro><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><vlrReeRepRes>5</vlrReeRepRes></documentos><documentos><docOutro><nDoc>1</nDoc><xDoc>x</xDoc></docOutro><dtEmiDoc>2026-04-16</dtEmiDoc><dtCompDoc>2026-04-16</dtCompDoc><tpReeRepRes>1</tpReeRepRes><vlrReeRepRes>5</vlrReeRepRes></documentos></gReeRepRes>' +
+  '<trib><gIBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib><cCredPres>0</cCredPres><gTribRegular><CSTReg>000</CSTReg><cClassTribReg>000001</cClassTribReg></gTribRegular><gDif><pDifUF>0</pDifUF><pDifMun>0</pDifMun><pDifCBS>0</pDifCBS></gDif></gIBSCBS></trib></valores></IBSCBS>' +
+  '</infDPS>' +
+  '</DPS></infNFSe>' +
+  '<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="x"/><SignatureMethod Algorithm="x"/><Reference URI="#NFS11111111111111111111111111111111111111111111119999"><Transforms><Transform Algorithm="x"/></Transforms><DigestMethod Algorithm="x"/><DigestValue>d</DigestValue></Reference></SignedInfo><SignatureValue>s</SignatureValue><KeyInfo><X509Data><X509Certificate>c</X509Certificate></X509Data></KeyInfo></Signature>' +
+  '</NFSe>';
 
-  const parsed = parseNt004(xml);
+describe('parseNfseXml — kitchen-sink synthetic covering phase 3+4 branches', () => {
+  const parsed = parseNt004(KITCHEN_SINK_NT004);
 
   it('parses exterior tomador endExt', () => {
     const end = parsed.infNFSe.DPS.infDPS.toma?.end;
@@ -468,8 +475,9 @@ describe('parseNfseXml — detecção de layout nt004/nt009', () => {
   it('round-trip DTO nt009 → XML → parse preserva vAjusteBC, imovel, bensMoveis e trib', () => {
     const nfse = parseNfseXml(fixtureNt009());
     if (nfse.layout !== 'nt009') throw new Error('narrow');
-    // Campos date-only voltam ancorados à meia-noite de Brasília; a igualdade é
-    // verificada na forma serializada (estável) e em campos-chave.
+    // Igualdade no nível do DTO (não build(parse(xml)) × build(dto), que não vê o
+    // que o serializer descarta); date-only volta na meia-noite de Brasília.
+    expect(nfse.infNFSe.DPS).toEqual(comDatasBrt(dpsNt009Completa()));
     expect(buildDpsXml(nfse.infNFSe.DPS)).toBe(buildDpsXml(dpsNt009Completa()));
     const { valores, IBSCBS } = nfse.infNFSe.DPS.infDPS;
     expect(valores.vAjusteBC?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
@@ -516,6 +524,187 @@ describe('parseNfseXml — detecção de layout nt004/nt009', () => {
   it('não avisa quando o documento não tem campos de outro layout', () => {
     const warn = vi.fn();
     parseNfseXml(fixtureNt009(), { logger: { ...noopLogger, warn } });
+    parseNfseXml(fixtureNt009Max(), { logger: { ...noopLogger, warn } });
+    parseNfseXml(KITCHEN_SINK_NT004, { logger: { ...noopLogger, warn } });
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+const fixtureNt009Max = () =>
+  readFileSync(join(__dirname, '__fixtures__', 'nfse-nt009-max.xml'), 'utf-8');
+
+describe('parseNfseXml — NFS-e nt009 máxima (todos os opcionais)', () => {
+  it('a fixture valida no XSD NFSe do nt009', async () => {
+    const schemas = RTC_SCHEMAS.nt009;
+    const main = schemas.find((s) => s.fileName === 'NFSe_v1.01.xsd');
+    if (!main) throw new Error('NFSe_v1.01.xsd ausente');
+    const { validateXML } = await import('xmllint-wasm');
+    const out = await validateXML({
+      xml: [{ fileName: 'nfse.xml', contents: fixtureNt009Max() }],
+      schema: [main],
+      preload: schemas.filter((s) => s !== main),
+    });
+    expect(out.errors).toEqual([]);
+    expect(out.valid).toBe(true);
+  });
+
+  const nfse = parseNfseXml(fixtureNt009Max());
+  if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
+
+  it('DPS embutido volta igual ao DTO de origem', () => {
+    expect(nfse.infNFSe.DPS).toEqual(dpsNt009Max());
+  });
+
+  it('lê os valores da NFS-e (TCValoresNFSe do nt009)', () => {
+    expect(nfse.infNFSe.valores).toEqual({
+      vCalcAjusteBCISSQN: 30,
+      tpBM: TipoBeneficioMunicipal.ReducaoPercentual,
+      vCalcBM: 12.5,
+      vBC: 947.5,
+      pAliqAplic: 2,
+      vISSQN: 18.95,
+      vTotalRet: 7.25,
+      vLiq: 973.8,
+    });
+  });
+
+  it('lê o IBSCBS da NFS-e (TCRTCIBSCBS/TCRTCValoresIBSCBS/TCRTCTotalCIBS do nt009)', () => {
+    expect(nfse.infNFSe.IBSCBS).toEqual({
+      cLocalidadeIncid: '2111300',
+      xLocalidadeIncid: 'São Luís',
+      pRedutor: 12.5,
+      valores: {
+        vBC: 800,
+        vCalcAjusteBCLocImoveis: 190,
+        vCalcAjusteBCIBSCBS: 10,
+        uf: { pIBSUF: 0.1, pRedAliqUF: 0.05, pAliqEfetUF: 0.09 },
+        mun: { pIBSMun: 0.2, pRedAliqMun: 0.06, pAliqEfetMun: 0.18 },
+        fed: { pCBS: 0.9, pRedAliqCBS: 0.07, pAliqEfetCBS: 0.83 },
+      },
+      totCIBS: {
+        vTotNF: 1003.5,
+        gIBS: {
+          vIBSTot: 2.16,
+          gIBSCredPres: { pCredPresIBS: 1, vCredPresIBS: 0.08 },
+          gIBSUFTot: { vDifUF: 0.07, vIBSUF: 0.72 },
+          gIBSMunTot: { vDifMun: 0.29, vIBSMun: 1.44 },
+        },
+        gCBS: {
+          gCBSCredPres: { pCredPresCBS: 2, vCredPresCBS: 0.13 },
+          vDifCBS: 1.99,
+          vCBS: 6.64,
+        },
+        gTribRegular: {
+          pAliqEfeRegIBSUF: 0.11,
+          vTribRegIBSUF: 0.88,
+          pAliqEfeRegIBSMun: 0.21,
+          vTribRegIBSMun: 1.68,
+          pAliqEfeRegCBS: 0.91,
+          vTribRegCBS: 7.28,
+        },
+        gTribCompraGov: {
+          pIBSUF: 0.12,
+          vIBSUF: 0.96,
+          pIBSMun: 0.22,
+          vIBSMun: 1.76,
+          pCBS: 0.92,
+          vCBS: 7.36,
+        },
+      },
+    });
+  });
+});
+
+/**
+ * Insere `<leaf>1</leaf>` como primeiro filho do elemento em `path` (a partir de
+ * `infNFSe`, cada passo buscado após o anterior — a ordem do XSD garante que o
+ * primeiro `<valores>` após `<infNFSe>` é o da NFS-e, o primeiro após `<IBSCBS>`
+ * do DPS é o do DPS etc.).
+ */
+function injectChild(xml: string, path: readonly string[], leaf: string): string {
+  let pos = xml.indexOf('<infNFSe');
+  for (const name of path) {
+    const re = new RegExp(`<${name}(?=[\\s>])[^>]*>`, 'g');
+    re.lastIndex = pos;
+    const m = re.exec(xml);
+    if (!m) throw new Error(`elemento <${name}> não encontrado para injetar ${leaf}`);
+    pos = m.index + m[0].length;
+  }
+  return `${xml.slice(0, pos)}<${leaf}>1</${leaf}>${xml.slice(pos)}`;
+}
+
+describe('parseNfseXml — campos de outro layout (FOREIGN_LAYOUT_FIELDS)', () => {
+  const hosts: Record<Layout, string> = { nt009: fixtureNt009Max(), nt004: KITCHEN_SINK_NT004 };
+  const casos = LAYOUTS.flatMap((layout) =>
+    FOREIGN_LAYOUT_FIELDS[layout]
+      // `infDPS/finNFSe` é o próprio marcador de detecção do nt009.
+      .filter((f) => f.xmlPath.join('/') !== 'DPS/infDPS/finNFSe')
+      .map((f) => [layout, f.xmlPath.join('/'), f.xmlPath] as const),
+  );
+
+  it.each(casos)('%s: %s é ignorado com warn, sem lançar', (layout, path, xmlPath) => {
+    const host = hosts[layout];
+    const leaf = xmlPath[xmlPath.length - 1] ?? '';
+    const xml = injectChild(host, xmlPath.slice(0, -1), leaf);
+    const warn = vi.fn();
+    const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
+    expect(nfse.layout).toBe(layout);
+    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+      layout,
+      field: leaf,
+      path,
+    });
+    expect(nfse).toEqual(parseNfseXml(host));
+  });
+});
+
+describe('parseNfseXml — nt009: campos que o Anexo I rejeita (E0034/E0031)', () => {
+  it('chNFSeRej (E0034) é ignorado com warn', () => {
+    const warn = vi.fn();
+    const xml = fixtureNt009Max().replace(
+      '<finNFSe>0</finNFSe>',
+      '<finNFSe>0</finNFSe><chNFSeRej>21113002200574753000100000000000146726037032711025</chNFSeRej>',
+    );
+    const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
+    if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
+    expect(nfse.infNFSe.DPS.infDPS).not.toHaveProperty('chNFSeRej');
+    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+      layout: 'nt009',
+      field: 'chNFSeRej',
+      path: 'DPS/infDPS/chNFSeRej',
+    });
+  });
+
+  it("cMotivoEmisTI diferente de '1' (E0031) é ignorado com warn; '1' é mantido", () => {
+    const warn = vi.fn();
+    const xml = fixtureNt009Max().replace(
+      '<cMotivoEmisTI>1</cMotivoEmisTI>',
+      '<cMotivoEmisTI>4</cMotivoEmisTI>',
+    );
+    expect(xml).not.toBe(fixtureNt009Max());
+    const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
+    if (nfse.layout !== 'nt009') throw new Error('esperava nt009');
+    expect(nfse.infNFSe.DPS.infDPS).not.toHaveProperty('cMotivoEmisTI');
+    expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
+      layout: 'nt009',
+      field: 'cMotivoEmisTI',
+      path: 'DPS/infDPS/cMotivoEmisTI',
+      value: '4',
+    });
+    const ok = parseNfseXml(fixtureNt009Max());
+    if (ok.layout !== 'nt009') throw new Error('esperava nt009');
+    expect(ok.infNFSe.DPS.infDPS.cMotivoEmisTI).toBe(
+      MotivoEmissaoTomadorIntermediario.ImportacaoServico,
+    );
+  });
+
+  it('nt004 continua lendo chNFSeRej e cMotivoEmisTI', () => {
+    const nfse = parseNt004(KITCHEN_SINK_NT004);
+    expect(nfse.infNFSe.DPS.infDPS.chNFSeRej).toBe(
+      '00000000000000000000000000000000000000000000000001',
+    );
+    expect(nfse.infNFSe.DPS.infDPS.cMotivoEmisTI).toBe(
+      MotivoEmissaoTomadorIntermediario.ImportacaoServico,
+    );
   });
 });

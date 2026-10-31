@@ -46,6 +46,7 @@ import type {
   InfoValoresNt009,
   ListaDocDedRedNt004,
   LocPrest,
+  MotivoEmissaoTomadorIntermediarioNt009,
   NFSe,
   ReferenciaDocDedRedNt004,
   RegTrib,
@@ -118,7 +119,6 @@ import type {
   MecanismoApoioComExPrestador,
   MecanismoApoioComExTomador,
   ModoPrestacao,
-  MotivoEmissaoTomadorIntermediario,
   MovimentacaoTemporariaBens,
   OpcaoSimplesNacional,
   ProcessoEmissao,
@@ -144,10 +144,15 @@ import type {
   UF,
   VinculoPrestacao,
 } from './enums.js';
-import type { Layout } from './layout.js';
+import { MotivoEmissaoTomadorIntermediario } from './enums.js';
+import { FOREIGN_LAYOUT_FIELDS, type Layout } from './layout.js';
 
 export interface ParseNfseXmlOptions {
-  /** Recebe `warn('nfse.parse.unexpected_field', { layout, field })` para campos de outro layout. */
+  /**
+   * Recebe `warn('nfse.parse.unexpected_field', { layout, field, path })` para
+   * cada campo inesperado no layout detectado (`path` relativo a `infNFSe`,
+   * separado por `/`; `value` quando o inesperado é o valor, não o campo).
+   */
   readonly logger?: Logger;
 }
 
@@ -181,12 +186,28 @@ function detectDpsLayout(infDPS: XmlObject): Layout {
   return typeof infDPS.finNFSe === 'string' ? 'nt009' : 'nt004';
 }
 
-/** Ignora e avisa sobre elementos de `fields` presentes em `node` (outro layout). */
-function warnForeignFields(node: XmlObject, fields: readonly string[], ctx: ParseContext): void {
-  for (const field of fields) {
-    if (node[field] !== undefined) {
-      ctx.logger.warn('nfse.parse.unexpected_field', { layout: ctx.layout, field });
+/** Avisa sobre um campo inesperado no layout detectado (o chamador o ignora). */
+function warnUnexpected(ctx: ParseContext, xmlPath: readonly string[], value?: string): void {
+  ctx.logger.warn('nfse.parse.unexpected_field', {
+    layout: ctx.layout,
+    field: xmlPath[xmlPath.length - 1],
+    path: xmlPath.join('/'),
+    ...(value !== undefined ? { value } : {}),
+  });
+}
+
+/**
+ * Avisa sobre os campos exclusivos do outro layout ({@link FOREIGN_LAYOUT_FIELDS},
+ * a mesma tabela do guard do serializer) presentes sob `infNFSe`. Os walkers do
+ * layout detectado não leem esses elementos — ficam ignorados.
+ */
+function warnForeignLayoutFields(infNFSe: XmlObject, ctx: ParseContext): void {
+  for (const { xmlPath } of FOREIGN_LAYOUT_FIELDS[ctx.layout]) {
+    let nodes: readonly unknown[] = [infNFSe];
+    for (const key of xmlPath) {
+      nodes = nodes.flatMap((n) => (isObject(n) ? asArray(n[key]) : []));
     }
+    if (nodes.length > 0) warnUnexpected(ctx, xmlPath);
   }
 }
 
@@ -195,27 +216,26 @@ function parseNFSe(node: XmlObject, logger: Logger): NFSe {
   const dps = requireChild(infNFSe, 'DPS');
   const layout = detectDpsLayout(requireChild(dps, 'infDPS'));
   const ctx: ParseContext = { layout, logger };
+  warnForeignLayoutFields(infNFSe, ctx);
   const versao = requireAttr(node, 'versao');
   const signature = parseSignature(requireChild(node, 'Signature'));
   if (layout === 'nt009') {
     return { layout, versao, infNFSe: parseInfNFSeNt009(infNFSe, ctx), signature };
   }
-  return { layout, versao, infNFSe: parseInfNFSe(infNFSe, ctx), signature };
+  return { layout, versao, infNFSe: parseInfNFSe(infNFSe), signature };
 }
 
-function parseInfNFSe(node: XmlObject, ctx: ParseContext): InfNFSeNt004 {
-  warnForeignFields(requireChild(node, 'valores'), ['vCalcAjusteBCISSQN'], ctx);
+function parseInfNFSe(node: XmlObject): InfNFSeNt004 {
   return {
     ...parseInfNFSeBase(node),
     valores: parseValoresNFSe(requireChild(node, 'valores')),
     ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
     ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcIbsCbs)),
-    DPS: parseDPS(requireChild(node, 'DPS'), ctx),
+    DPS: parseDPS(requireChild(node, 'DPS')),
   };
 }
 
 function parseInfNFSeNt009(node: XmlObject, ctx: ParseContext): InfNFSeNt009 {
-  warnForeignFields(requireChild(node, 'valores'), ['vCalcDR'], ctx);
   return {
     ...parseInfNFSeBase(node),
     valores: parseValoresNFSeNt009(requireChild(node, 'valores')),
@@ -287,19 +307,17 @@ function parseValoresNFSe(node: XmlObject): ValoresNFSeNt004 {
   };
 }
 
-function parseDPS(node: XmlObject, ctx: ParseContext): DpsNt004 {
+function parseDPS(node: XmlObject): DpsNt004 {
   const sig = optionalChild(node, 'Signature');
   return {
     layout: 'nt004',
     versao: requireAttr(node, 'versao'),
-    infDPS: parseInfDPS(requireChild(node, 'infDPS'), ctx),
+    infDPS: parseInfDPS(requireChild(node, 'infDPS')),
     ...optionalAssign('signature', sig ? parseSignature(sig) : undefined),
   };
 }
 
-function parseInfDPS(node: XmlObject, ctx: ParseContext): InfDPSNt004 {
-  warnForeignFields(requireChild(node, 'valores'), ['vAjusteBC'], ctx);
-  warnForeignIbsCbsNt004(optionalChild(node, 'IBSCBS'), ctx);
+function parseInfDPS(node: XmlObject): InfDPSNt004 {
   return {
     Id: requireAttr(node, 'Id'),
     tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
@@ -1007,10 +1025,6 @@ function parseRtcTotalTribCompraGov(node: XmlObject): RtcTotalTribCompraGov {
   };
 }
 
-function warnForeignIbsCbsNt004(ibscbs: XmlObject | undefined, ctx: ParseContext): void {
-  if (ibscbs) warnForeignFields(ibscbs, ['bensMoveis'], ctx);
-}
-
 // ---------------------------------------------------------------------------
 // Layout nt009 (NT 009 release 1) — espelha os walkers `build*Nt009` de build-xml.ts.
 // ---------------------------------------------------------------------------
@@ -1026,11 +1040,9 @@ function parseDpsNt009(node: XmlObject, ctx: ParseContext): DpsNt009 {
 }
 
 function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
-  const valores = requireChild(node, 'valores');
-  warnForeignFields(valores, ['vDedRed'], ctx);
-  const ibscbs = optionalChild(node, 'IBSCBS');
-  const ibscbsValores = ibscbs ? optionalChild(ibscbs, 'valores') : undefined;
-  if (ibscbsValores) warnForeignFields(ibscbsValores, ['gReeRepRes'], ctx);
+  // chNFSeRej está no XSD nt009, mas fora do contrato (E0034: nenhuma chave de
+  // NFS-e é aceita) — nenhuma NFS-e nt009 autorizada o carrega. Avisa e ignora.
+  if (node.chNFSeRej !== undefined) warnUnexpected(ctx, ['DPS', 'infDPS', 'chNFSeRej']);
   return {
     Id: requireAttr(node, 'Id'),
     tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
@@ -1040,24 +1052,37 @@ function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
     nDPS: requireText(node, 'nDPS'),
     dCompet: coerceDateOnly(requireText(node, 'dCompet')),
     tpEmit: requireText(node, 'tpEmit') as TipoEmitenteDps,
-    ...optionalAssign(
-      'cMotivoEmisTI',
-      optionalText(node, 'cMotivoEmisTI') as MotivoEmissaoTomadorIntermediario | undefined,
-    ),
+    ...optionalAssign('cMotivoEmisTI', parseMotivoEmisTINt009(node, ctx)),
     finNFSe: requireText(node, 'finNFSe') as FinalidadeNFSe,
-    ...optionalAssign('chNFSeRej', optionalText(node, 'chNFSeRej')),
     cLocEmi: requireText(node, 'cLocEmi'),
     ...optionalAssign('subst', mapIfPresent(optionalChild(node, 'subst'), parseSubstituicao)),
     prest: parseInfoPrestador(requireChild(node, 'prest')),
     ...optionalAssign('toma', mapIfPresent(optionalChild(node, 'toma'), parseInfoPessoaNt009)),
     ...optionalAssign('interm', mapIfPresent(optionalChild(node, 'interm'), parseInfoPessoaNt009)),
     serv: parseServ(requireChild(node, 'serv')),
-    valores: parseInfoValoresNt009(valores),
+    valores: parseInfoValoresNt009(requireChild(node, 'valores')),
     ...optionalAssign(
       'IBSCBS',
       mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcInfoIbsCbsNt009),
     ),
   };
+}
+
+/**
+ * `cMotivoEmisTI` no nt009 só admite `1` (E0031; ver
+ * `MotivoEmissaoTomadorIntermediarioNt009`). Outro valor não aparece numa NFS-e
+ * nt009 autorizada — se aparecer, avisa (com o valor) e ignora.
+ */
+function parseMotivoEmisTINt009(
+  node: XmlObject,
+  ctx: ParseContext,
+): MotivoEmissaoTomadorIntermediarioNt009 | undefined {
+  const raw = optionalText(node, 'cMotivoEmisTI');
+  if (raw === undefined || raw === MotivoEmissaoTomadorIntermediario.ImportacaoServico) {
+    return raw;
+  }
+  warnUnexpected(ctx, ['DPS', 'infDPS', 'cMotivoEmisTI'], raw);
+  return undefined;
 }
 
 function parseInfoPessoaNt009(node: XmlObject): InfoPessoaNt009 {

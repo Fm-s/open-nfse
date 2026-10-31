@@ -167,7 +167,7 @@ function buildInfDPSNt009(inf: InfDPSNt009): object {
     tpEmit: inf.tpEmit,
     ...onlyDefined('cMotivoEmisTI', inf.cMotivoEmisTI),
     finNFSe: inf.finNFSe,
-    ...onlyDefined('chNFSeRej', inf.chNFSeRej),
+    // Sem chNFSeRej: a E0034 do nt009 o proíbe (assertNoForeignLayoutFields lança antes).
     cLocEmi: inf.cLocEmi,
     ...onlyDefined('subst', inf.subst && buildSubstituicao(inf.subst)),
     prest: buildInfoPrestador(inf.prest),
@@ -402,13 +402,14 @@ function buildInfoValoresNt009(v: InfoValoresNt009): object {
   return {
     vServPrest: buildVServPrest(v.vServPrest),
     ...onlyDefined('vDescCondIncond', v.vDescCondIncond && buildVDescCondIncond(v.vDescCondIncond)),
-    ...onlyDefined('vAjusteBC', v.vAjusteBC && buildInfoAjusteBCNt009(v.vAjusteBC)),
+    ...onlyDefined('vAjusteBC', mapIfDefined(v.vAjusteBC, buildInfoAjusteBCNt009)),
     trib: buildInfoTributacao(v.trib),
   };
 }
 
-function buildInfoAjusteBCNt009(a: InfoAjusteBCNt009): object {
-  return {
+/** `undefined` quando o grupo ficaria vazio — `<vAjusteBC/>` não carrega nada e não volta no parse. */
+function buildInfoAjusteBCNt009(a: InfoAjusteBCNt009): object | undefined {
+  return nonEmptyGroup({
     ...(a.ajusteIssqn ? buildAjusteBCIssqnNt009(a.ajusteIssqn) : {}),
     // `documentos` sem nenhum `docAjusteBC` equivale à ausência do grupo.
     ...onlyDefined(
@@ -417,7 +418,7 @@ function buildInfoAjusteBCNt009(a: InfoAjusteBCNt009): object {
         docAjusteBC: docs.map(buildDocAjusteBCNt009),
       })),
     ),
-  };
+  });
 }
 
 function buildAjusteBCIssqnNt009(a: AjusteBCIssqnNt009): object {
@@ -697,19 +698,20 @@ function buildRtcInfoTribIbsCbsNt009(t: RtcInfoTribIbsCbsNt009): object {
   return {
     CST: t.CST,
     cClassTrib: t.cClassTrib,
-    ...onlyDefined('gIBSCBS', t.gIBSCBS && buildRtcInfoTributosSitClasNt009(t.gIBSCBS)),
+    ...onlyDefined('gIBSCBS', mapIfDefined(t.gIBSCBS, buildRtcInfoTributosSitClasNt009)),
   };
 }
 
-function buildRtcInfoTributosSitClasNt009(s: RtcInfoTributosSitClasNt009): object {
-  return {
+/** `undefined` quando o grupo ficaria vazio — `<gIBSCBS/>` não carrega nada e não volta no parse. */
+function buildRtcInfoTributosSitClasNt009(s: RtcInfoTributosSitClasNt009): object | undefined {
+  return nonEmptyGroup({
     ...onlyDefined('cCredPres', s.cCredPres),
     ...onlyDefined(
       'gTribRegular',
       s.gTribRegular && buildRtcInfoTributosTribRegular(s.gTribRegular),
     ),
     ...onlyDefined('gDif', s.gDif && buildRtcInfoTributosDif(s.gDif)),
-  };
+  });
 }
 
 function buildRtcInfoValoresIbsCbsNt004(v: RtcInfoValoresIbsCbsNt004): object {
@@ -854,6 +856,15 @@ function formatOptionalDecimal(n: number | undefined): string | undefined {
 /** Arrays `minOccurs="0"` vazios são omitidos (equivalem à ausência do grupo). */
 function nonEmpty<T>(arr: readonly T[] | undefined): readonly T[] | undefined {
   return arr && arr.length > 0 ? arr : undefined;
+}
+
+/**
+ * Grupos com todos os filhos opcionais (`TCInfoAjusteBC`, `TCRTCInfoTributosSitClas`
+ * do nt009) sem nenhum filho viram `undefined` e são omitidos, como os arrays
+ * vazios: um elemento vazio não tem conteúdo fiscal e o parse o lê como ausente.
+ */
+function nonEmptyGroup(group: object): object | undefined {
+  return Object.keys(group).length > 0 ? group : undefined;
 }
 
 function mapIfDefined<T, R>(value: T | undefined, fn: (v: T) => R): R | undefined {
