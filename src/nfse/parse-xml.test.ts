@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { InvalidXmlError } from '../errors/validation.js';
+import { noopLogger } from '../logging.js';
+import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
+import { buildDpsXml } from './build-xml.js';
 import type { NfseNt004 } from './domain.js';
 import {
   AmbienteGerador,
+  FinalidadeNFSe,
   OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
@@ -441,5 +445,77 @@ describe('parseNfseXml — error surfaces', () => {
     expect(() => parseNfseXml('<NFSe versao="1.01"><infNFSe Id="x"/></NFSe>')).toThrow(
       InvalidXmlError,
     );
+  });
+});
+
+describe('parseNfseXml — detecção de layout nt004/nt009', () => {
+  const fixtureNt009 = () =>
+    readFileSync(join(__dirname, '__fixtures__', 'nfse-nt009-sintetica.xml'), 'utf-8');
+
+  it('detecta nt009 pela presença de infDPS/finNFSe', () => {
+    const nfse = parseNfseXml(fixtureNt009());
+    expect(nfse.layout).toBe('nt009');
+    if (nfse.layout !== 'nt009') throw new Error('narrow');
+    expect(nfse.infNFSe.DPS.layout).toBe('nt009');
+    expect(nfse.infNFSe.DPS.infDPS.finNFSe).toBe(FinalidadeNFSe.Regular);
+    expect(nfse.infNFSe.valores.vCalcAjusteBCISSQN).toBeTypeOf('number');
+    expect(nfse.infNFSe.IBSCBS?.valores).toBeUndefined();
+    expect(nfse.infNFSe.IBSCBS?.cLocalidadeIncid).toBeUndefined();
+    expect(nfse.infNFSe.IBSCBS?.totCIBS.gIBS).toBeUndefined();
+    expect(nfse.infNFSe.IBSCBS?.totCIBS.vTotNF).toBe(1000);
+  });
+
+  it('round-trip DTO nt009 → XML → parse preserva vAjusteBC, imovel, bensMoveis e trib', () => {
+    const nfse = parseNfseXml(fixtureNt009());
+    if (nfse.layout !== 'nt009') throw new Error('narrow');
+    // Campos date-only voltam ancorados à meia-noite de Brasília; a igualdade é
+    // verificada na forma serializada (estável) e em campos-chave.
+    expect(buildDpsXml(nfse.infNFSe.DPS)).toBe(buildDpsXml(dpsNt009Completa()));
+    const { valores, IBSCBS } = nfse.infNFSe.DPS.infDPS;
+    expect(valores.vAjusteBC?.ajusteIssqn).toEqual({ pAjusteBCISSQN: 10 });
+    expect(valores.vAjusteBC?.documentos?.docAjusteBC).toHaveLength(2);
+    expect(IBSCBS?.imovel?.gUnidImob).toHaveLength(2);
+    expect(IBSCBS?.bensMoveis).toHaveLength(2);
+    expect(IBSCBS?.valores.trib).toEqual({ CST: '000', cClassTrib: '000001' });
+  });
+
+  it('NFS-e nt004 real segue parseando sem perda (vDedRed/gReeRepRes)', () => {
+    const nfse = parseNfseXml(readFileSync(SAMPLE_PATH, 'utf-8'));
+    expect(nfse.layout).toBe('nt004');
+    expect(nfse.infNFSe.DPS.layout).toBe('nt004');
+  });
+
+  it('campo de outro layout é ignorado e gera warn', () => {
+    const warn = vi.fn();
+    const xml = fixtureNt009().replace(
+      '</vServPrest>',
+      '</vServPrest><vDedRed><pDR>1.00</pDR></vDedRed>',
+    );
+    const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
+    expect(nfse.layout).toBe('nt009');
+    expect(warn).toHaveBeenCalledWith(
+      'nfse.parse.unexpected_field',
+      expect.objectContaining({ layout: 'nt009', field: 'vDedRed' }),
+    );
+  });
+
+  it('nt004 com marcador do nt009 ignora e avisa, sem lançar', () => {
+    const warn = vi.fn();
+    const xml = readFileSync(SAMPLE_PATH, 'utf-8').replace(
+      '</vServPrest>',
+      '</vServPrest><vAjusteBC><pAjusteBCISSQN>1.00</pAjusteBCISSQN></vAjusteBC>',
+    );
+    const nfse = parseNfseXml(xml, { logger: { ...noopLogger, warn } });
+    expect(nfse.layout).toBe('nt004');
+    expect(warn).toHaveBeenCalledWith(
+      'nfse.parse.unexpected_field',
+      expect.objectContaining({ layout: 'nt004', field: 'vAjusteBC' }),
+    );
+  });
+
+  it('não avisa quando o documento não tem campos de outro layout', () => {
+    const warn = vi.fn();
+    parseNfseXml(fixtureNt009(), { logger: { ...noopLogger, warn } });
+    expect(warn).not.toHaveBeenCalled();
   });
 });

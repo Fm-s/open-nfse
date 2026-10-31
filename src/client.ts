@@ -215,7 +215,7 @@ export class NfseClient {
 
   async fetchByChave(chaveAcesso: string): Promise<NfseQueryResult> {
     const state = await this.ensureState();
-    return fetchByChaveInternal(state.sefin, chaveAcesso);
+    return fetchByChaveInternal(state.sefin, chaveAcesso, this.logger);
   }
 
   /**

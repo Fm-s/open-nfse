@@ -1,15 +1,19 @@
 import { InvalidXmlError } from '../errors/validation.js';
+import { type Logger, noopLogger } from '../logging.js';
 import { ATTR_PREFIX, parseXml, type XmlObject } from '../xml/parser.js';
 import type {
+  AjusteBCIssqnNt009,
   AtvEvento,
   AtvEventoIdentificacao,
   BeneficioMunicipal,
   ComExterior,
   CServ,
+  DocAjusteBCNt009,
   DocDedRedNt004,
   DocNFNFSNt004,
   DocOutNFSeNt004,
   DpsNt004,
+  DpsNt009,
   Emitente,
   Endereco,
   EnderecoEmitente,
@@ -17,23 +21,29 @@ import type {
   EnderecoExteriorSimples,
   EnderecoSimples,
   EnderecoSimplesLocalidade,
+  EnderImovelNt009,
   EnderObraEvento,
   ExigSuspensa,
   IdentificadorEmitente,
   IdentificadorPessoa,
   ImovelIdentificacaoNt004,
   InfDPSNt004,
+  InfDPSNt009,
   InfNFSeNt004,
+  InfNFSeNt009,
+  InfoAjusteBCNt009,
   InfoCompl,
   InfoDedRedNt004,
   InfoItemPed,
   InfoObra,
   InfoObraIdentificacao,
   InfoPessoaNt004,
+  InfoPessoaNt009,
   InfoPrestador,
   InfoRefNFSe,
   InfoTributacao,
   InfoValoresNt004,
+  InfoValoresNt009,
   ListaDocDedRedNt004,
   LocPrest,
   NFSe,
@@ -41,32 +51,44 @@ import type {
   RegTrib,
   RtcDocumentoReferenciado,
   RtcIbsCbsNt004,
+  RtcIbsCbsNt009,
+  RtcInfoBensMoveisNt009,
   RtcInfoDest,
   RtcInfoIbsCbsNt004,
+  RtcInfoIbsCbsNt009,
   RtcInfoImovelNt004,
+  RtcInfoImovelNt009,
   RtcInfoReeRepResNt004,
+  RtcInfoTribIbsCbsNt009,
   RtcInfoTributosDif,
   RtcInfoTributosIbsCbsNt004,
   RtcInfoTributosSitClasNt004,
+  RtcInfoTributosSitClasNt009,
   RtcInfoTributosTribRegular,
   RtcInfoValoresIbsCbsNt004,
+  RtcInfoValoresIbsCbsNt009,
   RtcListaDocDFe,
   RtcListaDocFiscalOutro,
   RtcListaDocFornec,
   RtcListaDocNt004,
   RtcListaDocOutro,
+  RtcLocacaoImovelNt009,
   RtcTotalCbs,
   RtcTotalCbsCredPres,
   RtcTotalCIbsNt004,
+  RtcTotalCIbsNt009,
   RtcTotalIbs,
   RtcTotalIbsCredPres,
   RtcTotalIbsMun,
   RtcTotalIbsUF,
   RtcTotalTribCompraGov,
   RtcTotalTribRegular,
+  RtcUnidadeImobiliariaNt009,
+  RtcValoresBCImoveisNt009,
   RtcValoresIbsCbsFed,
   RtcValoresIbsCbsMun,
   RtcValoresIbsCbsNt004,
+  RtcValoresIbsCbsNt009,
   RtcValoresIbsCbsUF,
   Serv,
   Signature,
@@ -77,7 +99,9 @@ import type {
   TribTotal,
   TribTotalMonet,
   TribTotalPercent,
+  UnidadeImobiliariaIdentificacaoNt009,
   ValoresNFSeNt004,
+  ValoresNFSeNt009,
   VDescCondIncond,
   VServPrest,
 } from './domain.js';
@@ -101,6 +125,8 @@ import type {
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   SituacaoNfse,
+  TipoAjusteBC,
+  TipoAjusteBCLocImoveis,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
   TipoChaveDFe,
@@ -118,8 +144,25 @@ import type {
   UF,
   VinculoPrestacao,
 } from './enums.js';
+import type { Layout } from './layout.js';
 
-export function parseNfseXml(xml: string): NFSe {
+export interface ParseNfseXmlOptions {
+  /** Recebe `warn('nfse.parse.unexpected_field', { layout, field })` para campos de outro layout. */
+  readonly logger?: Logger;
+}
+
+/** Contexto de parse: layout do documento + logger para campos de outro layout. */
+interface ParseContext {
+  readonly layout: Layout;
+  readonly logger: Logger;
+}
+
+/**
+ * Faz o parse de uma NFS-e (nt004 ou nt009). O layout é detectado pelo DPS
+ * embutido ({@link detectDpsLayout}). Elementos exclusivos do outro layout são
+ * ignorados e reportados via `logger.warn('nfse.parse.unexpected_field', …)`.
+ */
+export function parseNfseXml(xml: string, options?: ParseNfseXmlOptions): NFSe {
   let tree: XmlObject;
   try {
     tree = parseXml(xml);
@@ -130,19 +173,60 @@ export function parseNfseXml(xml: string): NFSe {
   if (!isObject(root)) {
     throw new InvalidXmlError('elemento raiz <NFSe> ausente');
   }
-  return parseNFSe(root);
+  return parseNFSe(root, options?.logger ?? noopLogger);
 }
 
-function parseNFSe(node: XmlObject): NFSe {
+/** `'nt009'` sse `infDPS` tem `finNFSe` como filho direto; senão `'nt004'`. */
+function detectDpsLayout(infDPS: XmlObject): Layout {
+  return typeof infDPS.finNFSe === 'string' ? 'nt009' : 'nt004';
+}
+
+/** Ignora e avisa sobre elementos de `fields` presentes em `node` (outro layout). */
+function warnForeignFields(node: XmlObject, fields: readonly string[], ctx: ParseContext): void {
+  for (const field of fields) {
+    if (node[field] !== undefined) {
+      ctx.logger.warn('nfse.parse.unexpected_field', { layout: ctx.layout, field });
+    }
+  }
+}
+
+function parseNFSe(node: XmlObject, logger: Logger): NFSe {
+  const infNFSe = requireChild(node, 'infNFSe');
+  const dps = requireChild(infNFSe, 'DPS');
+  const layout = detectDpsLayout(requireChild(dps, 'infDPS'));
+  const ctx: ParseContext = { layout, logger };
+  const versao = requireAttr(node, 'versao');
+  const signature = parseSignature(requireChild(node, 'Signature'));
+  if (layout === 'nt009') {
+    return { layout, versao, infNFSe: parseInfNFSeNt009(infNFSe, ctx), signature };
+  }
+  return { layout, versao, infNFSe: parseInfNFSe(infNFSe, ctx), signature };
+}
+
+function parseInfNFSe(node: XmlObject, ctx: ParseContext): InfNFSeNt004 {
+  warnForeignFields(requireChild(node, 'valores'), ['vCalcAjusteBCISSQN'], ctx);
   return {
-    layout: 'nt004',
-    versao: requireAttr(node, 'versao'),
-    infNFSe: parseInfNFSe(requireChild(node, 'infNFSe')),
-    signature: parseSignature(requireChild(node, 'Signature')),
+    ...parseInfNFSeBase(node),
+    valores: parseValoresNFSe(requireChild(node, 'valores')),
+    ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
+    ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcIbsCbs)),
+    DPS: parseDPS(requireChild(node, 'DPS'), ctx),
   };
 }
 
-function parseInfNFSe(node: XmlObject): InfNFSeNt004 {
+function parseInfNFSeNt009(node: XmlObject, ctx: ParseContext): InfNFSeNt009 {
+  warnForeignFields(requireChild(node, 'valores'), ['vCalcDR'], ctx);
+  return {
+    ...parseInfNFSeBase(node),
+    valores: parseValoresNFSeNt009(requireChild(node, 'valores')),
+    ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
+    ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcIbsCbsNt009)),
+    DPS: parseDpsNt009(requireChild(node, 'DPS'), ctx),
+  };
+}
+
+/** Campos de `TCInfNFSe` idênticos nos dois layouts (tudo exceto valores/IBSCBS/DPS). */
+function parseInfNFSeBase(node: XmlObject) {
   const id = requireAttr(node, 'Id');
   return {
     Id: id,
@@ -163,10 +247,6 @@ function parseInfNFSe(node: XmlObject): InfNFSeNt004 {
     dhProc: coerceDate(requireText(node, 'dhProc')),
     nDFSe: requireText(node, 'nDFSe'),
     emit: parseEmitente(requireChild(node, 'emit')),
-    valores: parseValoresNFSe(requireChild(node, 'valores')),
-    ...optionalAssign('xOutInf', optionalText(node, 'xOutInf')),
-    ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcIbsCbs)),
-    DPS: parseDPS(requireChild(node, 'DPS')),
   };
 }
 
@@ -207,17 +287,19 @@ function parseValoresNFSe(node: XmlObject): ValoresNFSeNt004 {
   };
 }
 
-function parseDPS(node: XmlObject): DpsNt004 {
+function parseDPS(node: XmlObject, ctx: ParseContext): DpsNt004 {
   const sig = optionalChild(node, 'Signature');
   return {
     layout: 'nt004',
     versao: requireAttr(node, 'versao'),
-    infDPS: parseInfDPS(requireChild(node, 'infDPS')),
+    infDPS: parseInfDPS(requireChild(node, 'infDPS'), ctx),
     ...optionalAssign('signature', sig ? parseSignature(sig) : undefined),
   };
 }
 
-function parseInfDPS(node: XmlObject): InfDPSNt004 {
+function parseInfDPS(node: XmlObject, ctx: ParseContext): InfDPSNt004 {
+  warnForeignFields(requireChild(node, 'valores'), ['vAjusteBC'], ctx);
+  warnForeignIbsCbsNt004(optionalChild(node, 'IBSCBS'), ctx);
   return {
     Id: requireAttr(node, 'Id'),
     tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
@@ -238,7 +320,7 @@ function parseInfDPS(node: XmlObject): InfDPSNt004 {
     ...optionalAssign('toma', mapIfPresent(optionalChild(node, 'toma'), parseInfoPessoa)),
     ...optionalAssign('interm', mapIfPresent(optionalChild(node, 'interm'), parseInfoPessoa)),
     serv: parseServ(requireChild(node, 'serv')),
-    valores: parseInfoValores(requireChild(node, 'valores')),
+    valores: parseInfoValoresNt004(requireChild(node, 'valores')),
     ...optionalAssign('IBSCBS', mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcInfoIbsCbs)),
   };
 }
@@ -607,7 +689,7 @@ function parseCServ(node: XmlObject): CServ {
   };
 }
 
-function parseInfoValores(node: XmlObject): InfoValoresNt004 {
+function parseInfoValoresNt004(node: XmlObject): InfoValoresNt004 {
   return {
     vServPrest: parseVServPrest(requireChild(node, 'vServPrest')),
     ...optionalAssign(
@@ -922,6 +1004,301 @@ function parseRtcTotalTribCompraGov(node: XmlObject): RtcTotalTribCompraGov {
     vIBSMun: coerceNumber(requireText(node, 'vIBSMun')),
     pCBS: coerceNumber(requireText(node, 'pCBS')),
     vCBS: coerceNumber(requireText(node, 'vCBS')),
+  };
+}
+
+function warnForeignIbsCbsNt004(ibscbs: XmlObject | undefined, ctx: ParseContext): void {
+  if (ibscbs) warnForeignFields(ibscbs, ['bensMoveis'], ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Layout nt009 (NT 009 release 1) — espelha os walkers `build*Nt009` de build-xml.ts.
+// ---------------------------------------------------------------------------
+
+function parseDpsNt009(node: XmlObject, ctx: ParseContext): DpsNt009 {
+  const sig = optionalChild(node, 'Signature');
+  return {
+    layout: 'nt009',
+    versao: requireAttr(node, 'versao'),
+    infDPS: parseInfDPSNt009(requireChild(node, 'infDPS'), ctx),
+    ...optionalAssign('signature', sig ? parseSignature(sig) : undefined),
+  };
+}
+
+function parseInfDPSNt009(node: XmlObject, ctx: ParseContext): InfDPSNt009 {
+  const valores = requireChild(node, 'valores');
+  warnForeignFields(valores, ['vDedRed'], ctx);
+  const ibscbs = optionalChild(node, 'IBSCBS');
+  const ibscbsValores = ibscbs ? optionalChild(ibscbs, 'valores') : undefined;
+  if (ibscbsValores) warnForeignFields(ibscbsValores, ['gReeRepRes'], ctx);
+  return {
+    Id: requireAttr(node, 'Id'),
+    tpAmb: requireText(node, 'tpAmb') as TipoAmbienteDps,
+    dhEmi: coerceDate(requireText(node, 'dhEmi')),
+    verAplic: requireText(node, 'verAplic'),
+    serie: requireText(node, 'serie'),
+    nDPS: requireText(node, 'nDPS'),
+    dCompet: coerceDateOnly(requireText(node, 'dCompet')),
+    tpEmit: requireText(node, 'tpEmit') as TipoEmitenteDps,
+    ...optionalAssign(
+      'cMotivoEmisTI',
+      optionalText(node, 'cMotivoEmisTI') as MotivoEmissaoTomadorIntermediario | undefined,
+    ),
+    finNFSe: requireText(node, 'finNFSe') as FinalidadeNFSe,
+    ...optionalAssign('chNFSeRej', optionalText(node, 'chNFSeRej')),
+    cLocEmi: requireText(node, 'cLocEmi'),
+    ...optionalAssign('subst', mapIfPresent(optionalChild(node, 'subst'), parseSubstituicao)),
+    prest: parseInfoPrestador(requireChild(node, 'prest')),
+    ...optionalAssign('toma', mapIfPresent(optionalChild(node, 'toma'), parseInfoPessoaNt009)),
+    ...optionalAssign('interm', mapIfPresent(optionalChild(node, 'interm'), parseInfoPessoaNt009)),
+    serv: parseServ(requireChild(node, 'serv')),
+    valores: parseInfoValoresNt009(valores),
+    ...optionalAssign(
+      'IBSCBS',
+      mapIfPresent(optionalChild(node, 'IBSCBS'), parseRtcInfoIbsCbsNt009),
+    ),
+  };
+}
+
+function parseInfoPessoaNt009(node: XmlObject): InfoPessoaNt009 {
+  return {
+    identificador: parseIdentificador(node),
+    ...optionalAssign('CAEPF', optionalText(node, 'CAEPF')),
+    ...optionalAssign('IM', optionalText(node, 'IM')),
+    ...optionalAssign('xNome', optionalText(node, 'xNome')),
+    ...optionalAssign('end', mapIfPresent(optionalChild(node, 'end'), parseEndereco)),
+    ...optionalAssign('fone', optionalText(node, 'fone')),
+    ...optionalAssign('email', optionalText(node, 'email')),
+  };
+}
+
+function parseInfoValoresNt009(node: XmlObject): InfoValoresNt009 {
+  return {
+    vServPrest: parseVServPrest(requireChild(node, 'vServPrest')),
+    ...optionalAssign(
+      'vDescCondIncond',
+      mapIfPresent(optionalChild(node, 'vDescCondIncond'), parseVDescCondIncond),
+    ),
+    ...optionalAssign(
+      'vAjusteBC',
+      mapIfPresent(optionalChild(node, 'vAjusteBC'), parseInfoAjusteBCNt009),
+    ),
+    trib: parseInfoTributacao(requireChild(node, 'trib')),
+  };
+}
+
+function parseInfoAjusteBCNt009(node: XmlObject): InfoAjusteBCNt009 {
+  const ajusteIssqn = parseAjusteBCIssqnNt009(node);
+  const docs = mapIfPresent(optionalChild(node, 'documentos'), (d) =>
+    asArray(d.docAjusteBC).map((entry) => {
+      if (!isObject(entry)) throw new InvalidXmlError('docAjusteBC não é um elemento');
+      return parseDocAjusteBCNt009(entry);
+    }),
+  );
+  return {
+    ...optionalAssign('ajusteIssqn', ajusteIssqn),
+    ...optionalAssign('documentos', docs && docs.length > 0 ? { docAjusteBC: docs } : undefined),
+  };
+}
+
+function parseAjusteBCIssqnNt009(node: XmlObject): AjusteBCIssqnNt009 | undefined {
+  const p = optionalNumber(node, 'pAjusteBCISSQN');
+  if (p !== undefined) return { pAjusteBCISSQN: p };
+  const v = optionalNumber(node, 'vAjusteBCISSQN');
+  if (v !== undefined) return { vAjusteBCISSQN: v };
+  return undefined;
+}
+
+function parseDocAjusteBCNt009(node: XmlObject): DocAjusteBCNt009 {
+  const dtEmiDoc = optionalText(node, 'dtEmiDoc');
+  const dtCompDoc = optionalText(node, 'dtCompDoc');
+  return {
+    tpAjusteBC: requireText(node, 'tpAjusteBC') as TipoAjusteBC,
+    ...optionalAssign('xTpAjusteBC', optionalText(node, 'xTpAjusteBC')),
+    vTotDoc: coerceNumber(requireText(node, 'vTotDoc')),
+    vAjusteAplic: coerceNumber(requireText(node, 'vAjusteAplic')),
+    ...optionalAssign('dtEmiDoc', dtEmiDoc !== undefined ? coerceDateOnly(dtEmiDoc) : undefined),
+    ...optionalAssign('dtCompDoc', dtCompDoc !== undefined ? coerceDateOnly(dtCompDoc) : undefined),
+    documento: parseRtcDocumentoReferenciado(node),
+    ...optionalAssign('fornec', mapIfPresent(optionalChild(node, 'fornec'), parseInfoPessoaNt009)),
+  };
+}
+
+function parseRtcInfoIbsCbsNt009(node: XmlObject): RtcInfoIbsCbsNt009 {
+  const bensMoveis = asArray(node.bensMoveis).map((entry) => {
+    if (!isObject(entry)) throw new InvalidXmlError('bensMoveis não é um elemento');
+    return parseRtcInfoBensMoveisNt009(entry);
+  });
+  return {
+    ...optionalAssign('indFinal', optionalText(node, 'indFinal') as IndicadorFinal | undefined),
+    ...optionalAssign('cIndOp', optionalText(node, 'cIndOp')),
+    ...optionalAssign('tpOper', optionalText(node, 'tpOper') as TipoOperacao | undefined),
+    ...optionalAssign('gRefNFSe', mapIfPresent(optionalChild(node, 'gRefNFSe'), parseInfoRefNFSe)),
+    ...optionalAssign(
+      'tpEnteGov',
+      optionalText(node, 'tpEnteGov') as TipoEnteGovernamental | undefined,
+    ),
+    indDest: requireText(node, 'indDest') as IndicadorDestinatario,
+    ...optionalAssign('dest', mapIfPresent(optionalChild(node, 'dest'), parseRtcInfoDest)),
+    ...optionalAssign(
+      'imovel',
+      mapIfPresent(optionalChild(node, 'imovel'), parseRtcInfoImovelNt009),
+    ),
+    ...optionalAssign('bensMoveis', bensMoveis.length > 0 ? bensMoveis : undefined),
+    valores: parseRtcInfoValoresIbsCbsNt009(requireChild(node, 'valores')),
+  };
+}
+
+function parseRtcInfoBensMoveisNt009(node: XmlObject): RtcInfoBensMoveisNt009 {
+  return {
+    cNCMBemMovel: requireText(node, 'cNCMBemMovel'),
+    xNCMBemMovel: requireText(node, 'xNCMBemMovel'),
+    qtdNCMBemMovel: requireText(node, 'qtdNCMBemMovel'),
+  };
+}
+
+function parseRtcInfoImovelNt009(node: XmlObject): RtcInfoImovelNt009 {
+  const unidades = asArray(node.gUnidImob).map((entry) => {
+    if (!isObject(entry)) throw new InvalidXmlError('gUnidImob não é um elemento');
+    return parseRtcUnidadeImobiliariaNt009(entry);
+  });
+  return {
+    cMun: requireText(node, 'cMun'),
+    ...optionalAssign(
+      'gLocacao',
+      mapIfPresent(optionalChild(node, 'gLocacao'), parseRtcLocacaoImovelNt009),
+    ),
+    ...optionalAssign('gUnidImob', unidades.length > 0 ? unidades : undefined),
+  };
+}
+
+function parseRtcLocacaoImovelNt009(node: XmlObject): RtcLocacaoImovelNt009 {
+  const dVencOrig = optionalText(node, 'dVencOrig');
+  return {
+    pCopropriedade: coerceNumber(requireText(node, 'pCopropriedade')),
+    vTotOper: coerceNumber(requireText(node, 'vTotOper')),
+    ...optionalAssign('vDescIncondTot', optionalNumber(node, 'vDescIncondTot')),
+    ...optionalAssign('vDescCondTot', optionalNumber(node, 'vDescCondTot')),
+    ...optionalAssign('dVencOrig', dVencOrig !== undefined ? coerceDateOnly(dVencOrig) : undefined),
+  };
+}
+
+function parseRtcUnidadeImobiliariaNt009(node: XmlObject): RtcUnidadeImobiliariaNt009 {
+  const ajustes = asArray(node.gAjusteBCLocImoveis).map((entry) => {
+    if (!isObject(entry)) throw new InvalidXmlError('gAjusteBCLocImoveis não é um elemento');
+    return parseRtcValoresBCImoveisNt009(entry);
+  });
+  return {
+    ...optionalAssign('inscImobFisc', optionalText(node, 'inscImobFisc')),
+    identificacao: parseUnidadeImobiliariaIdentificacaoNt009(node),
+    ...optionalAssign('gAjusteBCLocImoveis', ajustes.length > 0 ? ajustes : undefined),
+  };
+}
+
+function parseUnidadeImobiliariaIdentificacaoNt009(
+  node: XmlObject,
+): UnidadeImobiliariaIdentificacaoNt009 {
+  const cCIB = optionalText(node, 'cCIB');
+  if (cCIB !== undefined) return { cCIB };
+  const end = optionalChild(node, 'end');
+  if (end) return { end: parseEnderImovelNt009(end) };
+  throw new InvalidXmlError('gUnidImob sem cCIB nem end');
+}
+
+function parseEnderImovelNt009(node: XmlObject): EnderImovelNt009 {
+  return {
+    CEP: requireText(node, 'CEP'),
+    xLgr: requireText(node, 'xLgr'),
+    nro: requireText(node, 'nro'),
+    ...optionalAssign('xCpl', optionalText(node, 'xCpl')),
+    ...optionalAssign('xBairro', optionalText(node, 'xBairro')),
+  };
+}
+
+function parseRtcValoresBCImoveisNt009(node: XmlObject): RtcValoresBCImoveisNt009 {
+  return {
+    tpAjusteBCLocImoveis: requireText(node, 'tpAjusteBCLocImoveis') as TipoAjusteBCLocImoveis,
+    ...optionalAssign('xTpAjusteBCLocImoveis', optionalText(node, 'xTpAjusteBCLocImoveis')),
+    vAjusteBCLocImoveis: coerceNumber(requireText(node, 'vAjusteBCLocImoveis')),
+  };
+}
+
+function parseRtcInfoValoresIbsCbsNt009(node: XmlObject): RtcInfoValoresIbsCbsNt009 {
+  return { trib: parseRtcInfoTribIbsCbsNt009(requireChild(node, 'trib')) };
+}
+
+function parseRtcInfoTribIbsCbsNt009(node: XmlObject): RtcInfoTribIbsCbsNt009 {
+  return {
+    CST: requireText(node, 'CST'),
+    cClassTrib: requireText(node, 'cClassTrib'),
+    ...optionalAssign(
+      'gIBSCBS',
+      mapIfPresent(optionalChild(node, 'gIBSCBS'), parseRtcInfoTributosSitClasNt009),
+    ),
+  };
+}
+
+function parseRtcInfoTributosSitClasNt009(node: XmlObject): RtcInfoTributosSitClasNt009 {
+  return {
+    ...optionalAssign('cCredPres', optionalText(node, 'cCredPres')),
+    ...optionalAssign(
+      'gTribRegular',
+      mapIfPresent(optionalChild(node, 'gTribRegular'), parseRtcInfoTributosTribRegular),
+    ),
+    ...optionalAssign('gDif', mapIfPresent(optionalChild(node, 'gDif'), parseRtcInfoTributosDif)),
+  };
+}
+
+function parseValoresNFSeNt009(node: XmlObject): ValoresNFSeNt009 {
+  return {
+    ...optionalAssign('vCalcAjusteBCISSQN', optionalNumber(node, 'vCalcAjusteBCISSQN')),
+    ...optionalAssign('tpBM', optionalText(node, 'tpBM') as TipoBeneficioMunicipal | undefined),
+    ...optionalAssign('vCalcBM', optionalNumber(node, 'vCalcBM')),
+    ...optionalAssign('vBC', optionalNumber(node, 'vBC')),
+    ...optionalAssign('pAliqAplic', optionalNumber(node, 'pAliqAplic')),
+    ...optionalAssign('vISSQN', optionalNumber(node, 'vISSQN')),
+    ...optionalAssign('vTotalRet', optionalNumber(node, 'vTotalRet')),
+    vLiq: coerceNumber(requireText(node, 'vLiq')),
+  };
+}
+
+function parseRtcIbsCbsNt009(node: XmlObject): RtcIbsCbsNt009 {
+  return {
+    ...optionalAssign('cLocalidadeIncid', optionalText(node, 'cLocalidadeIncid')),
+    ...optionalAssign('xLocalidadeIncid', optionalText(node, 'xLocalidadeIncid')),
+    ...optionalAssign('pRedutor', optionalNumber(node, 'pRedutor')),
+    ...optionalAssign(
+      'valores',
+      mapIfPresent(optionalChild(node, 'valores'), parseRtcValoresIbsCbsNt009),
+    ),
+    totCIBS: parseRtcTotalCIbsNt009(requireChild(node, 'totCIBS')),
+  };
+}
+
+function parseRtcValoresIbsCbsNt009(node: XmlObject): RtcValoresIbsCbsNt009 {
+  return {
+    ...optionalAssign('vBC', optionalNumber(node, 'vBC')),
+    ...optionalAssign('vCalcAjusteBCLocImoveis', optionalNumber(node, 'vCalcAjusteBCLocImoveis')),
+    ...optionalAssign('vCalcAjusteBCIBSCBS', optionalNumber(node, 'vCalcAjusteBCIBSCBS')),
+    uf: parseRtcValoresIbsCbsUF(requireChild(node, 'uf')),
+    mun: parseRtcValoresIbsCbsMun(requireChild(node, 'mun')),
+    fed: parseRtcValoresIbsCbsFed(requireChild(node, 'fed')),
+  };
+}
+
+function parseRtcTotalCIbsNt009(node: XmlObject): RtcTotalCIbsNt009 {
+  return {
+    vTotNF: coerceNumber(requireText(node, 'vTotNF')),
+    ...optionalAssign('gIBS', mapIfPresent(optionalChild(node, 'gIBS'), parseRtcTotalIbs)),
+    ...optionalAssign('gCBS', mapIfPresent(optionalChild(node, 'gCBS'), parseRtcTotalCbs)),
+    ...optionalAssign(
+      'gTribRegular',
+      mapIfPresent(optionalChild(node, 'gTribRegular'), parseRtcTotalTribRegular),
+    ),
+    ...optionalAssign(
+      'gTribCompraGov',
+      mapIfPresent(optionalChild(node, 'gTribCompraGov'), parseRtcTotalTribCompraGov),
+    ),
   };
 }
 
