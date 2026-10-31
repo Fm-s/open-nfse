@@ -5,7 +5,13 @@ import { buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import { OpcaoSimplesNacional, RegimeEspecialTributacao } from './enums.js';
-import { assertLayout, assertNoForeignLayoutFields, assertSameLayout, LAYOUTS } from './layout.js';
+import {
+  assertLayout,
+  assertNoForeignLayoutFields,
+  assertSameLayout,
+  LAYOUTS,
+  unknownLayout,
+} from './layout.js';
 
 describe('assertLayout', () => {
   it('aceita os ids conhecidos', () => {
@@ -27,7 +33,24 @@ describe('assertLayout', () => {
       expect((e as InvalidLayoutError).received).toBe('nt010');
       expect((e as Error).message).toContain('nt004');
       expect((e as Error).message).toContain('nt009');
+      // A lista de válidos vem de LAYOUTS (não hard-coded).
+      expect((e as Error).message).toContain(LAYOUTS.map((l) => `"${l}"`).join(', '));
     }
+  });
+});
+
+describe('unknownLayout', () => {
+  it('lança InvalidLayoutError com o layout de um objeto (switch (dps.layout))', () => {
+    expect(() => unknownLayout({ layout: 'nt010' } as never)).toThrow(
+      expect.objectContaining({ received: 'nt010' }),
+    );
+  });
+
+  it('lança InvalidLayoutError com o próprio layout (switch (layout))', () => {
+    expect(() => unknownLayout('nt010' as never)).toThrow(InvalidLayoutError);
+    expect(() => unknownLayout('nt010' as never)).toThrow(
+      expect.objectContaining({ received: 'nt010' }),
+    );
   });
 });
 

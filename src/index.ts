@@ -322,7 +322,7 @@ export type { DpsStatusResult } from './nfse/fetch-dps-status.js';
 export { existsDpsStatus, fetchDpsStatus } from './nfse/fetch-dps-status.js';
 export type { Layout } from './nfse/layout.js';
 export { LAYOUTS } from './nfse/layout.js';
-export { parseNfseXml } from './nfse/parse-xml.js';
+export { type ParseNfseXmlOptions, parseNfseXml } from './nfse/parse-xml.js';
 export { DpsAlreadySignedError, signDpsXml } from './nfse/sign-xml.js';
 export type { NfseQueryResult } from './nfse/types.js';
 export type {

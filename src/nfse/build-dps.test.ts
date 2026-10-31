@@ -361,11 +361,30 @@ describe('buildDps', () => {
     ).not.toThrow();
   });
 
-  // E0424 (Anexo I 20261020) — vReceb não deve ser informado quando o emitente é
-  // prestador, tomador ou intermediário (tpEmit 1, 2 ou 3); buildDps usa tpEmit=1.
+  // E0424 — vReceb não deve ser informado quando o emitente é prestador ou tomador
+  // (nt004, Anexo I 20260209: tpEmit 1 ou 2) ou também intermediário (nt009,
+  // Anexo I 20261020: tpEmit 1, 2 ou 3); buildDps usa tpEmit=1.
   it('throws RuleViolationError (E0424) when vReceb is set (buildDps is always tpEmit=1)', () => {
     expect(() => buildDps({ ...baseParams(), valores: { vServ: 100, vReceb: 50 } })).toThrow(
       RuleViolationError,
+    );
+  });
+
+  it('E0424 message follows the layout Anexo I (nt004: tpEmit 1 ou 2; nt009: 1, 2 ou 3)', () => {
+    const valores = { ...baseParams().valores, vReceb: 50 };
+    expect(() => buildDps({ ...baseParams(), layout: 'nt004', valores })).toThrow(
+      expect.objectContaining({
+        rule: 'E0424',
+        message: expect.stringMatching(/prestador ou tomador .*\(tpEmit 1 ou 2\)/),
+      }),
+    );
+    expect(() => buildDps({ ...baseParams(), layout: 'nt009', valores })).toThrow(
+      expect.objectContaining({
+        rule: 'E0424',
+        message: expect.stringMatching(
+          /prestador, tomador ou intermediário .*\(tpEmit 1, 2 ou 3\)/,
+        ),
+      }),
     );
   });
 

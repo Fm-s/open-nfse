@@ -1,4 +1,4 @@
-import type { Layout } from '../nfse/layout.js';
+import { LAYOUTS, type Layout } from '../nfse/layout-ids.js';
 import { OpenNfseError } from './base.js';
 
 export abstract class ValidationError extends OpenNfseError {}
@@ -118,7 +118,7 @@ export class XsdValidationError extends ValidationError {
 export class InvalidLayoutError extends ValidationError {
   constructor(public readonly received: unknown) {
     super(
-      `layout inválido: ${JSON.stringify(received) ?? String(received)} (valores válidos: "nt004", "nt009")`,
+      `layout inválido: ${JSON.stringify(received) ?? String(received)} (valores válidos: ${LAYOUTS.map((l) => `"${l}"`).join(', ')})`,
     );
   }
 }

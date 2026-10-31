@@ -3,7 +3,9 @@ import { validateCnpj, validateCpf } from '../fiscal/validate-cpf-cnpj.js';
 import { DEFAULT_VER_APLIC } from '../version.js';
 import type {
   DocAjusteBCNt009,
-  DpsFor,
+  DPS,
+  DpsNt004,
+  DpsNt009,
   Endereco,
   IdentificadorPessoa,
   InfDPSNt004,
@@ -42,7 +44,7 @@ import {
   TipoRetISSQN,
   TipoTribISSQN,
 } from './enums.js';
-import { assertLayout, type Layout } from './layout.js';
+import { assertLayout, type Layout, unknownLayout } from './layout.js';
 
 /** Regime tributário do emitente. Casa com os grupos do `TCRegTrib`. */
 export interface RegimeTributario {
@@ -114,10 +116,11 @@ export interface ServicoInput {
 export interface ValoresInput {
   readonly vServ: number;
   /**
-   * **Não use com `buildDps`.** Pelo Anexo I 20261020 (E0424), o valor recebido
-   * não deve ser informado na DPS quando o prestador, tomador ou intermediário
-   * for o emitente (`tpEmit` 1, 2 ou 3). `buildDps` sempre emite `tpEmit=1`, então
-   * informá-lo lança `RuleViolationError` (E0424).
+   * **Não use com `buildDps`.** Pela regra E0424, o valor recebido não deve ser
+   * informado na DPS quando o emitente é o prestador ou o tomador (`nt004`, Anexo
+   * I 20260209: `tpEmit` 1 ou 2) — ou também o intermediário (`nt009`, Anexo I
+   * 20261020: `tpEmit` 1, 2 ou 3). `buildDps` sempre emite `tpEmit=1`, então
+   * informá-lo lança `RuleViolationError` (E0424) nos dois layouts.
    */
   readonly vReceb?: number;
   /**
@@ -280,10 +283,10 @@ export interface ClassificacaoIbsCbsInput {
 
 /**
  * Destinatário do serviço (`IBSCBS/dest`), quando distinto do tomador. Mesma
- * forma de {@link TomadorInput}; `inscricaoMunicipal` não existe em
- * `TCRTCInfoDest` e não é serializada.
+ * forma de {@link TomadorInput}, sem `inscricaoMunicipal` — o `TCRTCInfoDest`
+ * não tem IM, então informá-la é erro de compilação.
  */
-export type DestinatarioInput = TomadorInput;
+export type DestinatarioInput = Omit<TomadorInput, 'inscricaoMunicipal'>;
 
 /** Unidade imobiliária (`IBSCBS/imovel/gUnidImob`). */
 export interface UnidadeImobiliariaInput {
@@ -389,19 +392,32 @@ const DEFAULT_IND_TOT_TRIB: IndicadorTotalTributos = '0' as IndicadorTotalTribut
  * IBSCBS no nt004 — construa `InfDPSNt004`/`InfDPSNt009` manualmente (todos os
  * tipos da RTC estão exportados).
  */
-export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout']> {
-  const layout = assertLayout((params as { readonly layout?: unknown }).layout);
-  if (layout === 'nt004') {
-    // Fora do sistema de tipos (JS, cast): os inputs do nt009 não têm destino
-    // no nt004 — rejeita em vez de descartar em silêncio.
-    const extra = params as BuildDpsParams & { readonly [K in 'ajusteBC' | 'ibsCbs']?: unknown };
-    for (const field of ['ajusteBC', 'ibsCbs'] as const) {
-      if (extra[field] !== undefined) throw new LayoutMismatchError('nt004', 'nt004', field);
+export function buildDps(params: BuildDpsParamsNt004): DpsNt004;
+export function buildDps(params: BuildDpsParamsNt009): DpsNt009;
+export function buildDps(params: BuildDpsParams): DPS;
+export function buildDps(params: BuildDpsParams): DPS {
+  // Chamador JS com layout desconhecido → InvalidLayoutError antes de qualquer trabalho.
+  assertLayout((params as { readonly layout?: unknown }).layout);
+  switch (params.layout) {
+    case 'nt004': {
+      // Fora do sistema de tipos (JS, cast): os inputs do nt009 não têm destino
+      // no nt004 — rejeita em vez de descartar em silêncio.
+      const extra = params as BuildDpsParamsNt004 & {
+        readonly [K in 'ajusteBC' | 'ibsCbs']?: unknown;
+      };
+      for (const field of ['ajusteBC', 'ibsCbs'] as const) {
+        if (extra[field] !== undefined) throw new LayoutMismatchError('nt004', 'nt004', field);
+      }
+      break;
     }
+    case 'nt009':
+      break;
+    default:
+      return unknownLayout(params);
   }
   assertSimplesNacionalConsistency(params.emitente.regime);
   assertAliqIssRange(params.valores.aliqIss);
-  assertValoresConsistency(params.valores, params.emitente.regime);
+  assertValoresConsistency(params.valores, params.emitente.regime, params.layout);
   // E0532 — o serviço 99.01.01 não tem incidência de ISSQN: exige tribISSQN=4.
   if (
     params.servico.cTribNac === '990101' &&
@@ -415,8 +431,9 @@ export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout'
   if (!params.skipCpfCnpjValidation) {
     assertIdentifiersDv(params);
   }
-  const nt009 = layout === 'nt009' ? (params as BuildDpsParamsNt009) : undefined;
-  if (nt009?.ajusteBC) assertAjusteBCNt009(nt009.ajusteBC, params.valores.vServ);
+  if (params.layout === 'nt009' && params.ajusteBC) {
+    assertAjusteBCNt009(params.ajusteBC, params.valores.vServ);
+  }
 
   const dhEmi = params.dhEmi ?? new Date();
   const dCompet = params.dCompet ?? new Date();
@@ -454,22 +471,28 @@ export function buildDps<P extends BuildDpsParams>(params: P): DpsFor<P['layout'
     valores,
   };
 
-  if (nt009) {
-    // nt009: mesmos campos + `finNFSe` obrigatório (só "Regular" na release 1)
-    // + os grupos de alto nível do nt009 (ajuste de BC e IBS/CBS). A ordem de
-    // serialização (finNFSe após cMotivoEmisTI, cNBS antes de xDescServ) é
-    // responsabilidade do serializer.
-    const vAjusteBC = nt009.ajusteBC && buildAjusteBCNt009(nt009.ajusteBC);
-    const infDPS: InfDPSNt009 = {
-      ...comum,
-      finNFSe: FinalidadeNFSe.Regular,
-      valores: { ...valores, ...(vAjusteBC ? { vAjusteBC } : {}) },
-      ...(nt009.ibsCbs ? { IBSCBS: buildIbsCbsNt009(nt009.ibsCbs) } : {}),
-    };
-    return { layout, versao: '1.01', infDPS } as DpsFor<P['layout']>;
+  switch (params.layout) {
+    case 'nt004': {
+      const infDPS: InfDPSNt004 = comum;
+      return { layout: 'nt004', versao: '1.01', infDPS };
+    }
+    case 'nt009': {
+      // nt009: mesmos campos + `finNFSe` obrigatório (só "Regular" na release 1)
+      // + os grupos de alto nível do nt009 (ajuste de BC e IBS/CBS). A ordem de
+      // serialização (finNFSe após cMotivoEmisTI, cNBS antes de xDescServ) é
+      // responsabilidade do serializer.
+      const vAjusteBC = params.ajusteBC && buildAjusteBCNt009(params.ajusteBC);
+      const infDPS: InfDPSNt009 = {
+        ...comum,
+        finNFSe: FinalidadeNFSe.Regular,
+        valores: { ...valores, ...(vAjusteBC ? { vAjusteBC } : {}) },
+        ...(params.ibsCbs ? { IBSCBS: buildIbsCbsNt009(params.ibsCbs) } : {}),
+      };
+      return { layout: 'nt009', versao: '1.01', infDPS };
+    }
+    default:
+      return unknownLayout(params);
   }
-  const infDPS: InfDPSNt004 = comum;
-  return { layout, versao: '1.01', infDPS } as DpsFor<P['layout']>;
 }
 
 // ---------------------------------------------------------------------------
@@ -828,12 +851,18 @@ function buildTotTrib(v: ValoresInput, opSimpNac: OpcaoSimplesNacional): TribTot
 function assertIdentifiersDv(params: BuildDpsParams): void {
   validateCnpj(params.emitente.cnpj);
   if (params.tomador) validateDocumento(params.tomador.documento);
-  if (params.layout === 'nt009') {
-    // nt009: fornecedores do ajuste de BC e destinatário do IBS/CBS.
-    for (const d of params.ajusteBC?.documentos ?? []) {
-      if (d.fornecedor) validateDocumento(d.fornecedor.documento);
-    }
-    if (params.ibsCbs?.destinatario) validateDocumento(params.ibsCbs.destinatario.documento);
+  switch (params.layout) {
+    case 'nt004':
+      return;
+    case 'nt009':
+      // nt009: fornecedores do ajuste de BC e destinatário do IBS/CBS.
+      for (const d of params.ajusteBC?.documentos ?? []) {
+        if (d.fornecedor) validateDocumento(d.fornecedor.documento);
+      }
+      if (params.ibsCbs?.destinatario) validateDocumento(params.ibsCbs.destinatario.documento);
+      return;
+    default:
+      unknownLayout(params);
   }
 }
 
@@ -841,6 +870,12 @@ function validateDocumento(doc: TomadorInput['documento']): void {
   if ('CNPJ' in doc) validateCnpj(doc.CNPJ);
   else validateCpf(doc.CPF);
 }
+
+/** Quem, sendo o emitente, impede o `vReceb` (E0424) — texto do Anexo I de cada layout. */
+const E0424_EMITENTE: Readonly<Record<Layout, string>> = {
+  nt004: 'prestador ou tomador (tpEmit 1 ou 2)',
+  nt009: 'prestador, tomador ou intermediário (tpEmit 1, 2 ou 3)',
+};
 
 function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
   if (regime.opSimpNac === OpcaoSimplesNacional.MeEpp && regime.regApTribSN === undefined) {
@@ -869,13 +904,14 @@ function assertSimplesNacionalConsistency(regime: RegimeTributario): void {
  * - E0602: `aliqIss` não pode ser informada com `tribISSQN` 2/3/4 (imune/exportação/não-incidência).
  * - E0580: não pode haver retenção (`tpRetISSQN` 2/3) com `tribISSQN` 2/3/4.
  */
-function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario): void {
-  // E0424 (Anexo I 20261020) — vReceb não deve ser informado quando o prestador,
-  // tomador ou intermediário é o emitente (tpEmit 1, 2 ou 3); buildDps sempre usa
-  // tpEmit=1, então vReceb aqui é rejeição garantida.
+function assertValoresConsistency(v: ValoresInput, regime: RegimeTributario, layout: Layout): void {
+  // E0424 — vReceb não deve ser informado quando o emitente é o prestador ou o
+  // tomador (nt004, Anexo I 20260209: tpEmit 1 ou 2) ou também o intermediário
+  // (nt009, Anexo I 20261020: tpEmit 1, 2 ou 3). buildDps sempre usa tpEmit=1,
+  // então vReceb aqui é rejeição garantida nos dois layouts; só o texto muda.
   if (v.vReceb !== undefined) {
     throw new RuleViolationError(
-      'vReceb não pode ser informado: o valor recebido não deve ser informado na DPS quando o prestador, tomador ou intermediário for o emitente (tpEmit 1, 2 ou 3), e buildDps usa tpEmit=1 — per E0424',
+      `vReceb não pode ser informado: o valor recebido não deve ser informado na DPS quando o ${E0424_EMITENTE[layout]} for o emitente, e buildDps usa tpEmit=1 — per E0424`,
       'E0424',
     );
   }

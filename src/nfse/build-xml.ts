@@ -288,7 +288,7 @@ function buildEnderObraEvento(e: EnderObraEvento): object {
 function buildServ(s: Serv, layout: Layout): object {
   return {
     locPrest: buildLocPrest(s.locPrest),
-    cServ: layout === 'nt009' ? buildCServNt009(s.cServ) : buildCServNt004(s.cServ),
+    cServ: buildCServ(s.cServ, layout),
     ...onlyDefined('comExt', s.comExt && buildComExterior(s.comExt)),
     ...onlyDefined('obra', s.obra && buildInfoObra(s.obra)),
     ...onlyDefined('atvEvento', s.atvEvento && buildAtvEvento(s.atvEvento)),
@@ -299,6 +299,17 @@ function buildServ(s: Serv, layout: Layout): object {
 function buildLocPrest(l: LocPrest): object {
   if ('cLocPrestacao' in l) return { cLocPrestacao: l.cLocPrestacao };
   return { cPaisPrestacao: l.cPaisPrestacao };
+}
+
+function buildCServ(c: CServ, layout: Layout): object {
+  switch (layout) {
+    case 'nt004':
+      return buildCServNt004(c);
+    case 'nt009':
+      return buildCServNt009(c);
+    default:
+      return unknownLayout(layout);
+  }
 }
 
 function buildCServNt004(c: CServ): object {

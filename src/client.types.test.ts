@@ -5,8 +5,9 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import { Ambiente } from './ambiente.js';
 import { NfseClient } from './client.js';
+import { type ParseNfseXmlOptions, parseNfseXml } from './index.js';
 import { dpsNt009Completa } from './nfse/__fixtures__/dps-nt009.js';
-import { buildDps } from './nfse/build-dps.js';
+import { type BuildDpsParams, buildDps } from './nfse/build-dps.js';
 import type { DPS, DpsNt004, DpsNt009 } from './nfse/domain.js';
 import type { EmitirParams } from './nfse/emit.js';
 import { OpcaoSimplesNacional, RegimeEspecialTributacao } from './nfse/enums.js';
@@ -72,6 +73,37 @@ describe('NfseClient<L> — tipos', () => {
     const d4 = buildDps({ ...paramsBase, layout: 'nt004' });
     expectTypeOf(d4).toEqualTypeOf<DpsNt004>();
     expect(d4.layout).toBe('nt004');
+    // Sem layout literal (união), o retorno é a união `DPS`.
+    const buildUniao = (p: BuildDpsParams) => buildDps(p);
+    expectTypeOf(buildUniao).returns.toEqualTypeOf<DPS>();
+    expect(buildUniao({ ...paramsBase, layout: 'nt004' }).layout).toBe('nt004');
+
+    const _naoCompila = () => {
+      // @ts-expect-error campo opcional com typo (dCompt ≠ dCompet) não compila
+      void buildDps({ ...paramsBase, layout: 'nt004', dCompt: new Date() });
+      // @ts-expect-error ajusteBC não existe no layout nt004
+      void buildDps({ ...paramsBase, layout: 'nt004', ajusteBC: { issqn: { valor: 1 } } });
+      // @ts-expect-error ibsCbs não existe no layout nt004
+      void buildDps({
+        ...paramsBase,
+        layout: 'nt004',
+        ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
+      });
+      // @ts-expect-error destinatário (TCRTCInfoDest) não tem inscrição municipal
+      void buildDps({
+        ...paramsBase,
+        layout: 'nt009',
+        ibsCbs: {
+          classificacao: { CST: '000', cClassTrib: '000001' },
+          destinatario: {
+            documento: { CNPJ: '00574753000100' },
+            nome: 'Dest',
+            inscricaoMunicipal: '123',
+          },
+        },
+      });
+    };
+    void _naoCompila;
   });
 
   it('client sem layout literal aceita qualquer DPS; NfseClientLike aceita qualquer layout', () => {
@@ -123,5 +155,12 @@ describe('NfseClient<L> — tipos', () => {
       void new NfseClientFake({ layout: 'nt009' }).emitir({ ...paramsBase, ajusteBC, ibsCbs });
     };
     void _compila;
+  });
+
+  it('ParseNfseXmlOptions é exportado pela entrada pública', () => {
+    expectTypeOf<Parameters<typeof parseNfseXml>[1]>().toEqualTypeOf<
+      ParseNfseXmlOptions | undefined
+    >();
+    expect(typeof parseNfseXml).toBe('function');
   });
 });

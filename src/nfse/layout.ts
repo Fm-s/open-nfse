@@ -1,17 +1,9 @@
 import { InvalidLayoutError, LayoutMismatchError } from '../errors/validation.js';
 import type { DPS } from './domain.js';
 
-/**
- * Identificador do leiaute da NFS-e.
- *
- * - `nt004`: leiaute em produção (bundle XSD 20260727).
- * - `nt009`: leiaute da NT 009 release 1 (bundle XSD 20261020).
- *
- * Ambos serializam `versao="1.01"`; o `layout` é sintético e nunca vai no XML.
- */
-export type Layout = 'nt004' | 'nt009';
+import { LAYOUTS, type Layout } from './layout-ids.js';
 
-export const LAYOUTS: readonly Layout[] = ['nt004', 'nt009'];
+export { LAYOUTS, type Layout };
 
 /** Retorna `value` se for um {@link Layout} conhecido; senão lança `InvalidLayoutError`. */
 export function assertLayout(value: unknown): Layout {
@@ -22,12 +14,16 @@ export function assertLayout(value: unknown): Layout {
 }
 
 /**
- * Ramo `default` de um `switch (dps.layout)` exaustivo: não compila se algum
+ * Ramo `default` de um `switch (dps.layout)` (ou `switch (layout)`) exaustivo: não compila se algum
  * layout ficar sem `case`, e em runtime (chamador JS com layout desconhecido)
  * lança `InvalidLayoutError` em vez de cair silenciosamente num dos layouts.
  */
-export function unknownLayout(dps: never): never {
-  throw new InvalidLayoutError((dps as { readonly layout?: unknown } | undefined)?.layout);
+export function unknownLayout(value: never): never {
+  // Aceita o próprio layout (`switch (layout)`) ou um objeto com `layout` (`switch (dps.layout)`).
+  const v: unknown = value;
+  throw new InvalidLayoutError(
+    typeof v === 'object' && v !== null ? (v as { readonly layout?: unknown }).layout : v,
+  );
 }
 
 /**
@@ -37,6 +33,21 @@ export function unknownLayout(dps: never): never {
  */
 export function assertSameLayout(expected: Layout, dps: DPS): void {
   const received = assertLayout((dps as { readonly layout?: unknown }).layout);
+  if (received !== expected) {
+    throw new LayoutMismatchError(expected, received);
+  }
+}
+
+/**
+ * `EmitirParams` não tem `layout` (vem do cliente), mas um chamador JS pode
+ * passá-lo mesmo assim. Se vier definido e divergir do layout do cliente,
+ * lança `LayoutMismatchError` (ou `InvalidLayoutError` para valor
+ * desconhecido) em vez de sobrescrevê-lo em silêncio.
+ */
+export function assertParamsLayout(expected: Layout, params: object): void {
+  const raw = (params as { readonly layout?: unknown }).layout;
+  if (raw === undefined) return;
+  const received = assertLayout(raw);
   if (received !== expected) {
     throw new LayoutMismatchError(expected, received);
   }
