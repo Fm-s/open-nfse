@@ -1,7 +1,7 @@
 import type { A1Certificate } from '../certificate/types.js';
 import { RuleViolationError } from '../errors/validation.js';
 import type { HttpClient } from '../http/client.js';
-import type { DPS, DpsFor } from '../nfse/domain.js';
+import type { DPS, DpsFor, Substituicao } from '../nfse/domain.js';
 import { type EmitOptions, emitDpsProntaSeguro, type NfseEmitResult } from '../nfse/emit.js';
 import {
   JustificativaCancelamento,
@@ -138,7 +138,10 @@ export interface SubstituirParams<L extends Layout = Layout> extends Omit<EmitOp
   readonly chaveOriginal: string;
   /**
    * Nova DPS (substituta). Se `infDPS.subst` não estiver preenchido, é
-   * auto-completado com `chaveOriginal` + `cMotivo`/`xMotivo`.
+   * auto-completado com `chaveOriginal` + `cMotivo`/`xMotivo`. Se já estiver,
+   * `chSubstda`/`cMotivo`/`xMotivo` devem ser idênticos a
+   * `chaveOriginal`/`cMotivo`/`xMotivo` — divergência lança
+   * `RuleViolationError` (rule `infDPS/subst`) antes de qualquer envio.
    */
   readonly novaDps: DpsFor<L>;
   readonly cMotivo: JustificativaSubstituicao;
@@ -189,23 +192,28 @@ export async function substituir<L extends Layout = Layout>(
 ): Promise<SubstituirResult> {
   // Chamador JS: layout desconhecido → InvalidLayoutError (não um LayoutMismatchError enganoso).
   if (layout !== undefined) assertLayout(layout);
+  // O <subst> efetivamente enviado: o da DPS (se presente, precisa concordar com
+  // os params) ou o montado a partir dos params. Os guards abaixo rodam sobre ele.
+  const subst = resolverSubst(params);
+
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
   // round-trip + queima de nDPS num emit que seria rejeitado.
-  if (params.cMotivo === JustificativaSubstituicao.Outros && !params.xMotivo?.trim()) {
-    throw new RuleViolationError('cMotivo=99 (Outros) exige xMotivo não-vazio', 'E0078');
+  if (subst.cMotivo === JustificativaSubstituicao.Outros && !subst.xMotivo?.trim()) {
+    throw new RuleViolationError(
+      'cMotivo=99 (Outros) exige xMotivo não-vazio — per E0078',
+      'E0078',
+    );
   }
-  // TSMotivo — 15 a 255 chars quando presente (xMotivo é opcional em subst).
-  if (params.xMotivo !== undefined) {
-    validarTSMotivo(params.xMotivo);
+  // TSMotivo — 15 a 255 chars + pattern TSString quando presente (xMotivo é
+  // opcional em subst).
+  if (subst.xMotivo !== undefined) {
+    validarTSMotivo(subst.xMotivo);
   }
+  // Rule E0042 — Cód.Mun./Tipo de Inscrição/Inscrição da chave substituída
+  // devem corresponder exatamente aos do Id desta DPS.
+  assertChSubstdaCorrespondeAoIdDps(subst.chSubstda, params.novaDps.infDPS.Id);
 
-  // Auto-preenche infDPS.subst (chSubstda = chave original) se ausente.
-  const dpsComSubst = ensureSubstPopulated(
-    params.novaDps,
-    params.chaveOriginal,
-    params.cMotivo,
-    params.xMotivo,
-  );
+  const dpsComSubst = comSubst(params.novaDps, subst);
 
   // Único write do contribuinte: a DPS com <subst> via POST /nfse. O Sistema
   // Nacional NFS-e gera, de forma atômica com a emissão, o evento 105102
@@ -245,18 +253,39 @@ export async function substituir<L extends Layout = Layout>(
 // helpers
 // -----------------------------------------------------------------------------
 
-function ensureSubstPopulated(
-  dps: DPS,
-  chaveOriginal: string,
-  cMotivo: JustificativaSubstituicao,
-  xMotivo: string | undefined,
-): DPS {
-  if (dps.infDPS.subst) return dps;
-  const subst = {
-    chSubstda: chaveOriginal,
-    cMotivo,
-    ...(xMotivo ? { xMotivo } : {}),
+/**
+ * Resolve o `<subst>` que será enviado. Sem `infDPS.subst` na DPS, monta-o dos
+ * params (`chSubstda` = `chaveOriginal`). Com `infDPS.subst` já preenchido, os
+ * valores precisam ser idênticos aos params — divergência lança
+ * `RuleViolationError` (rule `infDPS/subst`) em vez de enviar em silêncio um
+ * `<subst>` diferente do que o chamador declarou (outra chave substituída,
+ * outro motivo).
+ */
+function resolverSubst(params: SubstituirParams): Substituicao {
+  const daDps = params.novaDps.infDPS.subst;
+  const doParams: Substituicao = {
+    chSubstda: params.chaveOriginal,
+    cMotivo: params.cMotivo,
+    ...(params.xMotivo !== undefined ? { xMotivo: params.xMotivo } : {}),
   };
+  if (!daDps) return doParams;
+  const divergentes = (['chSubstda', 'cMotivo', 'xMotivo'] as const).filter(
+    (campo) => daDps[campo] !== doParams[campo],
+  );
+  if (divergentes.length > 0) {
+    const nomes = divergentes.map((c) =>
+      c === 'chSubstda' ? 'chSubstda ≠ chaveOriginal' : `${c} ≠ params.${c}`,
+    );
+    throw new RuleViolationError(
+      `novaDps.infDPS.subst diverge dos parâmetros de substituir (${nomes.join(', ')}). Omita infDPS.subst (é preenchido a partir dos parâmetros) ou informe os mesmos valores.`,
+      'infDPS/subst',
+    );
+  }
+  return daDps;
+}
+
+function comSubst(dps: DPS, subst: Substituicao): DPS {
+  if (dps.infDPS.subst === subst) return dps;
   // Narrowing por layout: o spread de uma union não preserva o discriminante.
   switch (dps.layout) {
     case 'nt004':
@@ -265,6 +294,35 @@ function ensureSubstPopulated(
       return { ...dps, infDPS: { ...dps.infDPS, subst } };
     default:
       return unknownLayout(dps);
+  }
+}
+
+/**
+ * E0042 (Anexo I nt004 `RN DPS_NFS-e:r170` / nt009 `RN DPS_NFS-e 1.01:r179`,
+ * Obrig./Rej., executada pela Sefin): a correspondência exata de Cód.Mun. /
+ * Tipo de Inscrição / Inscrição entre a chave substituída e o Id desta DPS.
+ * Posições pela regra de formação dos XSDs (idêntica nos dois bundles):
+ * - chave = `TSIdNFSe` sem "NFS": Cód.Mun.(7) + Amb.Ger.(1) + Tipo Insc.(1) + Inscrição(14) + …
+ * - `TSIdDPS`: "DPS" + Cód.Mun.(7) + Tipo Insc.(1) + Inscrição(14) + …
+ *
+ * A outra metade da E0042 (DV da chave) não é verificada: o algoritmo do DV
+ * da chave de NFS-e não está especificado nas fontes oficiais (XSD, Anexos,
+ * manuais) — a Sefin continua sendo a autoridade sobre ele.
+ */
+function assertChSubstdaCorrespondeAoIdDps(chSubstda: string, idDps: string): void {
+  const chave = {
+    cMun: chSubstda.slice(0, 7),
+    tpInsc: chSubstda.slice(8, 9),
+    insc: chSubstda.slice(9, 23),
+  };
+  const id = { cMun: idDps.slice(3, 10), tpInsc: idDps.slice(10, 11), insc: idDps.slice(11, 25) };
+  const divergentes = (['cMun', 'tpInsc', 'insc'] as const).filter((c) => chave[c] !== id[c]);
+  if (divergentes.length > 0) {
+    const rotulo = { cMun: 'Cód.Mun.', tpInsc: 'Tipo de Inscrição', insc: 'Inscrição' } as const;
+    throw new RuleViolationError(
+      `Chave da NFS-e substituída (${chSubstda}) não corresponde ao Id desta DPS (${idDps}) em ${divergentes.map((c) => rotulo[c]).join(' / ')} — a substituta deve ser do mesmo emitente e município — per E0042`,
+      'E0042',
+    );
   }
 }
 
@@ -329,15 +387,31 @@ async function savePending(store: RetryStore | undefined, pending: PendingEvent)
 }
 
 /**
- * Valida que a string bate com `TSMotivo` (tiposSimples_v1.01.xsd:355):
- * minLength 15, maxLength 255. Lança `RuleViolationError` com rule `TSMotivo`
- * — evita round-trip + rejeição server-side de payload curto.
+ * Pattern de `TSString` (`tiposSimples_v1.01.xsd:19`, idêntico nos bundles
+ * nt004 e nt009), base de `TSMotivo`: `[!-ÿ]{1}[ -ÿ]{0,}[!-ÿ]{1}|[!-ÿ]{1}` —
+ * só U+0020–U+00FF, sem espaço nas pontas (nem tab/quebra de linha em lugar
+ * algum).
+ */
+const TSSTRING_PATTERN = /^(?:[!-ÿ][ -ÿ]*[!-ÿ]|[!-ÿ])$/u;
+
+/**
+ * Valida que a string bate com `TSMotivo` (tiposSimples_v1.01.xsd:348-356):
+ * minLength 15, maxLength 255, sobre a base `TSString`. Lança
+ * `RuleViolationError` com rule `TSMotivo` — o XML do evento 101101 não passa
+ * por validação XSD local antes do POST, e a rejeição de schema da Sefin é
+ * opaca (travessão/aspas curvas coladas de editor de texto são o caso comum).
  */
 function validarTSMotivo(xMotivo: string): void {
   const len = xMotivo.length;
   if (len < 15 || len > 255) {
     throw new RuleViolationError(
       `xMotivo deve ter entre 15 e 255 caracteres (atual: ${len}) — per TSMotivo do RTC v1.01`,
+      'TSMotivo',
+    );
+  }
+  if (!TSSTRING_PATTERN.test(xMotivo)) {
+    throw new RuleViolationError(
+      'xMotivo deve conter apenas caracteres de U+0020 a U+00FF (Latin-1: sem travessão “–”, aspas curvas, tab ou quebra de linha) e sem espaço nas pontas — per TSString/TSMotivo do RTC v1.01',
       'TSMotivo',
     );
   }

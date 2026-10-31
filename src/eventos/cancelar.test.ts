@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import forge from 'node-forge';
@@ -5,12 +6,13 @@ import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Ambiente } from '../ambiente.js';
 import type { A1Certificate } from '../certificate/types.js';
+import { NfseClient } from '../client.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
 import { InvalidLayoutError, LayoutMismatchError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64DecodeToText, gzipBase64Encode } from '../http/encoding.js';
 import { buildDps } from '../nfse/build-dps.js';
-import type { DPS, InfDPSNt004 } from '../nfse/domain.js';
+import type { DPS, DpsNt009, InfDPSNt004 } from '../nfse/domain.js';
 import {
   JustificativaCancelamento,
   JustificativaSubstituicao,
@@ -18,7 +20,7 @@ import {
   RegimeEspecialTributacao,
 } from '../nfse/enums.js';
 import type { Layout } from '../nfse/layout.js';
-import { validatePedRegEventoXml } from '../nfse/validate-xml.js';
+import { validateDpsXml, validatePedRegEventoXml } from '../nfse/validate-xml.js';
 import { createDefaultRetryPolicy } from '../retry/policy.js';
 import { createInMemoryRetryStore, MissingRetryStoreError } from '../retry/store.js';
 import { buildCancelamentoXml, buildSubstituicaoXml } from './build-event-xml.js';
@@ -76,6 +78,44 @@ function mockEventoSuccessBody(chave: string, tipoEvento: '101101' | '105102') {
     dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
     eventoXmlGZipB64: gzipBase64Encode(mockEventoXml(chave, tipoEvento)),
   };
+}
+
+const SAMPLE_XML_NT009 = readFileSync(
+  join(__dirname, '..', 'nfse', '__fixtures__', 'nfse-nt009-sintetica.xml'),
+  'utf-8',
+);
+
+function gerarPfxTeste(senha: string): Buffer {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = '01';
+  cert.validity.notBefore = new Date(Date.now() - 60_000);
+  cert.validity.notAfter = new Date(Date.now() + 86_400_000);
+  const attrs = [{ name: 'commonName', value: 'evt-test' }];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+  const p12Asn1 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, cert, senha);
+  return Buffer.from(forge.asn1.toDer(p12Asn1).getBytes(), 'binary');
+}
+
+function minimalNovaDpsNt009(): DpsNt009 {
+  return buildDps({
+    layout: 'nt009',
+    emitente: {
+      cnpj: '00574753000100',
+      codMunicipio: '2111300',
+      regime: {
+        opSimpNac: OpcaoSimplesNacional.NaoOptante,
+        regEspTrib: RegimeEspecialTributacao.Nenhum,
+      },
+    },
+    serie: '1',
+    nDPS: '2',
+    servico: { cTribNac: '250101', cNBS: '123456789', descricao: 'Substituta' },
+    valores: { vServ: 100, pTotTrib: { pTotTribFed: 0, pTotTribEst: 0, pTotTribMun: 0 } },
+  });
 }
 
 function minimalNovaDps(): DPS {
@@ -316,6 +356,69 @@ describe('cancelar', () => {
       }),
     ).rejects.toMatchObject({ rule: 'TSMotivo' });
   });
+
+  // TSMotivo restringe TSString (tiposSimples_v1.01.xsd:13-21, idêntico nos
+  // bundles nt004 e nt009): pattern `[!-ÿ]{1}[ -ÿ]{0,}[!-ÿ]{1}|[!-ÿ]{1}` — sem
+  // espaço nas pontas, só U+0020–U+00FF. Fora disso a SEFIN rejeita no schema.
+  it.each([
+    ['travessão (U+2013)', 'Erro na emissão – valor errado'],
+    ['aspas curvas', 'Erro “valor” incorreto aqui'],
+    ['espaço no fim', 'Erro na emissão do valor '],
+    ['espaço no início', ' Erro na emissão do valor'],
+    ['tab', 'Erro\tna emissão do valor'],
+    ['quebra de linha', 'Erro na emissão\ndo valor'],
+  ])('rejects xMotivo fora do pattern TSString (%s) sem tocar a rede', async (_caso, xMotivo) => {
+    // O XSD oficial também rejeita — o guard espelha o schema, não o inventa.
+    const xml = signPedRegEventoXml(
+      buildCancelamentoXml({
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo,
+      }),
+      cert,
+    );
+    for (const layout of ['nt004', 'nt009'] as const) {
+      const r = await validatePedRegEventoXml(xml, { layout, throwOnInvalid: false });
+      expect(r.valid).toBe(false);
+    }
+
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    await expect(
+      cancelar(httpClient, cert, createDefaultRetryPolicy(), {
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo,
+      }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSMotivo' });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('aceita xMotivo Latin-1 (acentos, cedilha, NBSP interno) — dentro do pattern TSString', async () => {
+    const xMotivo = 'Correção de preço:\u00A0serviço não prestado';
+    const xml = signPedRegEventoXml(
+      buildCancelamentoXml({
+        chaveAcesso: CHAVE_ORIGINAL,
+        autor: { CNPJ: '00574753000100' },
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo,
+      }),
+      cert,
+    );
+    await expect(validatePedRegEventoXml(xml, { layout: 'nt009' })).resolves.toBeUndefined();
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE_ORIGINAL}/eventos`, method: 'POST' })
+      .reply(201, mockEventoSuccessBody(CHAVE_ORIGINAL, '101101'));
+    const r = await cancelar(httpClient, cert, createDefaultRetryPolicy(), {
+      chaveAcesso: CHAVE_ORIGINAL,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo,
+    });
+    expect(r.status).toBe('ok');
+  });
 });
 
 describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', () => {
@@ -374,8 +477,8 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
   // A substituição é dirigida pela DPS (Manual Contribuintes API v1.2 §1.3.2):
   // o contribuinte envia a nova DPS com <subst> para POST /nfse e o SISTEMA gera
   // o evento 105102 (autor=MEmis) cancelando a original. A lib NÃO posta um
-  // pedRegEvento 105102 — fazê-lo era redundante (E0845) e com autor/assinante
-  // errados (E0813/E2032).
+  // pedRegEvento 105102 — a Sefin o rejeita (E0813: autor ≠ MEmis; E0845: já
+  // vinculado pelo sistema).
   it("status='ok': emits the <subst> DPS via POST /nfse and returns the substitute NFS-e (no event POST)", async () => {
     // Só POST /nfse é interceptado. Se substituir tentar POST .../eventos, o
     // MockAgent (disableNetConnect) lança — guard de regressão contra o 105102.
@@ -497,6 +600,238 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
         novaDps: minimalNovaDps(),
       }),
     ).rejects.toThrow();
+  });
+
+  it('rejects xMotivo fora do pattern TSString (travessão U+2013) antes de tocar a rede', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    await expect(
+      substituir(httpClient, cert, policy, {
+        ...baseSubstParams,
+        xMotivo: 'Correção – valor do serviço',
+        novaDps: minimalNovaDps(),
+      }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSMotivo' });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // nt009 ponta a ponta: a DPS com <subst> sai serializada, na ordem do XSD, e
+  // válida contra schemas/1.01-nt009 — via função livre e via NfseClient<'nt009'>.
+  // ---------------------------------------------------------------------------
+
+  const SUBST_NT009_RE = new RegExp(
+    `<cLocEmi>2111300</cLocEmi><subst><chSubstda>${CHAVE_ORIGINAL}</chSubstda><cMotivo>99</cMotivo><xMotivo>Correção de valor do serviço</xMotivo></subst><prest>`,
+  );
+
+  function capturedDpsXml(captured: string | undefined): string {
+    expect(captured).toBeDefined();
+    const body = JSON.parse(captured as string) as { dpsXmlGZipB64: string };
+    return gzipBase64DecodeToText(body.dpsXmlGZipB64);
+  }
+
+  it('nt009: emits <subst><chSubstda> após <cLocEmi> e o XML enviado valida contra o XSD nt009', async () => {
+    let captured: string | undefined;
+    mockEmitSuccess((b) => {
+      captured = b;
+    });
+    const novaDps = minimalNovaDpsNt009();
+    expect(novaDps.infDPS.subst).toBeUndefined();
+
+    // Sem skipValidation: o pipeline valida a DPS contra o XSD nt009 antes do POST.
+    const r = await substituir(
+      httpClient,
+      cert,
+      policy,
+      {
+        chaveOriginal: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+        skipCepValidation: true,
+        novaDps,
+      },
+      'nt009',
+    );
+
+    expect(r.status).toBe('ok');
+    const xml = capturedDpsXml(captured);
+    expect(xml).toMatch(SUBST_NT009_RE);
+    expect(xml).toContain('<finNFSe>');
+    await expect(validateDpsXml(xml, { layout: 'nt009' })).resolves.toBeUndefined();
+  });
+
+  it('nt009: NfseClient<nt009>.substituir envia a DPS com <subst> válida contra o XSD nt009', async () => {
+    let captured: string | undefined;
+    mockAgent
+      .get('https://sefin.producaorestrita.nfse.gov.br')
+      .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
+      .reply((opts) => {
+        captured = opts.body as string;
+        return {
+          statusCode: 201,
+          data: {
+            tipoAmbiente: 2,
+            versaoAplicativo: 'v',
+            dataHoraProcessamento: '2026-12-01T12:00:00-03:00',
+            idDps: 'DPS211130010057475300010000100000000000000002',
+            chaveAcesso: CHAVE_NOVA,
+            nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML_NT009),
+          },
+        };
+      });
+    const senha = 'senha';
+    const client = new NfseClient({
+      layout: 'nt009',
+      ambiente: Ambiente.ProducaoRestrita,
+      certificado: { pfx: gerarPfxTeste(senha), password: senha },
+      dispatcher: mockAgent,
+    });
+    try {
+      const r = await client.substituir({
+        chaveOriginal: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+        skipCepValidation: true,
+        novaDps: minimalNovaDpsNt009(),
+      });
+      expect(r.status).toBe('ok');
+      if (r.status === 'ok') expect(r.novaNfse.chaveAcesso).toBe(CHAVE_NOVA);
+      const xml = capturedDpsXml(captured);
+      expect(xml).toMatch(SUBST_NT009_RE);
+      await expect(validateDpsXml(xml, { layout: 'nt009' })).resolves.toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  });
+
+  // ---------------------------------------------------------------------------
+  // novaDps já com infDPS.subst: params e DPS precisam concordar (o que vai no
+  // XML é o subst da DPS — divergência silenciosa enviaria outra coisa).
+  // ---------------------------------------------------------------------------
+
+  function dpsComSubst(subst: NonNullable<InfDPSNt004['subst']>): DPS {
+    const dps = minimalNovaDps();
+    if (dps.layout !== 'nt004') throw new Error('fixture nt004 esperada');
+    return { ...dps, infDPS: { ...dps.infDPS, subst } };
+  }
+
+  it.each([
+    [
+      'chSubstda ≠ chaveOriginal',
+      {
+        chSubstda: CHAVE_NOVA,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: baseSubstParams.xMotivo,
+      },
+    ],
+    [
+      'cMotivo diferente',
+      {
+        chSubstda: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.DesenquadramentoSN,
+        xMotivo: baseSubstParams.xMotivo,
+      },
+    ],
+    [
+      'xMotivo ausente na DPS (cMotivo=99 → E0078 no que seria enviado)',
+      { chSubstda: CHAVE_ORIGINAL, cMotivo: JustificativaSubstituicao.Outros },
+    ],
+    [
+      'xMotivo diferente',
+      {
+        chSubstda: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Outro motivo qualquer aqui',
+      },
+    ],
+  ] as const)(
+    'novaDps.infDPS.subst divergente dos params (%s) → RuleViolationError sem POST',
+    async (_caso, subst) => {
+      const dispatch = vi.spyOn(mockAgent, 'dispatch');
+      await expect(
+        substituir(httpClient, cert, policy, { ...baseSubstParams, novaDps: dpsComSubst(subst) }),
+      ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'infDPS/subst' });
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('novaDps.infDPS.subst idêntico aos params é aceito e enviado como está', async () => {
+    let captured: string | undefined;
+    mockEmitSuccess((b) => {
+      captured = b;
+    });
+    const r = await substituir(httpClient, cert, policy, {
+      ...baseSubstParams,
+      novaDps: dpsComSubst({
+        chSubstda: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: baseSubstParams.xMotivo,
+      }),
+    });
+    expect(r.status).toBe('ok');
+    const xml = capturedDpsXml(captured);
+    expect(xml).toContain(
+      `<subst><chSubstda>${CHAVE_ORIGINAL}</chSubstda><cMotivo>99</cMotivo><xMotivo>${baseSubstParams.xMotivo}</xMotivo></subst>`,
+    );
+  });
+
+  it('guards E0078/TSMotivo rodam sobre o subst efetivamente enviado (DPS com subst inválido idêntico aos params)', async () => {
+    const dispatch = vi.spyOn(mockAgent, 'dispatch');
+    await expect(
+      substituir(httpClient, cert, policy, {
+        chaveOriginal: CHAVE_ORIGINAL,
+        cMotivo: JustificativaSubstituicao.Outros,
+        novaDps: dpsComSubst({
+          chSubstda: CHAVE_ORIGINAL,
+          cMotivo: JustificativaSubstituicao.Outros,
+        }),
+      }),
+    ).rejects.toMatchObject({ rule: 'E0078' });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // E0042 (Anexo I nt004 r170 / nt009 r179, Obrig./Rej., execSefin): Cód.Mun. /
+  // Tipo de Inscrição / Inscrição da chave substituída devem corresponder
+  // exatamente aos do Id desta DPS.
+  //   chave (TSIdNFSe sem "NFS"): cMun[0,7) ambGer[7] tpInsc[8] insc[9,23) …
+  //   Id    (TSIdDPS):            "DPS" cMun[3,10) tpInsc[10] insc[11,25) …
+  // ---------------------------------------------------------------------------
+
+  function trocar(chave: string, pos: number, s: string): string {
+    return chave.slice(0, pos) + s + chave.slice(pos + s.length);
+  }
+
+  it.each([
+    ['Cód.Mun. diferente', trocar(CHAVE_ORIGINAL, 0, '3550308')],
+    ['Tipo de Inscrição diferente', trocar(CHAVE_ORIGINAL, 8, '1')],
+    ['Inscrição diferente', trocar(CHAVE_ORIGINAL, 9, '99999999000199')],
+  ])(
+    'E0042: chaveOriginal com %s do Id da DPS → RuleViolationError sem POST',
+    async (_caso, chave) => {
+      const dispatch = vi.spyOn(mockAgent, 'dispatch');
+      for (const novaDps of [minimalNovaDps(), minimalNovaDpsNt009()]) {
+        await expect(
+          substituir(httpClient, cert, policy, {
+            ...baseSubstParams,
+            chaveOriginal: chave,
+            novaDps,
+          }),
+        ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'E0042' });
+      }
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('E0042: só cMun/tpInsc/inscrição contam — ambGer e demais posições da chave podem diferir', async () => {
+    mockEmitSuccess();
+    // ambGer (pos 7) e nNFSe (pos 23+) diferentes do sample — mesmo emitente.
+    const chave = trocar(trocar(CHAVE_ORIGINAL, 7, '1'), 23, '0000000009999');
+    const r = await substituir(httpClient, cert, policy, {
+      ...baseSubstParams,
+      chaveOriginal: chave,
+      novaDps: minimalNovaDps(),
+    });
+    expect(r.status).toBe('ok');
   });
 });
 
