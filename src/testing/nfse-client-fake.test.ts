@@ -8,6 +8,7 @@ import {
   LayoutMismatchError,
   RuleViolationError,
 } from '../errors/validation.js';
+import { InvalidEventoPedidoIdParamError } from '../eventos/event-id.js';
 import { dpsNt009Completa } from '../nfse/__fixtures__/dps-nt009.js';
 import { buildDps } from '../nfse/build-dps.js';
 import type { EmitirParams } from '../nfse/emit.js';
@@ -464,6 +465,26 @@ describe('NfseClientFake.cancelar / substituir — mesmos guards offline do real
         xMotivo: 'Erro de teste na emissão',
       }),
     ).rejects.toBeInstanceOf(ReceitaRejectionError);
+  });
+
+  it('cancelar: chave fora de TSIdPedRegEvt e verAplic fora de TSVerAplic lançam como no real, sem consumir a falha programada', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextCancel({ kind: 'rejection', codigo: 'E1', descricao: 'x' });
+    const base = {
+      chaveAcesso: CHAVE,
+      autor,
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'Erro de teste na emissão',
+    };
+    await expect(fake.cancelar({ ...base, chaveAcesso: 'abc' })).rejects.toBeInstanceOf(
+      InvalidEventoPedidoIdParamError,
+    );
+    await expect(fake.cancelar({ ...base, verAplic: 'x'.repeat(30) })).rejects.toMatchObject({
+      name: 'RuleViolationError',
+      rule: 'TSVerAplic',
+    });
+    expect(fake.cancelledChaves).toEqual([]);
+    await expect(fake.cancelar(base)).rejects.toBeInstanceOf(ReceitaRejectionError);
   });
 
   it('substituir: cMotivo=99 sem xMotivo (E0078) e xMotivo fora de TSMotivo lançam sem emitir', async () => {

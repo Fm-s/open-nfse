@@ -5,6 +5,7 @@ import type { NsuQueryResult } from '../dfe/types.js';
 import { StatusDistribuicao } from '../dfe/types.js';
 import { TimeoutError } from '../errors/http.js';
 import { ReceitaRejectionError } from '../errors/receita.js';
+import { buildCancelamentoXml } from '../eventos/build-event-xml.js';
 import {
   type CancelarParams,
   type CancelarResult,
@@ -355,8 +356,11 @@ export class NfseClientFake<L extends Layout = Layout> {
   // -------------------------------------------------------------------------
 
   async cancelar(params: CancelarParams): Promise<CancelarResult> {
-    // Mesmos guards offline do real, antes da falha programada (que simula o POST).
+    // Mesmos guards offline do real, antes da falha programada (que simula o
+    // POST): validarCancelamento + a montagem do pedido (TSIdPedRegEvt da
+    // chave, TSVerAplic etc.) — pura, sem certificado.
     validarCancelamento(params);
+    buildCancelamentoXml(params);
     const failure = this.consumeFailure('cancel');
     if (failure?.kind === 'rejection') {
       throw new ReceitaRejectionError({
