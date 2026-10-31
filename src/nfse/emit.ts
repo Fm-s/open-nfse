@@ -22,7 +22,7 @@ import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, NFSe } from './domain.js';
 import { type DpsCounter, MissingDpsCounterError } from './dps-counter.js';
-import { assertSameLayout, type Layout } from './layout.js';
+import { assertParamsLayout, assertSameLayout, type Layout } from './layout.js';
 import { parseNfseXml } from './parse-xml.js';
 import { signDpsXml } from './sign-xml.js';
 import { validateDpsXml } from './validate-xml.js';
@@ -487,6 +487,7 @@ export async function emitSeguro<L extends Layout>(
   deps: EmitSeguroDeps & { readonly layout: L },
   params: EmitirParams<L>,
 ): Promise<EmitirResult | DpsDryRunResult> {
+  assertParamsLayout(deps.layout, params);
   const isTransient = deps.isTransient ?? defaultIsTransient;
   const montarDps = (nDPS: string): DPS => buildDps({ ...params, layout: deps.layout, nDPS });
 

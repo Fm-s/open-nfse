@@ -31,7 +31,13 @@ import type {
   EmitOptions,
   NfseEmitResult,
 } from '../nfse/emit.js';
-import { assertLayout, assertSameLayout, type Layout } from '../nfse/layout.js';
+import {
+  assertLayout,
+  assertNoForeignLayoutFields,
+  assertParamsLayout,
+  assertSameLayout,
+  type Layout,
+} from '../nfse/layout.js';
 import type { NfseQueryResult } from '../nfse/types.js';
 import type { ConsultaOptions } from '../parametros-municipais/fetch.js';
 import type {
@@ -181,6 +187,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   async emitir(params: EmitirParams<L> & { dryRun: true }): Promise<DpsDryRunResult>;
   async emitir(params: EmitirParams<L> & { dryRun?: false }): Promise<EmitirResult>;
   async emitir(params: EmitirParams<L>): Promise<EmitirResult | DpsDryRunResult> {
+    assertParamsLayout(this.layout, params);
     const failure = this.consumeFailure('emit');
 
     if (params.dryRun) {
@@ -264,6 +271,8 @@ export class NfseClientFake<L extends Layout = Layout> {
     options?: EmitOptions,
   ): Promise<NfseEmitResult | DpsDryRunResult> {
     assertSameLayout(this.layout, dps);
+    // Paridade com o real (buildDpsXml): campo do outro layout → LayoutMismatchError.
+    assertNoForeignLayoutFields(dps);
     if (options?.dryRun) {
       return {
         dryRun: true,

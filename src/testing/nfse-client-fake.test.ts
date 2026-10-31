@@ -296,6 +296,52 @@ describe('NfseClientFake — layout', () => {
     ).rejects.toBeInstanceOf(LayoutMismatchError);
   });
 
+  it('emitir com params.layout (chamador JS) diferente do fake lança LayoutMismatchError', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const params = { ...baseEmitirParams(), layout: 'nt009' } as never;
+    await expect(fake.emitir(params)).rejects.toMatchObject({
+      name: 'LayoutMismatchError',
+      expected: 'nt004',
+      received: 'nt009',
+    });
+    await expect(
+      fake.emitir({ ...baseEmitirParams(), layout: 'nt010' } as never),
+    ).rejects.toBeInstanceOf(InvalidLayoutError);
+    expect(fake.emittedChaves).toHaveLength(0);
+    // Mesmo layout do fake: aceito (redundante, mas não diverge).
+    const ok = await fake.emitir({ ...baseEmitirParams(), layout: 'nt004' } as never);
+    expect(ok).toMatchObject({ status: 'ok' });
+  });
+
+  it('emitirDpsPronta / substituir rejeitam DPS com campo do outro layout (paridade com o real)', async () => {
+    const fake = new NfseClientFake({ layout: 'nt009' });
+    const base = dpsNt009Completa();
+    const hibrida = {
+      ...base,
+      infDPS: { ...base.infDPS, valores: { ...base.infDPS.valores, vDedRed: { pDR: 10 } } },
+    } as never;
+    await expect(fake.emitirDpsPronta(hibrida)).rejects.toMatchObject({
+      name: 'LayoutMismatchError',
+      field: 'infDPS.valores.vDedRed',
+    });
+    await expect(fake.emitirDpsPronta(hibrida, { dryRun: true })).rejects.toBeInstanceOf(
+      LayoutMismatchError,
+    );
+    await expect(
+      fake.substituir({
+        chaveOriginal: '21113002200574753000100000000000146726037032711025',
+        novaDps: hibrida,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      }),
+    ).rejects.toBeInstanceOf(LayoutMismatchError);
+    // Lote: como o real, a DPS híbrida vira item de falha (não aborta o lote).
+    const lote = await fake.emitirEmLote([hibrida]);
+    expect(lote.failureCount).toBe(1);
+    expect(lote.items[0]).toMatchObject({ status: 'failure' });
+    expect(fake.emittedChaves).toHaveLength(0);
+  });
+
   it('transient no fake grava layout no PendingEmission', async () => {
     const fake = new NfseClientFake({ layout: 'nt009' });
     fake.failNextEmit({ kind: 'transient' });

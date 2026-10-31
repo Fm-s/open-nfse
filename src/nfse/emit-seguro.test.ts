@@ -4,6 +4,7 @@ import forge from 'node-forge';
 import { MockAgent } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { A1Certificate } from '../certificate/types.js';
+import { InvalidLayoutError } from '../errors/validation.js';
 import { HttpClient } from '../http/client.js';
 import { gzipBase64Encode } from '../http/encoding.js';
 import { createDefaultRetryPolicy } from '../retry/policy.js';
@@ -156,6 +157,28 @@ describe('emitSeguro', () => {
       { ...baseParams(), dryRun: true },
     );
     expect(counter.next).not.toHaveBeenCalled();
+    expect('dryRun' in r && r.dryRun).toBe(true);
+  });
+
+  it('params.layout (chamador JS) diferente do cliente → LayoutMismatchError antes do counter', async () => {
+    const counter: DpsCounter = { next: vi.fn() };
+    const deps = {
+      httpClient,
+      certificate: cert,
+      dpsCounter: counter,
+      retryStore: undefined,
+      retryPolicy: createDefaultRetryPolicy(),
+      layout: 'nt004' as const,
+    };
+    await expect(
+      emitSeguro(deps, { ...baseParams(), layout: 'nt009' } as never),
+    ).rejects.toMatchObject({ name: 'LayoutMismatchError', expected: 'nt004', received: 'nt009' });
+    await expect(
+      emitSeguro(deps, { ...baseParams(), layout: 'nt010' } as never),
+    ).rejects.toBeInstanceOf(InvalidLayoutError);
+    expect(counter.next).not.toHaveBeenCalled();
+    // Mesmo layout do cliente: aceito.
+    const r = await emitSeguro(deps, { ...baseParams(), layout: 'nt004', dryRun: true } as never);
     expect('dryRun' in r && r.dryRun).toBe(true);
   });
 

@@ -8,7 +8,7 @@ import {
   JustificativaSubstituicao,
   type TipoAmbienteDps,
 } from '../nfse/enums.js';
-import type { Layout } from '../nfse/layout.js';
+import { assertLayout, type Layout, unknownLayout } from '../nfse/layout.js';
 import type { RetryPolicy } from '../retry/policy.js';
 import {
   MissingRetryStoreError,
@@ -56,7 +56,7 @@ export type CancelarResult =
 
 /**
  * `layout` (opcional; o `NfseClient` passa o seu) é gravado no `PendingEvent`
- * persistido em falha transiente.
+ * persistido em falha transiente. Valor desconhecido → `InvalidLayoutError`.
  */
 export async function cancelar(
   httpClient: HttpClient,
@@ -65,6 +65,8 @@ export async function cancelar(
   params: CancelarParams,
   layout?: Layout,
 ): Promise<CancelarResult> {
+  // Chamador JS: layout desconhecido não vai parar no PendingEvent.
+  if (layout !== undefined) assertLayout(layout);
   // Evento 101101: e101101/xMotivo é obrigatório (1-1); cMotivo=9 (Outros) sem
   // descrição é o caso mais comum de omissão. (E0078 é regra da DPS/subst, não
   // deste evento — o campo aqui é evento/.../e101101/xMotivo.)
@@ -176,7 +178,7 @@ export type SubstituirResult =
 /**
  * `layout` (opcional; o `NfseClient` passa o seu): quando presente, `novaDps`
  * de outro layout é rejeitada com `LayoutMismatchError` antes de qualquer
- * trabalho.
+ * trabalho; valor desconhecido → `InvalidLayoutError`.
  */
 export async function substituir<L extends Layout = Layout>(
   httpClient: HttpClient,
@@ -185,6 +187,8 @@ export async function substituir<L extends Layout = Layout>(
   params: SubstituirParams<L>,
   layout?: L,
 ): Promise<SubstituirResult> {
+  // Chamador JS: layout desconhecido → InvalidLayoutError (não um LayoutMismatchError enganoso).
+  if (layout !== undefined) assertLayout(layout);
   // Rule E0078 — cMotivo=99 exige xMotivo populado. Pré-check local para evitar
   // round-trip + queima de nDPS num emit que seria rejeitado.
   if (params.cMotivo === JustificativaSubstituicao.Outros && !params.xMotivo?.trim()) {
@@ -254,9 +258,14 @@ function ensureSubstPopulated(
     ...(xMotivo ? { xMotivo } : {}),
   };
   // Narrowing por layout: o spread de uma union não preserva o discriminante.
-  return dps.layout === 'nt009'
-    ? { ...dps, infDPS: { ...dps.infDPS, subst } }
-    : { ...dps, infDPS: { ...dps.infDPS, subst } };
+  switch (dps.layout) {
+    case 'nt004':
+      return { ...dps, infDPS: { ...dps.infDPS, subst } };
+    case 'nt009':
+      return { ...dps, infDPS: { ...dps.infDPS, subst } };
+    default:
+      return unknownLayout(dps);
+  }
 }
 
 function dropInternal(r: EventoResult & { xmlAssinado: string }): EventoResult {
