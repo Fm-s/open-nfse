@@ -40,13 +40,21 @@ interface EmitirPedidoParams extends EmitirParams {
 
 // depois (0.12) — fixe o layout…
 interface EmitirPedidoParams extends EmitirParams<'nt004'> {
+  readonly dryRun?: false;
   readonly pedidoId: string;
 }
 // …ou use interseção (também serve para código genérico no layout)
 type EmitirPedidoParams<L extends Layout = 'nt004'> = EmitirParams<L> & {
+  readonly dryRun?: false;
   readonly pedidoId: string;
 };
+
+async function emitirPedido<L extends Layout>(cliente: NfseClient<L>, p: EmitirPedidoParams<L>) {
+  return cliente.emitir(p); // Promise<EmitirResult>
+}
 ```
+
+O `readonly dryRun?: false` é necessário para o valor ser aceito por `cliente.emitir(p)`: `EmitirParams` declara `dryRun?: boolean`, e os overloads de `emitir` pedem `dryRun: true` (→ `DpsDryRunResult`) **ou** `dryRun?: false` (→ `EmitirResult`) — um `boolean` aberto não casa com nenhum dos dois (`TS2769`). Para um tipo de preview, use `readonly dryRun: true`.
 
 ## 2. `buildDps` exige `layout`
 

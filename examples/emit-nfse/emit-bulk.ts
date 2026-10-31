@@ -49,7 +49,7 @@ function montarDps(indice: number): DPS {
     verAplic: 'example-emit-bulk-0.0.0',
     servico: {
       cTribNac: '010101',
-      cNBS: '123456789',
+      cNBS: '115021000',
       descricao: `Serviço em lote #${indice + 1}`,
     },
     // ME/EPP exige o membro pTotTribSN do choice totTrib (% aprox. do Simples).

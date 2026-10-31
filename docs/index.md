@@ -23,7 +23,10 @@ import {
 } from 'open-nfse';
 
 const cliente = new NfseClient({
-  layout: 'nt004',                       // 'nt004' (produção hoje) ou 'nt009' (NT 009, a partir de 01/12/2026)
+  // 'nt004' (produção hoje) ou 'nt009' (NT 009, a partir de 01/12/2026). No 'nt009' a emissão
+  // também leva `ibsCbs` (e `servico.cNBS`, E0322): o Anexo I exige o grupo IBSCBS para
+  // competência ≥ 01/10/2026 (E0855), com omissão tolerada pelo CGNFS-e até 31/12/2026 — veja Leiautes.
+  layout: 'nt004',
   ambiente: Ambiente.ProducaoRestrita,
   certificado: { pfx: readFileSync('./cert.pfx'), password: process.env.CERT_PASSWORD! },
   dpsCounter: createInMemoryDpsCounter(),
@@ -51,7 +54,7 @@ try {
       },
     },
     serie: '1',
-    servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+    servico: { cTribNac: '010101', cNBS: '115021000', descricao: 'Consultoria' },
     valores: { vServ: 1500.0, aliqIss: 2.5, pTotTribSN: 6.0 },
     tomador: { documento: { CNPJ: '11222333000181' }, nome: 'Acme Ltda' },
   });

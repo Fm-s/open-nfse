@@ -72,15 +72,41 @@ Tipos cujo `TCxxx` não mudou entre os bundles mantêm o nome (`InfoPrestador`, 
 - `ibsCbs` (`IbsCbsInput`): classificação (`CST`, `cClassTrib`, crédito presumido, tributação regular, diferimento), destinatário, NFS-e referenciadas, imóvel (`ImovelInput`, `UnidadeImobiliariaInput`) e bens móveis (`BemMovelInput`).
 
 ```ts
+import { buildDps, OpcaoSimplesNacional, RegimeEspecialTributacao } from 'open-nfse';
+
 const dps = buildDps({
   layout: 'nt009',
-  emitente, serie: '1', nDPS: '42', servico, valores,
+  emitente: {
+    cnpj: '00574753000100',
+    codMunicipio: '2111300',
+    // Ajuste da BC do ISSQN por percentual/valor: Não Optante (ou ME/EPP fora do SN), sem regime especial.
+    regime: {
+      opSimpNac: OpcaoSimplesNacional.NaoOptante,
+      regEspTrib: RegimeEspecialTributacao.Nenhum,
+    },
+  },
+  serie: '1',
+  nDPS: '42',
+  // cNBS é obrigatório quando o grupo IBSCBS vai na DPS (E0322); 01.01 → NBS 1.1502.10.00 (Anexo VIII).
+  servico: { cTribNac: '010101', cNBS: '115021000', descricao: 'Desenvolvimento de sistemas' },
+  valores: { vServ: 1500, pTotTrib: { pTotTribFed: 13.45, pTotTribEst: 0, pTotTribMun: 5 } },
+  tomador: {
+    documento: { CNPJ: '11222333000181' },
+    nome: 'Acme Ltda',
+    endereco: {
+      codMunicipio: '3550308', cep: '01310100',
+      logradouro: 'Avenida Paulista', numero: '1578', bairro: 'Bela Vista',
+    },
+  },
   ajusteBC: { issqn: { percentual: 10 } },
-  ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
+  // 01.01 → cClassTrib 000001 e cIndOp 100301 (domicílio do adquirente = tomador), Anexo VIII.
+  ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' }, cIndOp: '100301' },
 });
 ```
 
 `finNFSe` é preenchido com `'0'` (único valor do release 1). Regras de rejeição fechadas do Anexo I `20261020` (E0453, E0464, E0465, E0467, E0469, E0472) são checadas antes de montar a DPS.
+
+O ajuste de BC do ISSQN também tem regras de **contexto**. As que dependem do município de incidência — situação do convênio, parametrização do código de serviço, alíquota efetiva — só o Sefin consegue aplicar e **não** são checadas localmente: E0447 (alíquota efetiva abaixo de 2%), E0449/E0450 (convênio/parametrização, prestador fora do SN) e E0451/E0452/E0455 (ME/EPP com apuração pelo SN, admitido só em alguns subitens). Valem ainda as restrições de regime e de tributação: ISSQN não tributável (E0435), MEI (E0436), regime especial ≠ 0 (E0445) e benefício municipal de isenção (E0448). Por isso o exemplo usa um prestador Não Optante: para um ME/EPP com `regApTribSN = 1` e `cTribNac` 01.01.01, qualquer ajuste por percentual/valor é rejeitado, com convênio ativo (E0455) ou não (E0452).
 
 ## Para quem mantém a lib
 

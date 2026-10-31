@@ -55,7 +55,7 @@ const resultado = await cliente.emitir({
     },
   },
   serie: '1',
-  servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+  servico: { cTribNac: '010101', cNBS: '115021000', descricao: 'Consultoria' },
   // O membro do choice totTrib depende do regime: ME/EPP usa pTotTribSN (% aprox.
   // do Simples), MEI usa indTotTrib='0' (default), Não Optante usa vTotTrib/pTotTrib.
   valores: { vServ: 1500.0, aliqIss: 2.5, pTotTribSN: 6.0 },
@@ -74,7 +74,7 @@ if (resultado.status === 'ok') {
 await cliente.emitir({
   emitente: { /* ... ME/EPP, como acima ... */ },
   serie: '1',
-  servico: { cTribNac: '010101', cNBS: '123456789', descricao: 'Consultoria' },
+  servico: { cTribNac: '010101', cNBS: '115021000', descricao: 'Consultoria' },
   valores: { vServ: 1500.0, aliqIss: 2.5, pTotTribSN: 6.0 },
   tomador: {
     documento: { CNPJ: '11222333000181' },     // ou { CPF: '01075595363' }

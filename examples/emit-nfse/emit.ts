@@ -70,7 +70,7 @@ const params = {
   verAplic: 'example-emit-nfse-0.0.0',
   servico: {
     cTribNac: '010101', // ajuste para o código real do serviço
-    cNBS: '123456789', // opcional desde o RTC v1.01 — consulte o Anexo B
+    cNBS: '115021000', // NBS 1.1502.10.00 (01.01, Anexo VIII); tem de existir no Anexo B (E0316)
     descricao: 'Serviço de teste emitido pelo exemplo open-nfse',
   },
   // ME/EPP exige o membro pTotTribSN do choice totTrib (% aprox. do Simples).
