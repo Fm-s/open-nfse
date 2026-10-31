@@ -262,6 +262,49 @@ describe('NfseClientFake — CNPJ alfanumérico', () => {
   });
 });
 
+describe('NfseClientFake.substituir — falha programada (paridade com o real)', () => {
+  function params(layout: 'nt004') {
+    const novaDps = buildDps({ ...baseEmitirParams(), layout, nDPS: '2' });
+    return {
+      chaveOriginal: synthChaveAcesso(1, '', novaDps.infDPS.Id),
+      novaDps,
+      cMotivo: JustificativaSubstituicao.Outros,
+      xMotivo: 'Correção de valor do serviço',
+    };
+  }
+
+  it('transiente → retry_pending com PendingEmission da substituta (não lança TimeoutError); original intacta', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'transient', message: 'mock timeout' });
+    const p = params('nt004');
+    const r = await fake.substituir(p);
+    expect(r.status).toBe('retry_pending');
+    if (r.status !== 'retry_pending') throw new Error('esperava retry_pending');
+    expect(r.pending).toMatchObject({
+      id: `emission:${p.novaDps.infDPS.Id}`,
+      kind: 'emission',
+      layout: 'nt004',
+      idDps: p.novaDps.infDPS.Id,
+      emitenteCnpj: '00574753000100',
+      serie: '1',
+      nDPS: '2',
+    });
+    expect(r.pending.lastError.transient).toBe(true);
+    expect(r.error).toBeInstanceOf(Error);
+    expect(fake.cancelledChaves).toEqual([]);
+    expect(fake.substituidas.size).toBe(0);
+    expect(fake.emittedChaves).toEqual([]);
+  });
+
+  it('rejeição → ReceitaRejectionError, original intacta', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    fake.failNextEmit({ kind: 'rejection', codigo: 'E0046', descricao: 'x' });
+    await expect(fake.substituir(params('nt004'))).rejects.toBeInstanceOf(ReceitaRejectionError);
+    expect(fake.cancelledChaves).toEqual([]);
+    expect(fake.substituidas.size).toBe(0);
+  });
+});
+
 describe('NfseClientFake parametros municipais', () => {
   it('returns empty results when nothing is seeded', async () => {
     const fake = new NfseClientFake({ layout: 'nt004' });

@@ -24,7 +24,6 @@ import {
 import { buildDps } from '../nfse/build-dps.js';
 import { REGEX_CHAVE_ACESSO } from '../nfse/chave-acesso.js';
 import type { DPS, DpsFor, NFSe } from '../nfse/domain.js';
-import { buildDpsId } from '../nfse/dps-id.js';
 import type {
   DpsDryRunResult,
   EmitirParams,
@@ -56,6 +55,10 @@ import type { PendingEmission, RetryStore } from '../retry/store.js';
 import { FakeState, type ProgrammedFailure } from './fake-state.js';
 import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';
+
+function transientError(failure: Extract<ProgrammedFailure, { kind: 'transient' }>): TimeoutError {
+  return new TimeoutError(5000, { cause: new Error(failure.message ?? 'fake transient') });
+}
 
 // Chave: mesma pré-validação das leituras do real (TSChaveNFSe ou a forma de
 // TSIdNFSe). Id da DPS: espelha TSIdDPS do bundle RTC v1.01-20260727.
@@ -212,62 +215,17 @@ export class NfseClientFake<L extends Layout = Layout> {
     }
 
     const failure = this.consumeFailure('emit');
-    if (failure?.kind === 'rejection') {
-      throw new ReceitaRejectionError({
-        mensagens: [
-          {
-            codigo: failure.codigo,
-            descricao: failure.descricao,
-            ...(failure.complemento ? { complemento: failure.complemento } : {}),
-          },
-        ],
-      });
-    }
+    this.throwIfRejection(failure);
 
     const nDPS = params.nDPS ?? String(this.state.nextSequential++);
-    const idDps = buildDpsId({
-      cLocEmi: params.emitente.codMunicipio,
-      tipoInsc: 'CNPJ',
-      inscricaoFederal: params.emitente.cnpj,
-      serie: params.serie,
-      nDPS,
-    });
     const dps = this.montarDps(params, nDPS);
 
     if (failure?.kind === 'transient') {
-      const error = new TimeoutError(5000, {
-        cause: new Error(failure.message ?? 'fake transient'),
-      });
-      const pending: PendingEmission = {
-        id: `emission:${idDps}`,
-        kind: 'emission',
-        layout: this.layout,
-        idDps,
-        emitenteCnpj: params.emitente.cnpj,
-        serie: params.serie,
-        nDPS,
-        xmlAssinado: '<DPS/>',
-        firstAttemptAt: new Date(),
-        lastAttemptAt: new Date(),
-        lastError: { message: error.message, errorName: error.name, transient: true },
-      };
-      return { status: 'retry_pending', pending, error };
+      const error = transientError(failure);
+      return { status: 'retry_pending', pending: this.pendingEmission(dps, error), error };
     }
 
-    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, params.emitente.cnpj, idDps);
-    const nfse = synthNfse(dps, chaveAcesso, this.ambiente);
-    const result: NfseEmitResult = {
-      chaveAcesso,
-      idDps,
-      xmlNfse: `<NFSe versao="1.01"><infNFSe Id="NFS${chaveAcesso}"/></NFSe>`,
-      nfse,
-      alertas: [],
-      tipoAmbiente: this.ambiente,
-      versaoAplicativo: 'NfseClientFake/0.6',
-      dataHoraProcessamento: new Date(),
-    };
-    this.state.emitted.set(chaveAcesso, result);
-    return { status: 'ok', nfse: result };
+    return { status: 'ok', nfse: this.registrarNfse(dps) };
   }
 
   async emitirDpsPronta(
@@ -282,11 +240,7 @@ export class NfseClientFake<L extends Layout = Layout> {
     dps: DpsFor<L>,
     options?: EmitOptions,
   ): Promise<NfseEmitResult | DpsDryRunResult> {
-    assertSameLayout(this.layout, dps);
-    // Paridade com o real (buildDpsXml): campo do outro layout → LayoutMismatchError.
-    assertNoForeignLayoutFields(dps);
-    // Paridade com o real: DV de CPF/CNPJ antes do dry-run e da falha programada.
-    if (!options?.skipCpfCnpjValidation) runIdentifierValidation(dps);
+    this.guardsDpsPronta(dps, options?.skipCpfCnpjValidation);
     if (options?.dryRun) {
       return {
         dryRun: true,
@@ -295,39 +249,10 @@ export class NfseClientFake<L extends Layout = Layout> {
       };
     }
     const failure = this.consumeFailure('emit');
-    if (failure?.kind === 'rejection') {
-      throw new ReceitaRejectionError({
-        mensagens: [
-          {
-            codigo: failure.codigo,
-            descricao: failure.descricao,
-            ...(failure.complemento ? { complemento: failure.complemento } : {}),
-          },
-        ],
-      });
-    }
-    if (failure?.kind === 'transient') {
-      throw new TimeoutError(5000, { cause: new Error(failure.message ?? 'fake transient') });
-    }
-
-    const cnpj =
-      'CNPJ' in dps.infDPS.prest.identificador
-        ? dps.infDPS.prest.identificador.CNPJ
-        : '00000000000000';
-    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, cnpj, dps.infDPS.Id);
-    const nfse = synthNfse(dps, chaveAcesso, this.ambiente);
-    const result: NfseEmitResult = {
-      chaveAcesso,
-      idDps: dps.infDPS.Id,
-      xmlNfse: `<NFSe versao="1.01"><infNFSe Id="NFS${chaveAcesso}"/></NFSe>`,
-      nfse,
-      alertas: [],
-      tipoAmbiente: this.ambiente,
-      versaoAplicativo: 'NfseClientFake/0.6',
-      dataHoraProcessamento: new Date(),
-    };
-    this.state.emitted.set(chaveAcesso, result);
-    return result;
+    this.throwIfRejection(failure);
+    // emitirDpsPronta do real não tem caminho transiente: a falha vira exceção.
+    if (failure?.kind === 'transient') throw transientError(failure);
+    return this.registrarNfse(dps);
   }
 
   async emitirEmLote(
@@ -367,22 +292,12 @@ export class NfseClientFake<L extends Layout = Layout> {
     validarCancelamento(params);
     buildCancelamentoXml(params);
     const failure = this.consumeFailure('cancel');
-    if (failure?.kind === 'rejection') {
-      throw new ReceitaRejectionError({
-        mensagens: [
-          {
-            codigo: failure.codigo,
-            descricao: failure.descricao,
-            ...(failure.complemento ? { complemento: failure.complemento } : {}),
-          },
-        ],
-      });
-    }
+    this.throwIfRejection(failure);
     if (failure?.kind === 'transient') {
       // Simulate transient — if a retryStore was passed, the real client would
       // persist here. The fake surfaces this by throwing a TimeoutError since
       // the fake doesn't implement the full retry flow.
-      throw new TimeoutError(5000, { cause: new Error(failure.message ?? 'fake transient') });
+      throw transientError(failure);
     }
 
     this.state.cancelled.add(params.chaveAcesso);
@@ -393,13 +308,22 @@ export class NfseClientFake<L extends Layout = Layout> {
 
   async substituir(params: SubstituirParams<L>): Promise<SubstituirResult> {
     assertSameLayout(this.layout, params.novaDps);
-    // Mesmos guards do real (E0078, TSMotivo) + `infDPS.subst` auto-preenchido.
-    // O layout é preservado, então a DPS continua sendo do layout `L`.
+    // Mesmos guards do real (E0078, TSMotivo, TSChaveNFSe, E0042) +
+    // `infDPS.subst` auto-preenchido. O layout é preservado.
     const novaDps = prepararSubstituicao(params) as DpsFor<L>;
-    const novaNfse = await this.emitirDpsPronta(
-      novaDps,
-      params.skipCpfCnpjValidation ? { skipCpfCnpjValidation: true } : undefined,
-    );
+    this.guardsDpsPronta(novaDps, params.skipCpfCnpjValidation);
+
+    // Como o real (emitDpsProntaSeguro): rejeição lança, transiente devolve
+    // retry_pending — em ambos a original fica intacta (o 105102 só nasce com
+    // a substituta autorizada).
+    const failure = this.consumeFailure('emit');
+    this.throwIfRejection(failure);
+    if (failure?.kind === 'transient') {
+      const error = transientError(failure);
+      return { status: 'retry_pending', pending: this.pendingEmission(novaDps, error), error };
+    }
+
+    const novaNfse = this.registrarNfse(novaDps);
     this.state.substituted.set(params.chaveOriginal, novaNfse.chaveAcesso);
     // Modela o sistema gerando o evento 105102 (autor=MEmis) que cancela a
     // original — o contribuinte não posta esse evento.
@@ -527,6 +451,67 @@ export class NfseClientFake<L extends Layout = Layout> {
   }
 
   // -------------------------------------------------------------------------
+
+  /** Guards offline do real para uma DPS pronta, antes do dry-run e da falha programada. */
+  private guardsDpsPronta(dps: DPS, skipCpfCnpjValidation: boolean | undefined): void {
+    assertSameLayout(this.layout, dps);
+    // Paridade com o real (buildDpsXml): campo do outro layout → LayoutMismatchError.
+    assertNoForeignLayoutFields(dps);
+    // Paridade com o real: DV de CPF/CNPJ.
+    if (!skipCpfCnpjValidation) runIdentifierValidation(dps);
+  }
+
+  private throwIfRejection(failure: ProgrammedFailure | undefined): void {
+    if (failure?.kind !== 'rejection') return;
+    throw new ReceitaRejectionError({
+      mensagens: [
+        {
+          codigo: failure.codigo,
+          descricao: failure.descricao,
+          ...(failure.complemento ? { complemento: failure.complemento } : {}),
+        },
+      ],
+    });
+  }
+
+  /** `PendingEmission` no formato do real (`emitDpsProntaSeguro`); XML fictício. */
+  private pendingEmission(dps: DPS, error: Error): PendingEmission {
+    const ident = dps.infDPS.prest.identificador;
+    const now = new Date();
+    return {
+      id: `emission:${dps.infDPS.Id}`,
+      kind: 'emission',
+      layout: this.layout,
+      idDps: dps.infDPS.Id,
+      emitenteCnpj: 'CNPJ' in ident ? ident.CNPJ : '',
+      serie: dps.infDPS.serie,
+      nDPS: dps.infDPS.nDPS,
+      xmlAssinado: '<DPS/>',
+      firstAttemptAt: now,
+      lastAttemptAt: now,
+      attempts: 1,
+      lastError: { message: error.message, errorName: error.name, transient: true },
+    };
+  }
+
+  /** "Autoriza" a DPS: sintetiza chave + NFS-e e registra como emitida. */
+  private registrarNfse(dps: DPS): NfseEmitResult {
+    const ident = dps.infDPS.prest.identificador;
+    const cnpj = 'CNPJ' in ident ? ident.CNPJ : '00000000000000';
+    const chaveAcesso = synthChaveAcesso(this.state.nextSequential++, cnpj, dps.infDPS.Id);
+    const result: NfseEmitResult = {
+      chaveAcesso,
+      idDps: dps.infDPS.Id,
+      xmlNfse: `<NFSe versao="1.01"><infNFSe Id="NFS${chaveAcesso}"/></NFSe>`,
+      nfse: synthNfse(dps, chaveAcesso, this.ambiente),
+      alertas: [],
+      tipoAmbiente: this.ambiente,
+      versaoAplicativo: 'NfseClientFake/0.6',
+      dataHoraProcessamento: new Date(),
+    };
+    this.state.emitted.set(chaveAcesso, result);
+    return result;
+  }
 
   private consumeFailure(kind: 'emit' | 'cancel'): ProgrammedFailure | undefined {
     if (kind === 'emit') {

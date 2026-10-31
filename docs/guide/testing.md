@@ -75,7 +75,9 @@ fake.failNextEmit({
   descricao: 'CNPJ do emitente não autorizado',
 });
 
-// Próxima emissão retorna { status: 'retry_pending' }:
+// Próximo emitir/substituir retorna { status: 'retry_pending' } (a original
+// de substituir fica intacta); emitirDpsPronta/emitirEmLote lançam TimeoutError,
+// como no real (sem caminho transiente):
 fake.failNextEmit({ kind: 'transient', message: 'simulated timeout' });
 
 // Mesmo para cancelar:
@@ -84,7 +86,7 @@ fake.failNextCancel({ kind: 'rejection', codigo: 'E8001', descricao: 'Prazo expi
 
 A falha simula a resposta do POST e é **consumida na próxima chamada que chegaria à rede** — se você programar uma e o teste não acionar a chamada esperada, a próxima chamada futura pegaria a falha. Use `reset()` entre testes.
 
-Como no cliente real, as validações offline rodam **antes** da falha programada: params inválidos (guards do `buildDps`, `LayoutMismatchError`, `xMotivo` fora de `TSMotivo`, E0078 em `substituir`, …) lançam o erro de validação, e a falha continua programada. O `dryRun` também não a consome.
+Como no cliente real, as validações offline rodam **antes** da falha programada: params inválidos (guards do `buildDps`, `LayoutMismatchError`, DV de CPF/CNPJ da DPS pronta, `xMotivo` fora de `TSMotivo`, chave/`verAplic` do pedido de cancelamento, E0078/`TSChaveNFSe`/E0042 em `substituir`, …) lançam o erro de validação, e a falha continua programada. O `dryRun` também não a consome.
 
 ## Introspecção — verificando o que foi feito
 
@@ -177,6 +179,6 @@ O fake não conhece parâmetros municipais nem alíquotas de IBS/CBS: usa a alí
 - **Não valida o XML contra o XSD nem consulta CEP** — só os guards offline do `buildDps` e dos eventos.
 - **Não valida assinatura XMLDSig** — a NFS-e sintetizada traz uma `Signature` com valores `FAKE_*`. Se seu código verifica a signature, faça mock também.
 - **Não executa o `replayPendingEvents` completo** — a função existe mas retorna `[]`. Se quiser testar replay, use um `RetryStore` de verdade + `NfseClient` com `MockAgent`.
-- **Não persiste pendentes em `failNextCancel({kind:'transient'})`** — cancelamento transiente joga `TimeoutError` direto. Emissão transiente retorna `retry_pending` com o pending objeto sintético, mas sem tocar no store real.
+- **Não persiste pendentes em `failNextCancel({kind:'transient'})`** — cancelamento transiente joga `TimeoutError` direto. Emissão transiente (`emitir`, `substituir`) retorna `retry_pending` com o pending objeto sintético, mas sem tocar no store real.
 
 Esses limites são deliberados — o fake é para testar **o código do consumidor**, não o fluxo de retry interno da lib.
