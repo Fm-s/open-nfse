@@ -719,7 +719,7 @@ describe('emissão — NFS-e autorizada com resposta ilegível', () => {
     expect(r.chaveAcesso).toBe(CHAVE_SAMPLE);
     expect(logger.warns).toContainEqual([
       'nfse.parse.unexpected_field',
-      { layout: 'nt004', field: 'vCalcAjusteBCISSQN' },
+      { layout: 'nt004', field: 'vCalcAjusteBCISSQN', path: 'valores/vCalcAjusteBCISSQN' },
     ]);
   });
 

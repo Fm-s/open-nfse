@@ -436,7 +436,7 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
     await mockAgent.close();
   });
 
-  function mockEmitSuccess(capture?: (body: string) => void) {
+  function mockEmitSuccess(capture?: (body: string) => void, nfseXml: string = SAMPLE_XML) {
     mockAgent
       .get('https://sefin.example.test')
       .intercept({ path: '/SefinNacional/nfse', method: 'POST' })
@@ -450,7 +450,7 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
             dataHoraProcessamento: '2026-04-17T12:00:00-03:00',
             idDps: 'DPS211130010057475300010000001000000000000002',
             chaveAcesso: CHAVE_NOVA,
-            nfseXmlGZipB64: gzipBase64Encode(SAMPLE_XML),
+            nfseXmlGZipB64: gzipBase64Encode(nfseXml),
           },
         };
       });
@@ -631,9 +631,10 @@ describe('substituir — emite a DPS com <subst> (105102 gerado pelo sistema)', 
 
   it('nt009: emits <subst><chSubstda> após <cLocEmi> e o XML enviado valida contra o XSD nt009', async () => {
     let captured: string | undefined;
+    // A NFS-e devolvida precisa ser do mesmo layout da DPS enviada.
     mockEmitSuccess((b) => {
       captured = b;
-    });
+    }, SAMPLE_XML_NT009);
     const novaDps = minimalNovaDpsNt009();
     expect(novaDps.infDPS.subst).toBeUndefined();
 

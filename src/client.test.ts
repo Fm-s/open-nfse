@@ -1370,7 +1370,7 @@ describe('NfseClient — NFS-e autorizada com resposta ilegível, logger e recon
     expect(item?.status).toBe('success_emission');
     expect(warns).toContainEqual([
       'nfse.parse.unexpected_field',
-      { layout: 'nt004', field: 'vCalcAjusteBCISSQN' },
+      { layout: 'nt004', field: 'vCalcAjusteBCISSQN', path: 'valores/vCalcAjusteBCISSQN' },
     ]);
     await c.close();
   });

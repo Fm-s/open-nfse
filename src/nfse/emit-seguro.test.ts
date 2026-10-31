@@ -521,6 +521,7 @@ describe('emitSeguro', () => {
     expect(warn).toHaveBeenCalledWith('nfse.parse.unexpected_field', {
       layout: 'nt004',
       field: 'vCalcAjusteBCISSQN',
+      path: 'valores/vCalcAjusteBCISSQN',
     });
   });
 });
