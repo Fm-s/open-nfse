@@ -53,7 +53,7 @@ export class InvalidChaveAcessoError extends ValidationError {
     options?: { cause?: unknown },
   ) {
     super(
-      `Chave de acesso inválida: "${value}". Deve conter 50 caracteres no pattern TSChaveNFSe (numérica; CNPJ alfanumérico permitido nas posições 7-20).`,
+      `Chave de acesso inválida: "${value}". Deve conter 50 caracteres no pattern TSChaveNFSe (numérica; CNPJ alfanumérico permitido nas posições 7-20) ou na regra de formação de TSIdNFSe (CNPJ alfanumérico nas posições 10-23).`,
       options,
     );
   }

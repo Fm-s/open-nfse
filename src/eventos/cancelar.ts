@@ -326,6 +326,11 @@ function comSubst(dps: DPS, subst: Substituicao): DPS {
 
 // TSChaveNFSe (tiposSimples_v1.01.xsd, idêntico nos bundles nt004 e nt009):
 // maxLength 50 + pattern `[0-9]{6}([0-9A-Z]{14})[0-9]{30}` (âncoras implícitas no XSD).
+// Inconsistência oficial: a regra de formação (`TSIdNFSe`, `TSIdPedRegEvt`) põe a
+// Inscrição nas posições 10–23, então a chave de um CNPJ alfanumérico com letra
+// no 12º caractere não casa com `TSChaveNFSe`. Aqui o campo é enviado e validado
+// contra o XSD pela Sefin, então o guard espelha o XSD (as leituras aceitam as
+// duas formas — ver `REGEX_CHAVE_ACESSO` em `nfse/chave-acesso.ts`).
 const REGEX_TS_CHAVE_NFSE = /^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/;
 
 /**

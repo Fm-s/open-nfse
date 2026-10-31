@@ -217,6 +217,49 @@ describe('NfseClientFake.substituir', () => {
   });
 });
 
+describe('NfseClientFake — CNPJ alfanumérico', () => {
+  // Exemplo da RFB (DV válido); letra no índice 11 cai na posição 20 da chave
+  // pela regra de formação de TSIdNFSe — fora das posições 7–20 de TSChaveNFSe.
+  const CNPJ_ALFA = '12ABC34501DE35';
+
+  it('a chave sintetizada passa no fetchByChave, consultarDanfse e cancelar do próprio fake', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const p = baseEmitirParams();
+    const r = await fake.emitir({ ...p, emitente: { ...p.emitente, cnpj: CNPJ_ALFA } });
+    if (!('status' in r) || r.status !== 'ok') throw new Error('esperava ok');
+    const chave = r.nfse.chaveAcesso;
+    expect(chave.slice(9, 23)).toBe(CNPJ_ALFA);
+
+    await expect(fake.fetchByChave(chave)).resolves.toMatchObject({ chaveAcesso: chave });
+    await expect(fake.consultarDanfse(chave)).resolves.toBeInstanceOf(Buffer);
+    await expect(
+      fake.cancelar({
+        chaveAcesso: chave,
+        autor: { CNPJ: CNPJ_ALFA },
+        cMotivo: JustificativaCancelamento.ErroEmissao,
+        xMotivo: 'Erro de teste na emissão',
+      }),
+    ).resolves.toMatchObject({ status: 'ok' });
+  });
+
+  it('substituir segue o TSChaveNFSe do XSD (letra fora das posições 7–20 → RuleViolationError, como no real)', async () => {
+    const fake = new NfseClientFake({ layout: 'nt004' });
+    const p = baseEmitirParams();
+    const emitente = { ...p.emitente, cnpj: CNPJ_ALFA };
+    const r = await fake.emitir({ ...p, emitente });
+    if (!('status' in r) || r.status !== 'ok') throw new Error('esperava ok');
+    const novaDps = buildDps({ ...p, emitente, layout: 'nt004', nDPS: '2' });
+    await expect(
+      fake.substituir({
+        chaveOriginal: r.nfse.chaveAcesso,
+        novaDps,
+        cMotivo: JustificativaSubstituicao.Outros,
+        xMotivo: 'Correção de valor do serviço',
+      }),
+    ).rejects.toMatchObject({ name: 'RuleViolationError', rule: 'TSChaveNFSe' });
+  });
+});
+
 describe('NfseClientFake parametros municipais', () => {
   it('returns empty results when nothing is seeded', async () => {
     const fake = new NfseClientFake({ layout: 'nt004' });

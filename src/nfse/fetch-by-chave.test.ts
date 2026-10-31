@@ -39,6 +39,23 @@ describe('fetchByChave', () => {
     );
   });
 
+  it('aceita a chave na regra de formação de TSIdNFSe (CNPJ alfanumérico até a posição 23)', async () => {
+    // Inscrição nas posições 10–23 (TSIdNFSe sem "NFS"); letra na posição 21
+    // fica fora do pattern de TSChaveNFSe (7–20), mas é uma chave real.
+    const chave = '21113002212ABC34501DE35000000000000126100000000010';
+    mockAgent
+      .get('https://sefin.example.test')
+      .intercept({ path: `/SefinNacional/nfse/${chave}`, method: 'GET' })
+      .reply(404, '');
+    await expect(fetchByChave(httpClient, chave)).rejects.not.toBeInstanceOf(
+      InvalidChaveAcessoError,
+    );
+    // Letra fora de qualquer das duas formas continua inválida.
+    await expect(fetchByChave(httpClient, `A${'1'.repeat(49)}`)).rejects.toBeInstanceOf(
+      InvalidChaveAcessoError,
+    );
+  });
+
   it('decodes the gzip+base64 XML, parses it, and normalizes the response', async () => {
     mockAgent
       .get('https://sefin.example.test')

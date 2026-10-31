@@ -21,6 +21,7 @@ import {
   NotFoundError,
 } from '../index.js';
 import { buildDps } from '../nfse/build-dps.js';
+import { REGEX_CHAVE_ACESSO } from '../nfse/chave-acesso.js';
 import type { DPS, DpsFor, NFSe } from '../nfse/domain.js';
 import { buildDpsId } from '../nfse/dps-id.js';
 import type {
@@ -54,8 +55,8 @@ import { FakeState, type ProgrammedFailure } from './fake-state.js';
 import { FakeSeed } from './seed.js';
 import { synthChaveAcesso, synthNfse } from './synth.js';
 
-// Espelham TSChaveNFSe e TSIdDPS do bundle RTC v1.01-20260727 (CNPJ alfanumérico).
-const REGEX_CHAVE = /^[0-9]{6}[0-9A-Z]{14}[0-9]{30}$/;
+// Chave: mesma pré-validação das leituras do real (TSChaveNFSe ou a forma de
+// TSIdNFSe). Id da DPS: espelha TSIdDPS do bundle RTC v1.01-20260727.
 const REGEX_ID_DPS = /^DPS[0-9]{7}(?:1[0-9]{14}|2[0-9A-Z]{14})[0-9]{20}$/;
 
 /**
@@ -120,7 +121,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   // -------------------------------------------------------------------------
 
   async fetchByChave(chaveAcesso: string): Promise<NfseQueryResult> {
-    if (!REGEX_CHAVE.test(chaveAcesso)) {
+    if (!REGEX_CHAVE_ACESSO.test(chaveAcesso)) {
       throw new InvalidChaveAcessoError(chaveAcesso);
     }
     const nfse = this.state.emitted.get(chaveAcesso);
@@ -475,7 +476,7 @@ export class NfseClientFake<L extends Layout = Layout> {
   }
 
   async consultarDanfse(chaveAcesso: string): Promise<Buffer> {
-    if (!REGEX_CHAVE.test(chaveAcesso)) {
+    if (!REGEX_CHAVE_ACESSO.test(chaveAcesso)) {
       throw new InvalidChaveAcessoError(chaveAcesso);
     }
     // Fake: sempre gera localmente (sem rede). Se a chave não está seedada,
