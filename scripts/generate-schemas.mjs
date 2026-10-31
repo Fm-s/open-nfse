@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Reads schemas/1.01/*.xsd (official current bundle) and emits src/nfse/_rtc-schemas.generated.ts
+// Reads the official XSD bundle of each layout (schemas/1.01 = nt004,
+// schemas/1.01-nt009 = nt009) and emits src/nfse/_rtc-schemas.generated.ts
 // with the contents inlined as template literals. Run this whenever a new
 // Nota Técnica lands and the XSDs are updated:
 //
@@ -13,34 +14,45 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..');
-const SCHEMA_DIR = join(REPO_ROOT, 'schemas', '1.01');
+// layout -> diretório do bundle (relativo à raiz do repo)
+const BUNDLES = { nt004: 'schemas/1.01', nt009: 'schemas/1.01-nt009' };
 const OUTPUT = join(REPO_ROOT, 'src', 'nfse', '_rtc-schemas.generated.ts');
 
-const files = readdirSync(SCHEMA_DIR)
-  .filter((f) => f.endsWith('.xsd'))
-  .sort();
+function renderBundle(dir) {
+  const files = readdirSync(join(REPO_ROOT, dir))
+    .filter((f) => f.endsWith('.xsd'))
+    .sort();
+  const entries = files
+    .map((f) => {
+      const contents = readFileSync(join(REPO_ROOT, dir, f), 'utf-8');
+      // escape backticks and ${ for template literals
+      const escaped = contents.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+      return `    {\n      fileName: ${JSON.stringify(f)},\n      contents: \`${escaped}\`,\n    },`;
+    })
+    .join('\n');
+  return { count: files.length, entries };
+}
 
-const entries = files
-  .map((f) => {
-    const contents = readFileSync(join(SCHEMA_DIR, f), 'utf-8');
-    // escape backticks and ${ for template literals
-    const escaped = contents.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
-    return `  {\n    fileName: ${JSON.stringify(f)},\n    contents: \`${escaped}\`,\n  },`;
-  })
-  .join('\n');
+const blocks = Object.entries(BUNDLES).map(([layout, dir]) => {
+  const { count, entries } = renderBundle(dir);
+  console.log(`${layout}: ${count} schemas from ${dir}`);
+  return `  ${layout}: [\n${entries}\n  ],`;
+});
 
-const output = `// AUTO-GENERATED from schemas/1.01/*.xsd by scripts/generate-schemas.mjs.
+const output = `// AUTO-GENERATED from schemas/<dir>/*.xsd per layout by scripts/generate-schemas.mjs.
 // Do not edit by hand. Regenerate when a new Nota Técnica updates the XSDs.
+
+import type { Layout } from './layout.js';
 
 export interface RtcSchemaFile {
   readonly fileName: string;
   readonly contents: string;
 }
 
-export const RTC_V1_01_SCHEMAS: readonly RtcSchemaFile[] = [
-${entries}
-];
+export const RTC_SCHEMAS = {
+${blocks.join('\n')}
+} as const satisfies Record<Layout, readonly RtcSchemaFile[]>;
 `;
 
 writeFileSync(OUTPUT, output, 'utf-8');
-console.log(`wrote ${files.length} schemas to ${OUTPUT}`);
+console.log(`wrote ${OUTPUT}`);

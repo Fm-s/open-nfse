@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { XsdValidationError } from '../errors/validation.js';
+import { InvalidLayoutError, XsdValidationError } from '../errors/validation.js';
 import { buildDpsXml } from './build-xml.js';
 import type { DPS, InfDPS } from './domain.js';
 import { validateDpsXml } from './validate-xml.js';
@@ -38,12 +38,12 @@ function minimalDps(overrides: Partial<InfDPS> = {}): DPS {
 describe('validateDpsXml', () => {
   it('passes for a well-formed DPS matching RTC v1.01', async () => {
     const xml = buildDpsXml(minimalDps());
-    await expect(validateDpsXml(xml)).resolves.toBeUndefined();
+    await expect(validateDpsXml(xml, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 
   it('returns { valid: true, violations: [] } when throwOnInvalid=false and valid', async () => {
     const xml = buildDpsXml(minimalDps());
-    const r = await validateDpsXml(xml, { throwOnInvalid: false });
+    const r = await validateDpsXml(xml, { layout: 'nt004', throwOnInvalid: false });
     expect(r.valid).toBe(true);
     expect(r.violations).toEqual([]);
   });
@@ -51,12 +51,14 @@ describe('validateDpsXml', () => {
   it('throws XsdValidationError with violations[] when invalid and throwOnInvalid is default', async () => {
     // Invalid Id (length 48 instead of 45): easy way to trigger validation
     const bad = buildDpsXml(minimalDps({ Id: 'DPS211130010057475300010000000010000000000000001' }));
-    await expect(validateDpsXml(bad)).rejects.toBeInstanceOf(XsdValidationError);
+    await expect(validateDpsXml(bad, { layout: 'nt004' })).rejects.toBeInstanceOf(
+      XsdValidationError,
+    );
   });
 
   it('returns { valid: false, violations: [...] } when throwOnInvalid=false and invalid', async () => {
     const bad = buildDpsXml(minimalDps({ Id: 'DPS211130010057475300010000000010000000000000001' }));
-    const r = await validateDpsXml(bad, { throwOnInvalid: false });
+    const r = await validateDpsXml(bad, { layout: 'nt004', throwOnInvalid: false });
     expect(r.valid).toBe(false);
     expect(r.violations.length).toBeGreaterThan(0);
     expect(r.violations[0]?.message).toMatch(/maxLength|pattern/);
@@ -64,7 +66,7 @@ describe('validateDpsXml', () => {
 
   it('rejects nDPS starting with 0 (XSD pattern [1-9][0-9]{0,14})', async () => {
     const bad = buildDpsXml(minimalDps({ nDPS: '01' }));
-    const r = await validateDpsXml(bad, { throwOnInvalid: false });
+    const r = await validateDpsXml(bad, { layout: 'nt004', throwOnInvalid: false });
     expect(r.valid).toBe(false);
     expect(r.violations.some((v) => /nDPS/.test(v.message))).toBe(true);
   });
@@ -80,7 +82,7 @@ describe('validateDpsXml', () => {
         serv: { ...dps.infDPS.serv, cServ: cServSemNBS as typeof dps.infDPS.serv.cServ },
       },
     });
-    const r = await validateDpsXml(xml, { throwOnInvalid: false });
+    const r = await validateDpsXml(xml, { layout: 'nt004', throwOnInvalid: false });
     expect(r.valid).toBe(true);
     expect(r.violations).toHaveLength(0);
   });
@@ -91,7 +93,7 @@ describe('validateDpsXml', () => {
       /<dhEmi>[^<]+<\/dhEmi>/,
       '<dhEmi>2026-04-17T14:30:00.000Z</dhEmi>',
     );
-    const r = await validateDpsXml(xml, { throwOnInvalid: false });
+    const r = await validateDpsXml(xml, { layout: 'nt004', throwOnInvalid: false });
     expect(r.valid).toBe(false);
     expect(r.violations.some((v) => /dhEmi/.test(v.message))).toBe(true);
   });
@@ -101,7 +103,7 @@ describe('validateDpsXml', () => {
       minimalDps({ Id: 'DPS211130010057475300010000000010000000000000001' }),
       { includeXmlDeclaration: false },
     );
-    const r = await validateDpsXml(bad, { throwOnInvalid: false });
+    const r = await validateDpsXml(bad, { layout: 'nt004', throwOnInvalid: false });
     const withLine = r.violations.find((v) => typeof v.line === 'number');
     expect(withLine).toBeDefined();
   });
@@ -109,7 +111,7 @@ describe('validateDpsXml', () => {
   it('XsdValidationError surfaces the first violation in the message', async () => {
     const bad = buildDpsXml(minimalDps({ Id: 'DPS211130010057475300010000000010000000000000001' }));
     try {
-      await validateDpsXml(bad);
+      await validateDpsXml(bad, { layout: 'nt004' });
       expect.fail('should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(XsdValidationError);
@@ -117,5 +119,36 @@ describe('validateDpsXml', () => {
       expect(e.message).toMatch(/Validação XSD falhou/);
       expect(e.violations.length).toBeGreaterThan(0);
     }
+  });
+
+  describe('layouts', () => {
+    const xmlNt004 = buildDpsXml(minimalDps());
+    // nt009: finNFSe obrigatório após tpEmit e cNBS não é mais aceito em cServ.
+    const xmlNt009 = xmlNt004
+      .replace('</tpEmit>', '</tpEmit><finNFSe>0</finNFSe>')
+      .replace(/<cNBS>[^<]*<\/cNBS>/, '');
+
+    it('DPS nt009 é válida no bundle nt009 e inválida no nt004', async () => {
+      expect(xmlNt009).toContain('<finNFSe>');
+      expect(xmlNt009).not.toContain('<cNBS>');
+      expect(
+        (await validateDpsXml(xmlNt009, { layout: 'nt009', throwOnInvalid: false })).valid,
+      ).toBe(true);
+      expect(
+        (await validateDpsXml(xmlNt009, { layout: 'nt004', throwOnInvalid: false })).valid,
+      ).toBe(false);
+    });
+
+    it('DPS nt004 é inválida no bundle nt009 (finNFSe obrigatório)', async () => {
+      expect(
+        (await validateDpsXml(xmlNt004, { layout: 'nt009', throwOnInvalid: false })).valid,
+      ).toBe(false);
+    });
+
+    it('rejeita layout desconhecido (chamadores JS)', async () => {
+      await expect(validateDpsXml(xmlNt004, { layout: 'nt010' as never })).rejects.toBeInstanceOf(
+        InvalidLayoutError,
+      );
+    });
   });
 });

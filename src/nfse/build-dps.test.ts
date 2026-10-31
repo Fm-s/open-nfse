@@ -202,7 +202,7 @@ describe('buildDps', () => {
 
   it('passes XSD validation for a minimal-valid DPS', async () => {
     const xml = buildDpsXml(buildDps(baseParams()));
-    await expect(validateDpsXml(xml)).resolves.toBeUndefined();
+    await expect(validateDpsXml(xml, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 
   // tpEmit='1' — SEFIN rejeita xNome/end no prest porque preenche do cadastro.
@@ -244,7 +244,7 @@ describe('buildDps', () => {
         valores: { ...baseParams().valores, vServ: 51.6, aliqIss: 5 },
       }),
     );
-    await expect(validateDpsXml(xml)).resolves.toBeUndefined();
+    await expect(validateDpsXml(xml, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 
   // --- Guardas de conformidade fail-fast (auditoria 2026-05-29) ---

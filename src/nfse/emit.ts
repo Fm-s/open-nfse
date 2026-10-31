@@ -133,7 +133,8 @@ export async function emitDpsPronta(
   }
   const xmlUnsigned = buildDpsXml(dps);
   if (!options?.skipValidation) {
-    await validateDpsXml(xmlUnsigned);
+    // TODO(nt009 task 5): usar dps.layout / config.layout
+    await validateDpsXml(xmlUnsigned, { layout: 'nt004' });
   }
   if (!options?.skipCepValidation) {
     await runCepValidation(dps, options?.cepValidator);
@@ -179,7 +180,8 @@ export async function emitDpsProntaSeguro(
   }
   const xmlUnsigned = buildDpsXml(dps);
   if (!options?.skipValidation) {
-    await validateDpsXml(xmlUnsigned);
+    // TODO(nt009 task 5): usar dps.layout / config.layout
+    await validateDpsXml(xmlUnsigned, { layout: 'nt004' });
   }
   if (!options?.skipCepValidation) {
     await runCepValidation(dps, options?.cepValidator);
@@ -468,7 +470,8 @@ export async function emitSeguro(
   }
   const xmlPlaceholder = buildDpsXml(dpsParaValidar);
   if (!params.skipValidation) {
-    await validateDpsXml(xmlPlaceholder);
+    // TODO(nt009 task 5): usar dps.layout / config.layout
+    await validateDpsXml(xmlPlaceholder, { layout: 'nt004' });
   }
   if (!params.skipCepValidation) {
     await runCepValidation(dpsParaValidar, params.cepValidator);

@@ -138,6 +138,6 @@ describe('signDpsXml', () => {
 
   it('signed DPS validates against the RTC v1.01 XSD', async () => {
     const signed = signDpsXml(unsignedXml, certificate);
-    await expect(validateDpsXml(signed)).resolves.toBeUndefined();
+    await expect(validateDpsXml(signed, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 });

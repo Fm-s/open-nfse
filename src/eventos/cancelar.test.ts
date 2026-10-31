@@ -453,7 +453,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       xMotivo: 'Valor incorreto',
     });
     const signed = signPedRegEventoXml(xml, cert);
-    await expect(validatePedRegEventoXml(signed)).resolves.toBeUndefined();
+    await expect(validatePedRegEventoXml(signed, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 
   it('signed substituição (105102) validates against pedRegEvento XSD', async () => {
@@ -466,7 +466,7 @@ describe('signPedRegEventoXml + buildCancelamentoXml wiring', () => {
       xMotivo: 'Correção de valor',
     });
     const signed = signPedRegEventoXml(xml, cert);
-    await expect(validatePedRegEventoXml(signed)).resolves.toBeUndefined();
+    await expect(validatePedRegEventoXml(signed, { layout: 'nt004' })).resolves.toBeUndefined();
   });
 });
 

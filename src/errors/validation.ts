@@ -113,3 +113,11 @@ export class XsdValidationError extends ValidationError {
     this.violations = violations;
   }
 }
+
+export class InvalidLayoutError extends ValidationError {
+  constructor(public readonly received: unknown) {
+    super(
+      `layout inválido: ${JSON.stringify(received) ?? String(received)} (valores válidos: "nt004", "nt009")`,
+    );
+  }
+}
