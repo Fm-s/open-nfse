@@ -13,7 +13,9 @@ const parser = new XMLParser({
   trimValues: false,
   ignoreDeclaration: true,
   // `processEntities: true` aqui só controla o decode das entidades built-in
-  // (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` + numéricas). `fast-xml-parser`
+  // (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`). Referências numéricas
+  // (`&#13;`, `&#xE9;`) NÃO são decodificadas nesta configuração (sem
+  // `htmlEntities`) — chegam literais no texto. `fast-xml-parser`
   // não suporta declarações DTD/ENTITY/DOCTYPE, então não há superfície para
   // XXE ou entity-bomb clássicos; desabilitar quebraria o parsing de textos
   // com caracteres escapados (e.g. `xDescServ` contendo `&`).

@@ -24,7 +24,7 @@ import { createInMemoryRetryStore } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
 import { dpsNt009Completa } from './__fixtures__/dps-nt009.js';
 import type { DPS, DpsNt004, InfDPSNt004 } from './domain.js';
-import { emitDpsPronta, emitDpsProntaSeguro, emitMany } from './emit.js';
+import { embeddedDpsMatches, emitDpsPronta, emitDpsProntaSeguro, emitMany } from './emit.js';
 import { validateDpsXml } from './validate-xml.js';
 
 const SAMPLE_PATH = join(
@@ -894,5 +894,25 @@ describe('emissão nt009 — emitDpsPronta / emitMany / emitDpsProntaSeguro', ()
     expect(r.status).toBe('ok');
     if (r.status === 'ok') expect(r.nfse.nfse.layout).toBe('nt009');
     await expect(validateDpsXml(enviado as string, { layout: 'nt009' })).resolves.toBeUndefined();
+  });
+});
+
+describe('embeddedDpsMatches', () => {
+  const nfse = (dps: string) =>
+    `<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS1">${dps}</infNFSe></NFSe>`;
+  const dps = (sig: string) =>
+    `<DPS xmlns="http://www.sped.fazenda.gov.br/nfse"><infDPS Id="DPS1"/><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignatureValue>${sig}</SignatureValue></Signature></DPS>`;
+
+  it.each([
+    ['quebra de linha literal', 'AB\nC+/='],
+    ['CR como referência decimal', 'AB&#13;\nC+/='],
+    ['CR como referência hexadecimal', 'AB&#xD;\nC+/='],
+    ['caractere base64 como referência', 'ABC&#43;/='],
+  ])('mesma assinatura com %s → true', (_rotulo, sig) => {
+    expect(embeddedDpsMatches(nfse(dps(sig)), dps('ABC+/='))).toBe(true);
+  });
+
+  it('assinaturas diferentes → false', () => {
+    expect(embeddedDpsMatches(nfse(dps('XYZ+/=')), dps('ABC+/='))).toBe(false);
   });
 });
