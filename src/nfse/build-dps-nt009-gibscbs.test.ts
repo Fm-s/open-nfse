@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { type BuildDpsParamsNt009, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import type { DpsNt009 } from './domain.js';
-import { OpcaoSimplesNacional, RegimeEspecialTributacao, TipoAjusteBCLocImoveis } from './enums.js';
+import {
+  OpcaoSimplesNacional,
+  RegimeEspecialTributacao,
+  TipoAjusteBCLocImoveis,
+  TipoTribISSQN,
+} from './enums.js';
 
 // buildDps → DTO → buildDpsXml (nt009): cada opcional da classificação IBS/CBS
 // gera, sozinho, o grupo `gIBSCBS` com exatamente aquele filho — um termo a menos
@@ -64,22 +69,28 @@ describe('buildDps nt009 — gIBSCBS com um único opcional', () => {
 
 describe('buildDps nt009 — ajustes da BC na locação de imóveis', () => {
   it('descricao do ajuste vira xTpAjusteBCLocImoveis', () => {
-    const dps = nt009(
-      params({
-        classificacao: CLASSIF,
-        imovel: {
-          codMunicipio: '2111300',
-          unidades: [
-            {
-              identificacao: { cCIB: 'ABC12345' },
-              ajustesBC: [
-                { tipo: TipoAjusteBCLocImoveis.Outras, descricao: 'Fundo de reserva', valor: 40 },
-              ],
-            },
-          ],
-        },
-      }),
-    );
+    // gAjusteBCLocImoveis só no subitem 99.03 (E0939), que exige tribISSQN=4
+    // (E0532) e gLocacao (E0937) com vServ = pCopropriedade × vTotOper.
+    const base = params({
+      classificacao: CLASSIF,
+      imovel: {
+        codMunicipio: '2111300',
+        locacao: { pCopropriedade: 100, vTotOper: 1000 },
+        unidades: [
+          {
+            identificacao: { cCIB: 'ABC12345' },
+            ajustesBC: [
+              { tipo: TipoAjusteBCLocImoveis.Outras, descricao: 'Fundo de reserva', valor: 40 },
+            ],
+          },
+        ],
+      },
+    });
+    const dps = nt009({
+      ...base,
+      servico: { ...base.servico, cTribNac: '990301' },
+      valores: { ...base.valores, tribISSQN: TipoTribISSQN.NaoIncidencia },
+    });
     expect(buildDpsXml(dps)).toContain(
       '<gAjusteBCLocImoveis><tpAjusteBCLocImoveis>99</tpAjusteBCLocImoveis><xTpAjusteBCLocImoveis>Fundo de reserva</xTpAjusteBCLocImoveis><vAjusteBCLocImoveis>40</vAjusteBCLocImoveis></gAjusteBCLocImoveis>',
     );

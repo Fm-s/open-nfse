@@ -53,13 +53,40 @@ function dpsNt004(valores: Partial<InfoValoresNt004> = {}): DpsNt004 {
   return { ...base, infDPS: { ...base.infDPS, valores: { ...base.infDPS.valores, ...valores } } };
 }
 
-function dpsNt009(valores: Partial<InfoValoresNt009> = {}): DpsNt009 {
+/**
+ * A fixture compartilhada é uma locação 99.03 (tribISSQN=4, sem ISSQN — E0532).
+ * As fórmulas de BC/ISSQN precisam de uma operação tributável: mesma DPS com
+ * tribISSQN=1, pAliq 2, ISS não retido e sem desconto incondicionado.
+ */
+function dpsNt009Tributavel(): DpsNt009 {
   const base = dpsNt009Completa();
+  const { vDescCondIncond: _drop, ...valores } = base.infDPS.valores;
+  return {
+    ...base,
+    infDPS: {
+      ...base.infDPS,
+      valores: {
+        ...valores,
+        trib: {
+          ...valores.trib,
+          tribMun: {
+            tribISSQN: TipoTribISSQN.OperacaoTributavel,
+            tpRetISSQN: TipoRetISSQN.NaoRetido,
+            pAliq: 2,
+          },
+        },
+      },
+    },
+  };
+}
+
+function dpsNt009(valores: Partial<InfoValoresNt009> = {}): DpsNt009 {
+  const base = dpsNt009Tributavel();
   return { ...base, infDPS: { ...base.infDPS, valores: { ...base.infDPS.valores, ...valores } } };
 }
 
 function dpsNt009SemAjuste(): DpsNt009 {
-  const base = dpsNt009Completa();
+  const base = dpsNt009Tributavel();
   const { vAjusteBC: _drop, ...valores } = base.infDPS.valores;
   return { ...base, infDPS: { ...base.infDPS, valores } };
 }
@@ -223,7 +250,7 @@ describe('synthNfse — valores (nt004)', () => {
 describe('synthNfse — valores (nt009)', () => {
   it('ajusteBC (percentual + documentos) vira vCalcAjusteBCISSQN e reduz vBC/vISSQN', () => {
     // Fixture: vServ 1000, pAjusteBCISSQN 10, docs 100.5 + 50, pAliq 2, ISS não retido.
-    const v = valoresNt009(synthNfse(dpsNt009Completa(), CHAVE, TipoAmbiente.Homologacao));
+    const v = valoresNt009(synthNfse(dpsNt009Tributavel(), CHAVE, TipoAmbiente.Homologacao));
     // vCalcAjusteBCISSQN = 10% × 1000 + 150.5 = 250.5; vBC = 749.5; vISSQN = 14.99.
     expect(v).toEqual({
       vCalcAjusteBCISSQN: 250.5,
@@ -247,7 +274,7 @@ describe('synthNfse — valores (nt009)', () => {
   });
 
   it('documento tpAjusteBC 105 (glosa de saúde) não ajusta a BC do ISSQN (AJUSTE_BC_REPERCUSSÃO r18)', () => {
-    const doc = dpsNt009Completa().infDPS.valores.vAjusteBC?.documentos?.docAjusteBC[0];
+    const doc = dpsNt009Tributavel().infDPS.valores.vAjusteBC?.documentos?.docAjusteBC[0];
     if (!doc) throw new Error('fixture sem docAjusteBC');
     const v = valoresNt009(
       synthNfse(
