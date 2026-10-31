@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**v0.12.0-rc.1 (release candidate, `next` dist-tag) on branch `nt009`; v0.11.x is the latest stable — see CHANGELOG.** Full fiscal lifecycle covered:
+**v0.12.0-rc.1 (release candidate for the `next` dist-tag, not yet published); v0.11.x is the latest stable — see CHANGELOG.** Full fiscal lifecycle covered:
 
 - **v0.1** — `fetchByChave`, `fetchByNsu`, parser RTC v1.01.
 - **v0.2** — `emitirDpsPronta` / `emitirEmLote`, dry-run, XMLDSig, XSD WASM, CPF/CNPJ DV, ViaCEP, `buildDps`.
@@ -106,7 +106,7 @@ Crucially, **SEFIN uses camelCase + int `tipoAmbiente`** while **ADN uses Pascal
 - **`HttpClient` knows nothing about NFS-e semantics** — it's just "mTLS JSON + status mapping." Domain knowledge (XML parsing, rejection codes, NSU pagination) lives upstream.
 - **`NfseClient.close()` only closes dispatchers it owns.** When a user (or test) injects a `dispatcher`, we don't close it — they own the lifecycle. `ownsDispatcher` flag tracks this.
 - **XML values stay as strings through the low-level parser.** `src/xml/parser.ts` never coerces; coercion (`"2"` → `2`, ISO string → `Date`) happens in `src/nfse/parse-xml.ts` because only the domain layer knows semantic types.
-- **XSD `xs:choice` → TS discriminated union.** `IdentificadorPessoa`, `LocPrest`, `TribTotal`, `InfoDedRed`, `ReferenciaDocDedRed`, `EnderecoLocalidade` (and more) are unions where consumers narrow via `in` operator. Never collapse a choice to "optional fields" — you lose exhaustiveness.
+- **XSD `xs:choice` → TS discriminated union.** `IdentificadorPessoa`, `LocPrest`, `TribTotal`, `InfoDedRedNt004`, `ReferenciaDocDedRedNt004`, `AjusteBCIssqnNt009`, `UnidadeImobiliariaIdentificacaoNt009`, `EnderecoLocalidade` (and more) are unions where consumers narrow via `in` operator. Never collapse a choice to "optional fields" — you lose exhaustiveness.
 - **Identifiers stay `string` (CNPJ, CPF, CEP, cMun, cTribNac)** to preserve leading zeros. **Decimals → `number`** (document this precision tradeoff; consumers needing exact fiscal math wrap in Decimal.js). **Dates → `Date`**.
 - **Some Receita endpoints return 4xx with meaningful bodies.** ADN Contribuintes `/DFe/{NSU}` returns **400 with the full response body** for rejeição and **404 with the full body** for "nenhum documento localizado". These are NOT HTTP errors — the real status is in `body.StatusProcessamento`. `HttpClient.get/post` accepts a `RequestOptions.acceptedStatuses: number[]` list; statuses in the list bypass `mapStatusError` and are parsed normally. `fetchByNsu` uses `[400, 404]`. When implementing v0.2 emission, `POST /nfse` 400 also carries a rejection body (`NFSePostResponseErro`) — same pattern, use `acceptedStatuses: [400]`.
 - **Force HTTP/1.1 — SEFIN Nacional rejects HTTP/2.** The server responds `HTTP_1_1_REQUIRED` on H2 streams for authenticated paths. undici's Agent must be constructed with `allowH2: false` AND `ALPNProtocols: ['http/1.1']` in `connect` — without both, undici may hang silently when the server kills H2 streams (the error closes the socket in a way that doesn't surface as a promise rejection). Both `createMtlsDispatcher` and the inline Agent construction inside `NfseClient.ensureState` already do this; don't remove it.

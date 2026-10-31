@@ -62,7 +62,7 @@ if (nfse.layout === 'nt009') {
 
 ## Tipos
 
-Tipos cujo `TCxxx` não mudou entre os bundles mantêm o nome (`Prestador`, `Tomador`, …). Os que mudaram têm sufixo: `InfDPSNt004`/`InfDPSNt009`, `InfoValoresNt004`/`InfoValoresNt009`, `RtcInfoIbsCbsNt004`/`…Nt009`, `InfNFSeNt004`/`…Nt009`. `DPS = DpsNt004 | DpsNt009`, `NFSe = NfseNt004 | NfseNt009`; `DpsFor<L>` e `NfseFor<L>` resolvem o tipo por layout.
+Tipos cujo `TCxxx` não mudou entre os bundles mantêm o nome (`InfoPrestador`, `Serv`, `RtcInfoDest`, …). Os que mudaram têm sufixo: `InfDPSNt004`/`InfDPSNt009`, `InfoValoresNt004`/`InfoValoresNt009`, `RtcInfoIbsCbsNt004`/`…Nt009`, `InfNFSeNt004`/`…Nt009`. `DPS = DpsNt004 | DpsNt009`, `NFSe = NfseNt004 | NfseNt009`; `DpsFor<L>` e `NfseFor<L>` resolvem o tipo por layout.
 
 ## Inputs de alto nível do `nt009`
 

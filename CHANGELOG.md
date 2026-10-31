@@ -11,7 +11,7 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
 
 ### Changed (breaking)
 
-- **`layout: 'nt004' | 'nt009'` é obrigatório**, sem default nem seleção por data, em `new NfseClient({ layout })`, `new NfseClientFake({ layout, ambiente? })` e `buildDps({ layout, … })`.
+- **`layout: 'nt004' | 'nt009'` é obrigatório**, sem default nem seleção por data, em `new NfseClient({ layout })`, `new NfseClientFake({ layout, ambiente? })` e `buildDps({ layout, … })`. `buildDps` tem overloads por layout (retorna `DpsNt004`/`DpsNt009`, com checagem de propriedades extras nos literais).
 - **`NfseClient<L>` é genérico**: `emitir`, `emitirDpsPronta`, `emitirEmLote` e `substituir` só aceitam os tipos do layout do client em tempo de compilação; `EmitirParams<L>` não tem campo `layout`. Em runtime, `InvalidLayoutError` (valor desconhecido) e `LayoutMismatchError` (DPS ≠ config, lançado antes de consumir contador/assinar/fazer I/O; `emitirEmLote` valida o lote antes do primeiro item). `NfseClientLike<L = Layout>` e `NfseClientFake<L>` seguem o mesmo genérico.
 - **Validadores XSD exigem `{ layout }`**: `validateDpsXml`, `validatePedRegEventoXml`, `validateEventoXml`.
 - **Tipos que diferem entre os leiautes ganharam sufixo `Nt004`/`Nt009`, sem alias sem sufixo**: `InfoValores`, `InfoDedRed`, `RtcInfoIbsCbs`, `ValoresNFSe`, `InfDPS`, `InfNFSe` e demais (veja o [guia de migração](https://fm-s.github.io/open-nfse/guide/migracao-0.12)). `DPS`/`NFSe` viram uniões discriminadas pelo campo sintético `layout` (nunca serializado).
@@ -20,11 +20,12 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
 ### Added
 
 - **`Layout`, `LAYOUTS`, `InvalidLayoutError`, `LayoutMismatchError`** (com `field?`), `DpsFor<L>`, `NfseFor<L>`.
-- **`schemas/1.01-nt009/`** (verbatim `esquemas_prod_restrita_20261020`) e `RTC_SCHEMAS` por layout; um schema libxml2 compilado e cacheado por layout.
+- **`schemas/1.01-nt009/`** (verbatim `esquemas_prod_restrita_20261020`) e `RTC_SCHEMAS` por layout; seleção do bundle de schemas por layout na validação XSD.
 - **Tipos, enums e serialização `nt009`**: `vAjusteBC`, `finNFSe` na raiz da `infDPS`, `trib` (`CST`/`cClassTrib`/`gIBSCBS?`), imóvel reestruturado (`gLocacao`, `gUnidImob`), `bensMoveis`, campos da NFS-e que passam a opcionais, `xDescServ` após `cIntContrib`; enums `TipoAjusteBC` e `TipoAjusteBCLocImoveis`.
-- **Parser lê os dois leiautes sem perda**, detectando por `infDPS/finNFSe`; campos inesperados geram `warn` `nfse.parse.unexpected_field` (`parseNfseXml(xml, { logger? })`).
-- **Inputs de alto nível do `nt009` em `buildDps`/`emitir`**: `ajusteBC` (`AjusteBCInput`, `DocumentoAjusteBCInput`) e `ibsCbs` (`IbsCbsInput`, `ClassificacaoIbsCbsInput`, `DestinatarioInput`, `ImovelInput`, `UnidadeImobiliariaInput`, `BemMovelInput`), com guards do Anexo I `20261020` (E0453, E0464, E0465, E0467, E0469, E0472), DV de fornecedor/destinatário e texto do E0424.
+- **Parser lê os dois leiautes sem perda**, detectando por `infDPS/finNFSe`; campos inesperados geram `warn` `nfse.parse.unexpected_field` (`parseNfseXml(xml, { logger? })`, opções exportadas como `ParseNfseXmlOptions`).
+- **Inputs de alto nível do `nt009` em `buildDps`/`emitir`**: `ajusteBC` (`AjusteBCInput`, `DocumentoAjusteBCInput`) e `ibsCbs` (`IbsCbsInput`, `ClassificacaoIbsCbsInput`, `DestinatarioInput`, `ImovelInput`, `UnidadeImobiliariaInput`, `BemMovelInput`), com guards do Anexo I `20261020` (E0453, E0464, E0465, E0467, E0469, E0472), DV de fornecedor/destinatário e texto do E0424 conforme o Anexo I de cada layout. `DestinatarioInput` não aceita `inscricaoMunicipal` (ausente em `TCRTCInfoDest`).
 - `PendingEvent.layout?` (observabilidade).
+- `verAplic` default compacta pré-releases sem perder dígitos dentro dos 20 chars do `TSVerAplic` (`0.12.0-rc.1` → `open-nfse/0.12.0rc1`, `0.12.0-beta.1` → `open-nfse/0.12.0b1`).
 - `specs/ruleset/nt009/` e `scripts/extract-ruleset.py --layout`.
 - Guias [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts) e [Migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12); `CLAUDE.md` com invariantes de layout e a receita para novos layouts.
 

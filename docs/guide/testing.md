@@ -12,7 +12,7 @@ import { NfseClientFake, type NfseClientLike } from 'open-nfse/testing';
 
 - A lib principal (`open-nfse`) não arrasta o código do fake para produção — tree-shaking nativo.
 - O fake só é carregado em test runners.
-- As duas classes são **estruturalmente compatíveis**: `NfseClientLike = NfseClient | NfseClientFake`.
+- As duas classes são **estruturalmente compatíveis**: `NfseClientLike<L = Layout> = NfseClient<L> | NfseClientFake<L>` — sem argumento aceita cliente de qualquer layout.
 
 ## Tipando suas dependências
 

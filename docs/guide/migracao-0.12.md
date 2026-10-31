@@ -10,6 +10,8 @@ A `0.12.0` introduz o suporte a dois leiautes (`nt004` e `nt009`; veja [Leiautes
 4. Troque os nomes de tipos que ganharam sufixo.
 5. Use `NfseClientFake({ layout })` nos testes.
 6. Se você escreveu `NfseClientLike` próprio, revise a nova assinatura genérica.
+7. DTOs de `DPS` persistidos na 0.11 (sem `layout`) precisam de `layout: 'nt004'` antes de voltar à lib.
+8. `interface X extends EmitirParams` (sem argumento) não compila mais — use `EmitirParams<'nt004'>`.
 
 Para quem continua em produção no leiaute atual, escolha `'nt004'` em tudo: o comportamento é o da 0.11.
 
@@ -26,6 +28,26 @@ const cliente = new NfseClient({ layout: 'nt004', ambiente, certificado });
 
 `EmitirParams<L>` não tem campo `layout` (vem da config). Valor inválido lança `InvalidLayoutError`; DPS de outro layout, `LayoutMismatchError`.
 
+### `EmitirParams` virou alias condicional
+
+Na 0.11, `EmitirParams` era uma `interface`; na 0.12 é um alias condicional distribuído por layout (`EmitirParams<L extends Layout = Layout>`). Sem argumento ele é uma união, e o TypeScript não deixa uma interface estendê-la (`TS2312: An interface can only extend an object type…`):
+
+```ts
+// antes (0.11) — não compila mais na 0.12
+interface EmitirPedidoParams extends EmitirParams {
+  readonly pedidoId: string;
+}
+
+// depois (0.12) — fixe o layout…
+interface EmitirPedidoParams extends EmitirParams<'nt004'> {
+  readonly pedidoId: string;
+}
+// …ou use interseção (também serve para código genérico no layout)
+type EmitirPedidoParams<L extends Layout = 'nt004'> = EmitirParams<L> & {
+  readonly pedidoId: string;
+};
+```
+
 ## 2. `buildDps` exige `layout`
 
 ```ts
@@ -36,7 +58,17 @@ const dps = buildDps({ emitente, serie: '1', nDPS: '42', servico, valores });
 const dps = buildDps({ layout: 'nt004', emitente, serie: '1', nDPS: '42', servico, valores });
 ```
 
-O retorno é `DpsFor<'nt004'>`. Os inputs novos (`ajusteBC`, `ibsCbs`) existem só com `layout: 'nt009'`.
+O retorno é `DpsNt004` (`DpsNt009` com `layout: 'nt009'`). Os inputs novos (`ajusteBC`, `ibsCbs`) existem só com `layout: 'nt009'`.
+
+### DPS persistidas na 0.11
+
+Uma `DPS` montada e guardada (banco, fila, JSON) na 0.11 não tem o campo `layout`. Na 0.12, `buildDpsXml`, `emitirDpsPronta`/`emitirEmLote`/`substituir` e os coletores (`collectIdentifiersFromDps`, `collectCepsFromDps`) lançam `InvalidLayoutError` para uma DPS sem `layout`. Ao reidratar, acrescente o layout em que ela foi montada — na 0.11 só existia o `nt004`:
+
+```ts
+const dps: DpsNt004 = { ...(JSON.parse(salvo) as Omit<DpsNt004, 'layout'>), layout: 'nt004' };
+```
+
+Datas guardadas como string continuam precisando voltar a `Date`, como na 0.11. `PendingEmission`/`PendingEvent` já persistidos não precisam de migração: guardam XML assinado, e o `layout?` deles é opcional.
 
 ## 3. Validadores de XSD exigem `{ layout }`
 
