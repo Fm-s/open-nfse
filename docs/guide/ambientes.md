@@ -9,6 +9,20 @@ Ambiente.ProducaoRestrita   // homologação oficial da Receita
 Ambiente.Producao           // produção real — notas com valor fiscal
 ```
 
+## `ambiente` e `layout` são independentes
+
+O `NfseClient` exige os dois, sem default: `ambiente` escolhe os hosts; `layout` (`'nt004'` | `'nt009'`) escolhe o leiaute das DPS que o cliente emite.
+
+```typescript
+const cliente = new NfseClient({
+  layout: 'nt004',                     // leiaute vigente em produção
+  ambiente: Ambiente.ProducaoRestrita,
+  certificado: { pfx, password },
+});
+```
+
+Os hosts são os mesmos para os dois leiautes. O `nt009` está em Produção Restrita desde 20/10/2026 e entra em produção em 01/12/2026 (o `nt004` vale até 30/11/2026) — valide o `nt009` em `ProducaoRestrita` antes da virada. Detalhes em [Leiautes](./layouts).
+
 ## Hosts por ambiente
 
 A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve automaticamente qual host usar por endpoint:
@@ -29,15 +43,21 @@ A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve auto
 | Operação                               | Método | Endpoint                                                      | Host                        |
 |----------------------------------------|--------|---------------------------------------------------------------|-----------------------------|
 | `fetchByChave`                         | GET    | `/nfse/{chaveAcesso}`                                         | SEFIN                       |
-| `emitir`, `emitirDpsPronta`, `emitirEmLote` | POST | `/nfse`                                                  | SEFIN                       |
-| `cancelar`, `substituir`, `replayPendingEvents` | POST | `/nfse/{chaveAcesso}/eventos`                        | SEFIN                       |
+| `fetchDpsStatus` / `existsDpsStatus`   | GET / HEAD | `/dps/{idDps}`                                            | SEFIN                       |
+| `emitir`, `emitirDpsPronta`, `emitirEmLote`, `substituir` | POST | `/nfse`                                    | SEFIN                       |
+| `cancelar`                             | POST   | `/nfse/{chaveAcesso}/eventos`                                 | SEFIN                       |
+| `replayPendingEvents`                  | POST   | `/nfse` (emissões) e `/nfse/{chaveAcesso}/eventos` (eventos)  | SEFIN                       |
+| `replayPendingEvents` (reconciliação)  | GET    | `/dps/{idDps}`, depois `/nfse/{chaveAcesso}`                  | SEFIN                       |
 | `fetchByNsu`                           | GET    | `/DFe/{NSU}`                                                  | ADN Contribuintes           |
-| `consultarDanfse`, `gerarDanfse` (online)  | GET    | `/{chaveAcesso}`                                              | ADN DANFSe                  |
-| `consultarAliquota`, `consultarHistoricoAliquotas` | GET | `/aliquotas/...`                                   | ADN Parâmetros Municipais   |
-| `consultarBeneficio`                   | GET    | `/beneficios/...`                                             | ADN Parâmetros Municipais   |
-| `consultarConvenio`                    | GET    | `/convenios/{codMunicipio}`                                   | ADN Parâmetros Municipais   |
-| `consultarRegimesEspeciais`            | GET    | `/regimesespeciais/...`                                       | ADN Parâmetros Municipais   |
-| `consultarRetencoes`                   | GET    | `/retencoes/...`                                              | ADN Parâmetros Municipais   |
+| `consultarDanfse`, `gerarDanfse` (`'online'`/`'auto'`, deprecated) | GET | `/{chaveAcesso}`                      | ADN DANFSe                  |
+| `consultarAliquota`                    | GET    | `/{codMunicipio}/{codServico}/{competencia}/aliquota`         | ADN Parâmetros Municipais   |
+| `consultarHistoricoAliquotas`          | GET    | `/{codMunicipio}/{codServico}/historicoaliquotas`             | ADN Parâmetros Municipais   |
+| `consultarBeneficio`                   | GET    | `/{codMunicipio}/{numeroBeneficio}/{competencia}/beneficio`   | ADN Parâmetros Municipais   |
+| `consultarConvenio`                    | GET    | `/{codMunicipio}/convenio`                                    | ADN Parâmetros Municipais   |
+| `consultarRegimesEspeciais`            | GET    | `/{codMunicipio}/{codServico}/{competencia}/regimes_especiais` | ADN Parâmetros Municipais  |
+| `consultarRetencoes`                   | GET    | `/{codMunicipio}/{competencia}/retencoes`                     | ADN Parâmetros Municipais   |
+
+`substituir` emite a DPS substituta (com `infDPS.subst`) no `POST /nfse`; o evento 105102 é gerado pelo Sistema Nacional. A reconciliação do replay roda quando o re-POST de uma emissão é rejeitado de forma permanente (E0014, ou E1235 depois da virada de leiaute) — veja [Integração](./integracao#cron-de-retry).
 
 ## `TipoAmbiente` — o enum do resultado
 
@@ -46,8 +66,8 @@ Separado do `Ambiente` (que é a *escolha* de endpoint). `TipoAmbiente` é o que
 ```typescript
 import { TipoAmbiente } from 'open-nfse';
 
-TipoAmbiente.Producao     // '1'
-TipoAmbiente.Homologacao  // '2'
+TipoAmbiente.Producao     // 'PRODUCAO'
+TipoAmbiente.Homologacao  // 'HOMOLOGACAO'
 
 const r = await cliente.fetchByChave(chave);
 if (r.tipoAmbiente === TipoAmbiente.Producao) {
@@ -129,11 +149,16 @@ endpoints.parametrosMunicipais;
 
 1. ✅ Certificado A1 **do CNPJ real** (o de produção, não o de testes).
 2. ✅ CNPJ habilitado no Emissor Nacional com IM ativa no município aderente.
-3. ✅ Fechou ciclo completo em Produção Restrita: emitir → consultar → cancelar → substituir → distribuição por NSU.
+3. ✅ Fechou ciclo completo em Produção Restrita **no `layout` que vai usar em produção**: emitir → consultar → cancelar → substituir → distribuição por NSU.
 4. ✅ Schema SQL de [integração](./integracao) implementado e testado.
-5. ✅ Retry/reconciliação cron rodando (em `replayPendingEvents` para eventos; em `fetchByChave` para emit `status = error`).
-6. ✅ Monitoramento: taxa de rejeição por código, latência, alerta de expiração de certificado.
-7. ✅ Base legal LGPD documentada para retenção dos XMLs fiscais.
-8. ✅ Base encriptada / acesso ao PFX limitado.
+5. ✅ Cron de `replayPendingEvents` rodando (emissões e eventos pendentes, com reconciliação via `GET /dps/{id}`). Nota **autorizada** com resposta ilegível — `UnreadableAuthorizedNfseError` (lançado por `emitir`/`emitirDpsPronta`/`substituir`), `success_unreadable` (`emitirEmLote`) e `success_emission_unreadable` (replay) — é persistida pela chave do erro, nunca reemitida.
+6. ✅ Plano para a virada de leiaute de 01/12/2026: [drenar o `RetryStore`](./migracao-0.12#virada-retrystore) com o cliente `nt004` antes de criar o cliente `nt009`.
+7. ✅ Monitoramento: taxa de rejeição por código, latência, alerta de expiração de certificado.
+8. ✅ Base legal LGPD documentada para retenção dos XMLs fiscais.
+9. ✅ Base encriptada / acesso ao PFX limitado.
 
 Só então troque `Ambiente.ProducaoRestrita` → `Ambiente.Producao`. **Cada emissão em produção é um documento fiscal oficial.**
+
+::: warning `tpAmb` não acompanha o `ambiente`
+O `ambiente` só escolhe os hosts. O `tpAmb` gravado na DPS e no pedido de cancelamento tem default `'2'` (Homologação) seja qual for o `ambiente` — em `Ambiente.Producao`, passe `tpAmb: TipoAmbienteDps.Producao` em cada `emitir`/`buildDps` e `cancelar`, senão a Receita rejeita com E0006 (DPS) ou E1845 (evento). Veja [Emitir — Setup](./emitir#setup).
+:::

@@ -7,6 +7,8 @@ A API `/parametrizacao` do ADN expõe, para cada município aderente, os dados f
 - **Dates → `Date`**, enums integer → string (alinhado ao resto da lib).
 - **400/404 com body não são erro** — retornam o resultado com `mensagem` populada.
 
+São consultas de cadastro: não dependem do leiaute da DPS e funcionam igual num cliente `nt004` ou `nt009` (o `layout` continua obrigatório no `NfseClient`, mas não muda nada aqui).
+
 ## Métodos
 
 ### `consultarAliquota(codMunicipio, codServico, competencia)`
@@ -74,7 +76,8 @@ const { regimesEspeciais } = await cliente.consultarRegimesEspeciais(
   '2026-03-01',
 );
 
-// estrutura aninhada: regime → variante → RegimeEspecial[]
+// estrutura aninhada: regime → variante → RegimeEspecial[], com as chaves que o ADN devolve
+// (nomes abaixo ilustrativos — o contrato do ADN só tipa o mapa)
 const simplesMeEpp = regimesEspeciais.SimplesNacional?.MeEpp?.[0];
 simplesMeEpp?.situacao;   // '1' Permitido | '2' Vedado | '3' Obrigatório
 ```
@@ -151,11 +154,11 @@ if (r.mensagem) {
 }
 ```
 
-`HttpError` sobe apenas em 401/403 (certificado), 5xx (instabilidade) ou timeout.
+Os demais casos lançam `HttpError`: 401/403 (certificado), 429 (`TooManyRequestsError`), 5xx (instabilidade), timeout, falha de rede ou outro status fora de 2xx/400/404 (`HttpStatusError`).
 
-## Exemplo — alíquota aplicada
+## Exemplo — estimar o ISS antes de emitir
 
-Para calcular o ISS devido de uma nota antes de emiti-la:
+Para mostrar o ISS devido de uma nota antes de emiti-la:
 
 ```typescript
 async function aliquotaDevida(
@@ -173,20 +176,22 @@ async function aliquotaDevida(
   return aliquotas[codServico]?.[0]?.aliquota;
 }
 
-// emissão com alíquota auto-preenchida:
+const vServ = 1500;
 const aliq = await aliquotaDevida(cliente, '2111300', '250101', new Date());
-await cliente.emitir({
-  ...params,
-  valores: { vServ: 1500, aliqIss: aliq ?? 0 },
-});
+// estimativa sobre vServ (sem descontos/ajustes de BC), arredondada ao centavo
+const issEstimado = aliq === undefined ? undefined : Math.round(vServ * aliq) / 100;
 ```
+
+::: warning Não copie a alíquota consultada para `valores.aliqIss`
+A alíquota parametrizada é a que o Sefin aplica quando o convênio do município de incidência está ativo — e, nesse cenário, informar `pAliq` na DPS é **rejeitado** para prestador Não Optante (E0617) e para ME/EPP com apuração fora do Simples (E0635). Fora do convênio ativo, `pAliq` é obrigatório para Não Optante sem regime especial (E0619) e para ME/EPP com apuração fora do Simples (E0640). Para ME/EPP com apuração pelo Simples, depende da retenção do ISSQN, com convênio ativo (E0621/E0625) ou não (E0628/E0631). Com convênio ativo e prestador Não Optante, omita `aliqIss` (o default): o Sefin aplica a alíquota parametrizada e calcula `vISSQN`.
+:::
 
 ## Avisos de cache
 
 Alguns estados são **voláteis** e merecem TTL curto (ou bypass do cache) quando o município não está em operação normal:
 
-- **Município pode ficar suspenso ou inativo.** Rules `E2003` (suspenso) e `E2004` (inativo há mais de X dias) devolvem o status do município junto dos parâmetros. Se sua aplicação vai emitir nesse município, use `useCache: false` ou um TTL < 1 h para decisões sensíveis.
-- **Inscrição Municipal pode ser revogada mid-month.** Rules `E0023`/`E0025`/`E0119`/`E0124` invalidam IMs a qualquer momento. Não cacheie o status de IM por longos períodos — consulte próximo à emissão, não no startup do processo.
+- **O convênio do município pode deixar de estar ativo.** A DPS é rejeitada quando o município emissor não existe (E0037) ou não está "ATIVO" (E0038) no cadastro de convênio (exceto emitente MEI). Se sua aplicação decide onde/como emitir a partir de `consultarConvenio`, use `useCache: false` ou um TTL < 1 h para decisões sensíveis.
+- **Inscrição Municipal pode ficar inativa a qualquer momento.** E0119 (IM não autorizada a emitir na data de processamento) e a rejeição de IM inativa no CNC na competência (E0124 no `nt004`, E0125 no `nt009`) dependem do cadastro do município, que esta API não expõe — não trate parâmetros em cache como garantia de que a IM está apta.
 - **Convênio do município com a Sefin Nacional muda raramente** mas também não é imutável — o default de 24 h para `consultarConvenio` está calibrado pra isso.
 
-Se você precisar invalidar cache manualmente (e.g., após uma rejeição `E2003`), passe `useCache: false` na próxima chamada ou destrua o cache externamente (`ParametrosCache.set` em impls próprias).
+Se você precisar invalidar cache manualmente (e.g., após uma rejeição E0038), passe `useCache: false` na próxima chamada ou destrua o cache externamente (`ParametrosCache.set` em impls próprias).

@@ -5,18 +5,47 @@ A lib valida a DPS **localmente** antes de mandar pro SEFIN. Três validações 
 | Validação   | Custo   | Tipo            | Flag para desligar          |
 |-------------|---------|-----------------|-----------------------------|
 | CPF/CNPJ DV | ~1µs    | Sync            | `skipCpfCnpjValidation`     |
-| XSD RTC     | 50-200ms* | Async (WASM)  | `skipValidation`            |
+| XSD do layout | 50-200ms* | Async (WASM)  | `skipValidation`            |
 | CEP (ViaCEP) | 50-500ms/lookup | Async (HTTP) | `skipCepValidation`    |
 
 \* A primeira chamada carrega o runtime WASM (~1MB); subsequentes são ~5-20ms.
 
+Além delas, dois guards rodam **sempre**, sem opt-out: o de **layout** (`InvalidLayoutError` / `LayoutMismatchError`) e as **regras de rejeição fechadas do Anexo I** checadas no `buildDps` (`RuleViolationError`) — ver [Regras do Anexo I](#regras-do-anexo-i).
+
 ## Ordem de execução em `emitir()`
 
 ```
-CPF/CNPJ (cheapest) → XSD (local) → CEP (external) → sign → POST
+layout + buildDps (regras do Anexo I, DV dos inputs) → CPF/CNPJ (DPS inteira)
+  → XSD do layout → CEP → [dryRun: assina com o nDPS placeholder e para aqui] → nDPS (DpsCounter) → sign → POST
 ```
 
-Mais barata primeiro para falhar rápido antes de gastar tempo.
+Mais barata primeiro para falhar rápido antes de gastar tempo. Tudo que falha antes do `DpsCounter` **não consome `nDPS`**.
+
+Em `emitirDpsPronta` / `emitirEmLote` / `substituir` a DPS já vem pronta: layout da DPS × layout do cliente (`emitirEmLote` checa o lote inteiro antes do primeiro envio; `substituir` roda antes os pré-checks da substituição — ver [Substituir e cancelar](./substituir-cancelar)) → CPF/CNPJ → serialização (campo do outro layout → `LayoutMismatchError`) → XSD → CEP → sign → POST.
+
+## Regras do Anexo I
+
+O `buildDps` (e, portanto, `emitir`) checa as regras de rejeição **fechadas** do Anexo I do layout — as que dependem só dos inputs — e lança `RuleViolationError` com o código em `err.rule`. As que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN.
+
+```typescript
+import { RuleViolationError } from 'open-nfse';
+
+try {
+  await cliente.emitir(params);
+} catch (err) {
+  if (err instanceof RuleViolationError) {
+    console.error(err.rule, err.message); // ex.: 'E0595', 'aliqIss=7% excede o teto de 5% do ISSQN — per E0595'
+  }
+}
+```
+
+O conjunto de regras depende do layout (Anexo I `20260209` no `nt004`, `20261020` no `nt009`):
+
+- **Nos dois layouts:** regime do Simples (E0162, E0166), `aliqIss` acima de 5% (E0595), `aliqIss` com MEI ou com `tribISSQN` 2/3/4 (E0600, E0602), retenção com `tribISSQN` 2/3/4 (E0580), `vReceb` (E0424), total de tributos por regime (E0710, E0712, E0713), `cTribMun` `'000'` (E0315) e 20.01.01 em águas marítimas (E1402).
+- **Muda por layout:** E0532 (`tribISSQN: '4'` obrigatório) vale só para o 99.01.01 no `nt004` e para todo 99.XX.XX no `nt009`.
+- **Só no `nt009`:** E0313 (MEI sem `cTribMun`), as regras do `ajusteBC` e do `ibsCbs` e, numa DPS montada à mão, E0031/E0034 (`cMotivoEmisTI`, `chNFSeRej`). Lista completa em [Leiautes](./layouts#inputs-de-alto-nivel-do-nt009).
+
+Nem todo `err.rule` é um código E: os guards de formato usam o nome do tipo do XSD ou do campo — `'aliqIss'` (valor que parece fração, ex. `0.025` em vez de `2.5`), `'TSVerAplic'`, `'TSDec'` (decimal negativo/não finito), e nos eventos `'TSMotivo'`, `'e101101/xMotivo'`, `'TSChaveNFSe'`, `'infDPS/subst'` (além de E0078 e E0042 em `substituir` — ver [Substituir e cancelar](./substituir-cancelar)).
 
 ## CPF/CNPJ check-digit
 
@@ -42,16 +71,31 @@ try {
 
 ### O que é validado em `emitir`
 
-`collectIdentifiersFromDps` extrai todos os identificadores CNPJ/CPF da DPS (prest, toma, interm, fornec em dedRed, IBSCBS.dest, etc.) e valida cada um. NIF e cNaoNIF são ignorados — não têm DV brasileiro.
+O `buildDps` já confere os documentos dos inputs (emitente, tomador e, no `nt009`, os fornecedores do `ajusteBC` e o destinatário do `ibsCbs`). Depois, `collectIdentifiersFromDps` extrai todos os identificadores CNPJ/CPF da DPS montada e valida cada um — o mesmo passo roda em `emitirDpsPronta`, `emitirEmLote` e `substituir`. Os caminhos variam por layout:
 
-## XSD RTC v1.01
+- **Nos dois:** `prest`, `toma`, `interm`, `IBSCBS.dest`.
+- **`nt004`:** `fornec` dos documentos de `valores.vDedRed` e de `IBSCBS.valores.gReeRepRes`.
+- **`nt009`:** `fornec` dos documentos de `valores.vAjusteBC`.
 
-`validateDpsXml()` roda o XML assinado contra o schema RTC v1.01 bundled usando libxml2 (via WASM). Pega erros estruturais que o SEFIN rejeitaria com round-trip:
+NIF e cNaoNIF são ignorados — não têm DV brasileiro. `skipCpfCnpjValidation` desliga as duas etapas.
 
-- Elemento obrigatório ausente (ex: `cNBS`)
+## XSD do layout
+
+`validateDpsXml()` valida o XML da DPS contra o bundle XSD do `layout` informado, usando libxml2 (via WASM). Os dois layouts serializam `versao="1.01"`, mas os bundles são diferentes:
+
+| `layout` | Bundle                                   | Diretório no repo     |
+|----------|------------------------------------------|-----------------------|
+| `nt004`  | RTC v1.01 `20260727` (produção)           | `schemas/1.01/`       |
+| `nt009`  | NT 009 release 1, `esquemas_prod_restrita_20261020` | `schemas/1.01-nt009/` |
+
+Pega erros estruturais que o SEFIN rejeitaria com round-trip:
+
+- Elemento obrigatório ausente (ex: `xDescServ`; no `nt009`, `infDPS/finNFSe`)
 - Pattern inválido (ex: `nDPS` começando com 0, `dhEmi` com milissegundos)
 - Valor fora do enum (ex: `tribISSQN` não definido)
 - Ordem de elementos errada
+
+`layout` é obrigatório — sem ele (ou com valor desconhecido) a chamada lança `InvalidLayoutError`. Valide sempre contra o layout da própria DPS: um XML `nt004` validado com `layout: 'nt009'` falha (falta `infDPS/finNFSe`, obrigatório no `nt009`). Em `emitir`, a lib usa o layout da DPS.
 
 ### Uso standalone
 
@@ -75,12 +119,14 @@ if (!r.valid) {
 }
 ```
 
+`validatePedRegEventoXml(xml, { layout })` (pedido de registro de evento — cancelamento etc.) e `validateEventoXml(xml, { layout })` (o `<evento>` devolvido pela Sefin) seguem o mesmo contrato.
+
 ### WASM lazy-load
 
 A primeira chamada ao validador carrega o runtime libxml2 (~1MB). Chamadas subsequentes reusam. Em emissão em lote, o custo é amortizado instantaneamente.
 
 ::: tip Bundle dos XSDs
-Os 10 XSDs da RTC v1.01 estão inlineados em `src/nfse/_rtc-schemas.generated.ts` (5800 linhas, regenerado via `scripts/generate-schemas.mjs`). Quando uma nova NT landar, rode o script e commit — sem runtime file I/O.
+Os XSDs dos dois bundles (10 por layout) estão inlineados em `src/nfse/_rtc-schemas.generated.ts` (`RTC_SCHEMAS`, por layout), regenerado via `scripts/generate-schemas.mjs` a partir de `schemas/1.01/` e `schemas/1.01-nt009/`. Quando sai um bundle novo, rode o script e commit — sem runtime file I/O.
 :::
 
 ## CEP (ViaCEP)
@@ -125,7 +171,7 @@ const validator2 = createViaCepValidator({ cache: sharedCache });
 A interface `CepValidator` é pluggable — troque ViaCEP por BrasilAPI, banco de endereços dos Correios, ou um mock em testes:
 
 ```typescript
-import type { CepValidator } from 'open-nfse';
+import { InvalidCepError, NfseClient, type CepValidator } from 'open-nfse';
 
 const brasilApi: CepValidator = {
   async validate(cep) {
@@ -147,8 +193,9 @@ const cliente = new NfseClient({ layout: 'nt004', ..., cepValidator: brasilApi})
 - `prest.end` (prestador)
 - `toma.end`, `interm.end`
 - `serv.obra.end`, `serv.atvEvento.end`
-- `IBSCBS.dest.end`, `IBSCBS.imovel.end`
-- `valores.vDedRed.documentos.docDedRed[].fornec.end`
+- `IBSCBS.dest.end`
+- **`nt004`:** `IBSCBS.imovel.end` e `valores.vDedRed.documentos.docDedRed[].fornec.end`
+- **`nt009`:** `IBSCBS.imovel.gUnidImob[].end` e `valores.vAjusteBC.documentos.docAjusteBC[].fornec.end`
 
 Exterior (`endExt`) é **ignorado** — não tem CEP brasileiro.
 
@@ -162,6 +209,8 @@ await cliente.emitir({
   skipCpfCnpjValidation: true,   // sem DV algorítmico
 });
 ```
+
+O guard de layout e as regras do Anexo I continuam ligados — as regras só barram o que o Anexo I sempre rejeita.
 
 ### Quando desligar?
 
@@ -184,3 +233,5 @@ const ceps = collectCepsFromDps(dps);
 const ids = collectIdentifiersFromDps(dps);
 // [{ path: 'infDPS.prest.CNPJ', type: 'CNPJ', value: '00574753000100' }, ...]
 ```
+
+Os dois aceitam DPS de qualquer layout (`DPS`) e lançam `InvalidLayoutError` para uma DPS sem `layout` (chamador JS).
