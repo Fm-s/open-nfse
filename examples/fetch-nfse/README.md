@@ -2,6 +2,8 @@
 
 Teste de integração real contra a API. Carrega um certificado A1, consulta uma NFS-e por chave (opcional), e puxa documentos da distribuição por NSU.
 
+O cliente é criado com `layout: 'nt004'` — o `layout` é obrigatório, mas só tipa a emissão. As leituras devolvem NFS-e dos dois leiautes (`nt004` e `nt009`): o parser detecta o leiaute pelo `infDPS/finNFSe` e o DTO traz o campo sintético `nfse.layout`. Ver [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+
 ## Requisitos
 
 - Node.js 20+
@@ -48,6 +50,7 @@ npm start
 ▸ Consultando NFS-e por chave: 21113002200574753000100000000000146726037032711025
   [http.request]  { method: 'GET', url: 'https://sefin.producaorestrita...' }
   [http.response] { method: 'GET', url: '...', status: 200, latencyMs: 412 }
+  layout:          nt004
   nNFSe:           1467
   emitente:        VOGA LTDA
   município incid: São Luís
@@ -61,6 +64,22 @@ npm start
     ... (+45 omitidos)
 
 ▸ Total: ... documentos em N lote(s). Último NSU: ...
+```
+
+## Dump da distribuição (`npm run dump`)
+
+`dump.ts` percorre a distribuição por NSU até não haver mais documentos e grava tudo em JSON (XML bruto de cada documento e, para as NFS-e, o DTO `NFSe` parseado, com `layout`). Retoma do último NSU salvo no arquivo e espera o `Retry-After` em HTTP 429 (`TooManyRequestsError.getRetryAfterMs()`).
+
+```sh
+# (opcionais)
+export NFSE_AMBIENTE=producao        # default: Produção Restrita
+export NFSE_OUT=./nfse-dump.json     # arquivo de saída (default)
+export NFSE_ULTIMO_NSU=0             # força o NSU inicial (descarta e sobrescreve o arquivo existente)
+export NFSE_MAX_BATCHES=1000         # limite de lotes por execução
+export NFSE_RETRY_WAIT_MS=60000      # espera em 429 sem Retry-After
+export NFSE_MAX_RETRIES=10           # tentativas em 429 antes de desistir
+
+npm run dump
 ```
 
 ## Segurança

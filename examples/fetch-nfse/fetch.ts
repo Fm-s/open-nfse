@@ -43,6 +43,8 @@ async function main() {
   console.log(`  emitido em: ${cert.issuedOn.toISOString().slice(0, 10)}`);
   console.log(`  expira em:  ${cert.expiresOn.toISOString().slice(0, 10)}`);
 
+  // `layout` é obrigatório, mas só tipa a emissão: as leituras devolvem NFS-e
+  // dos dois leiautes (o parser detecta pelo `infDPS/finNFSe`).
   const cliente = new NfseClient({
     layout: 'nt004',
     ambiente: Ambiente.ProducaoRestrita,
@@ -59,6 +61,7 @@ async function main() {
       console.log(`\n▸ Consultando NFS-e por chave: ${chave}`);
       const resultado = await cliente.fetchByChave(chave);
       const inf = resultado.nfse.infNFSe;
+      console.log(`  layout:          ${resultado.nfse.layout}`);
       console.log(`  nNFSe:           ${inf.nNFSe}`);
       console.log(`  emitente:        ${inf.emit.xNome}`);
       console.log(`  município incid: ${inf.xLocIncid ?? inf.cLocIncid}`);

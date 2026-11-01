@@ -1,7 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import {
   Ambiente,
-  HttpStatusError,
   type Logger,
   type NFSe,
   NfseClient,
@@ -9,6 +8,7 @@ import {
   providerFromFile,
   StatusDistribuicao,
   TipoDocumento,
+  TooManyRequestsError,
 } from 'open-nfse';
 
 process.on('uncaughtException', (err) => {
@@ -92,6 +92,8 @@ async function main() {
   const cert = await provider.load();
   console.log(`▸ Certificado: ${cert.subject} (expira em ${cert.expiresOn.toISOString().slice(0, 10)})`);
 
+  // `layout` só tipa a emissão; o dump lê NFS-e dos dois leiautes (cada
+  // `nfse` salvo carrega o `layout` detectado pelo parser).
   const cliente = new NfseClient({
     layout: 'nt004',
     ambiente,
@@ -153,14 +155,15 @@ async function fetchWithRetry(
     try {
       return await cliente.fetchByNsu({ ultimoNsu });
     } catch (err) {
-      if (err instanceof HttpStatusError && err.status === 429) {
+      if (err instanceof TooManyRequestsError) {
         attempt++;
         if (attempt > maxRetries) {
           console.error(`\n✖ HTTP 429 após ${maxRetries} tentativas — desistindo.`);
           throw err;
         }
         const retryAfter = err.headers['retry-after'];
-        const waitMs = parseRetryAfter(retryAfter) ?? retryWaitMs;
+        // getRetryAfterMs() aceita delta-seconds e HTTP-date (RFC 7231).
+        const waitMs = err.getRetryAfterMs() ?? retryWaitMs;
         const waitSec = Math.round(waitMs / 1000);
         const source = retryAfter ? `Retry-After=${retryAfter}` : `fallback ${waitSec}s`;
         console.log(
@@ -172,16 +175,6 @@ async function fetchWithRetry(
       throw err;
     }
   }
-}
-
-/** Retry-After can be seconds (integer) or HTTP-date. */
-function parseRetryAfter(value: string | undefined): number | undefined {
-  if (!value) return undefined;
-  const asSeconds = Number(value);
-  if (Number.isFinite(asSeconds)) return asSeconds * 1000;
-  const asDate = Date.parse(value);
-  if (!Number.isNaN(asDate)) return Math.max(0, asDate - Date.now());
-  return undefined;
 }
 
 function buildEntry(doc: {
@@ -206,7 +199,10 @@ function buildEntry(doc: {
   }
 
   try {
-    return { ...base, nfse: parseNfseXml(doc.xmlDocumento) };
+    // Com logger, o parser avisa (sem lançar) campos do outro layout
+    // (`nfse.parse.unexpected_field`) e valores que o Anexo I rejeita
+    // (`nfse.parse.rule_violation`).
+    return { ...base, nfse: parseNfseXml(doc.xmlDocumento, { logger }) };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ...base, nfse: null, parseError: message };

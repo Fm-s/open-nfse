@@ -2,6 +2,8 @@
 
 Demonstra a API de emissão síncrona (`POST /nfse`) do open-nfse: montagem de DPS, dry-run, emissão única e emissão em lote com concorrência controlada.
 
+Os dois scripts emitem no leiaute `nt004` (produção atual) por padrão; `NFSE_LAYOUT=nt009` troca para o NT 009, já disponível em Produção Restrita (produção em 01/12/2026). Ver [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+
 ## Requisitos
 
 - Node.js 20+
@@ -28,6 +30,7 @@ export NFSE_CNPJ=00000000000100
 export NFSE_COD_MUN=2111300              # ex. São Luís/MA
 
 # (opcionais)
+export NFSE_LAYOUT=nt004                 # nt004 (default) ou nt009
 export NFSE_SERIE=1
 export NFSE_N_DPS=1
 export NFSE_VALOR=100.00
@@ -45,6 +48,7 @@ Saída típica:
   expira em: 2026-06-05
 
 ▸ DPS a emitir:
+  layout: nt004
   série:  1  nDPS: 1704000000
   valor:  R$ 100.00
 
@@ -53,10 +57,10 @@ Saída típica:
     <?xml version="1.0" encoding="UTF-8"?><DPS xmlns="http://www.sped.fazenda.gov.br/nfse"...
   payload gzip+base64 (2104 bytes): pronto para POST
 
-▸ Enviando DPS para ProducaoRestrita...
+▸ Enviando DPS para PRODUCAO_RESTRITA...
 
 ✔ NFS-e autorizada!
-  chaveAcesso: 21113001000574753000100000000000000014671234567890
+  chaveAcesso: 21113002200574753000100000000000147226051234567890
   idDps:       DPS...
   nNFSe:       1472
   cStat:       100
@@ -73,7 +77,9 @@ export NFSE_CONFIRMA_EMISSAO=yes       # de novo: sem isso só pré-visualiza
 npm run bulk
 ```
 
-O lote é paralelizado no cliente (o SEFIN não tem endpoint de batch). Cada item vira um `EmitLoteItem` com `status: 'success' | 'failure' | 'skipped'`. Falhas em itens individuais **não derrubam o lote inteiro** — use `stopOnError: true` para mudar esse comportamento.
+O lote é paralelizado no cliente (o SEFIN não tem endpoint de batch). Cada item vira um `EmitLoteItem` com `status: 'success' | 'success_unreadable' | 'failure' | 'skipped'`. Falhas em itens individuais **não derrubam o lote inteiro** — use `stopOnError: true` para mudar esse comportamento. `success_unreadable` é uma NFS-e **autorizada** cuja resposta não pôde ser lida (`item.error.chaveAcesso`): conta como sucesso e **não deve ser reemitida**.
+
+Todas as DPS do lote precisam ser do layout do cliente — uma de outro layout rejeita o lote inteiro com `LayoutMismatchError` antes do primeiro envio.
 
 ## Modo dry-run
 
@@ -92,18 +98,20 @@ Quando o SEFIN rejeita a DPS, `emitir()` lança `ReceitaRejectionError` com:
 
 O exemplo imprime o código e a descrição. Para lógica de retry/fila, capture o erro e roteie por `codigo`.
 
+Se a NFS-e foi **autorizada** mas a resposta não pôde ser interpretada, `emitir()` lança `UnreadableAuthorizedNfseError` (com `chaveAcesso`). Não é falha: a nota existe — guarde a chave e **não reemita**.
+
 ## Campos da DPS no exemplo
 
-O script cria uma DPS **mínima** de Homologação. Para emitir em Produção real, você precisa ajustar ao menos:
+O script cria uma DPS **mínima** de Homologação (`tpAmb='2'`, default do `buildDps`) com os params de alto nível do `emitir`. Para emitir em Produção real, você precisa ajustar ao menos:
 
-- `cServ.cTribNac` — código de tributação nacional correto para o serviço
-- `valores.pTotTribSN` — alíquota aproximada do Simples Nacional (obrigatório para optantes SN)
-- `valores.trib.tribMun.tribISSQN` e `pAliq` — alíquota do município
-- `prest.regTrib` — regime tributário real do emitente (SN/LP/LR/MEI)
-- `toma` — dados do tomador (CNPJ ou CPF) se aplicável
-- `IBSCBS` — grupo obrigatório conforme NT04 quando o serviço se encaixa
+- `servico.cTribNac` / `servico.cNBS` — códigos de tributação nacional e NBS corretos para o serviço
+- `emitente.regime` — regime tributário real do emitente (`opSimpNac`, `regApTribSN`, `regEspTrib`)
+- `valores` — o membro do `totTrib` que o regime exige (MEI `indTotTrib` / ME-EPP `pTotTribSN` / Não Optante `vTotTrib` ou `pTotTrib`) e, se for o caso, `aliqIss`, `tribISSQN`, `tpRetISSQN`
+- `tomador` — dados do tomador (CNPJ ou CPF), se aplicável
+- `tpAmb: TipoAmbienteDps.Producao` — o default `'2'` (Homologação) não acompanha o `ambiente` do cliente; sem isso a Receita rejeita com E0006
+- `ibsCbs` / `ajusteBC` — só no `nt009`: grupo IBS/CBS e ajuste da base de cálculo, com as regras do Anexo I checadas offline
 
-Consulte a [Nota Técnica RTC v1.01](https://www.gov.br/nfse/pt-br) para a lista completa.
+O `verAplic` fica no default `open-nfse/<versão>`. Detalhes em [Emitir NFS-e](https://fm-s.github.io/open-nfse/guide/emitir).
 
 ## Segurança
 
@@ -117,4 +125,6 @@ Consulte a [Nota Técnica RTC v1.01](https://www.gov.br/nfse/pt-br) para a lista
 - **`InvalidCertificatePasswordError`**: `NFSE_CERT_SENHA` está errada.
 - **`ForbiddenError` (HTTP 403)**: o CNPJ do cert não está habilitado no Emissor Nacional.
 - **`ReceitaRejectionError [E****]`**: regra de negócio violada pela DPS — veja o `codigo` e ajuste o campo apontado. A Receita publica a tabela completa no Manual do Contribuinte.
+- **`RuleViolationError`**: regra de negócio checada offline, antes de consumir o `nDPS` ou tocar a rede — `rule` traz o código (ex.: `E0322`).
+- **`LayoutMismatchError`**: params/DPS de um layout num cliente de outro.
 - **`InvalidDpsIdParamError`**: algum campo do Id (cMun, CNPJ, série, nDPS) está fora do formato esperado.

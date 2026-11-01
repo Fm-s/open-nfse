@@ -2,6 +2,7 @@ import {
   Ambiente,
   createInMemoryRetryStore,
   type EmitirParams,
+  type Layout,
   type Logger,
   NfseClient,
   OpcaoSimplesNacional,
@@ -9,6 +10,7 @@ import {
   ReceitaRejectionError,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
+  UnreadableAuthorizedNfseError,
 } from 'open-nfse';
 
 process.on('uncaughtException', (err) => {
@@ -32,6 +34,7 @@ if (!certPath || !password || !cnpj || !codMun) {
   console.error('    export NFSE_CNPJ=14-digitos-sem-mascara');
   console.error('    export NFSE_COD_MUN=7-digitos-ibge   # ex. 2111300 = São Luís/MA');
   console.error('\n  Opcionais:');
+  console.error('    export NFSE_LAYOUT=nt004              # nt004 (default) ou nt009');
   console.error('    export NFSE_SERIE=1                   # default: 1');
   console.error('    export NFSE_N_DPS=1                   # default: timestamp UNIX');
   console.error('    export NFSE_VALOR=100.00              # default: 1.00');
@@ -46,6 +49,17 @@ const logger: Logger = {
   warn: (msg, ctx) => console.warn(`  [WARN ${msg}]`, ctx ?? ''),
   error: (msg, ctx) => console.error(`  [ERROR ${msg}]`, ctx ?? ''),
 };
+
+// `layout` é obrigatório e sem default na lib. Numa aplicação ele costuma ser
+// um literal na config (`layout: 'nt004'`), e o `NfseClient<'nt004'>`
+// resultante só aceita params desse layout em tempo de compilação. Aqui vem do
+// ambiente para testar os dois leiautes em Produção Restrita.
+const layoutEnv = process.env.NFSE_LAYOUT ?? 'nt004';
+if (layoutEnv !== 'nt004' && layoutEnv !== 'nt009') {
+  console.error(`\n✖ NFSE_LAYOUT inválido: ${layoutEnv} (use nt004 ou nt009)`);
+  process.exit(1);
+}
+const layout: Layout = layoutEnv;
 
 const serie = process.env.NFSE_SERIE ?? '1';
 // nDPS explícito dispensa o DpsCounter. O default por timestamp evita colisão
@@ -67,7 +81,7 @@ const params = {
   },
   serie,
   nDPS,
-  verAplic: 'example-emit-nfse-0.0.0',
+  // verAplic omitido: default `open-nfse/<versão>` (TSVerAplic aceita até 20 chars).
   servico: {
     cTribNac: '010101', // ajuste para o código real do serviço
     cNBS: '115021000', // NBS 1.1502.10.00 (01.01, Anexo VIII); tem de existir no Anexo B (E0316)
@@ -76,6 +90,8 @@ const params = {
   // ME/EPP exige o membro pTotTribSN do choice totTrib (% aprox. do Simples).
   // MEI usa o default indTotTrib='0'; Não Optante usa vTotTrib/pTotTrib.
   valores: { vServ: valorServico, pTotTribSN: 6.0 },
+  // No nt009 os grupos opcionais `ajusteBC` e `ibsCbs` entram aqui — ver
+  // https://fm-s.github.io/open-nfse/guide/emitir
 } satisfies EmitirParams;
 
 async function main() {
@@ -86,7 +102,7 @@ async function main() {
   console.log(`  expira em: ${cert.expiresOn.toISOString().slice(0, 10)}`);
 
   const cliente = new NfseClient({
-    layout: 'nt004',
+    layout,
     ambiente: Ambiente.ProducaoRestrita,
     certificado: provider,
     // Em produção seria uma impl durável (Postgres); aqui só demonstra o
@@ -97,6 +113,7 @@ async function main() {
 
   try {
     console.log('\n▸ DPS a emitir:');
+    console.log(`  layout: ${layout}`);
     console.log(`  série:  ${serie}  nDPS: ${nDPS}`);
     console.log(`  valor:  R$ ${valorServico.toFixed(2)}`);
 
@@ -141,6 +158,13 @@ async function main() {
         }
       }
     } catch (err) {
+      if (err instanceof UnreadableAuthorizedNfseError) {
+        // A nota foi autorizada — só a resposta não pôde ser lida. Não reemita.
+        console.error('\n⚠ NFS-e autorizada, mas a resposta não pôde ser interpretada.');
+        console.error(`  chaveAcesso: ${err.chaveAcesso}`);
+        console.error('  NÃO reemita: a nota existe — guarde a chave.');
+        process.exit(3);
+      }
       if (err instanceof ReceitaRejectionError) {
         console.error(`\n✖ Rejeição da Receita [${err.codigo}]: ${err.descricao}`);
         if (err.complemento) console.error(`  complemento: ${err.complemento}`);
