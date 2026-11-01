@@ -5,8 +5,8 @@ import {
   MecanismoApoioComExTomador,
   RegimeEspecialTributacao,
   SituacaoNfse,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
 } from './enums.js';
 
 // Trava a conformidade dos enums adicionados/ajustados no alinhamento ao RTC
@@ -48,8 +48,8 @@ describe('conformidade de enums com tiposSimples_v1.01.xsd', () => {
 
 // Enums exclusivos do layout nt009 — valores de schemas/1.01-nt009/tiposSimples_v1.01.xsd.
 describe('conformidade de enums com o bundle nt009 (20261020)', () => {
-  it('TipoAjusteBC cobre TSRTCTpAjusteBC', () => {
-    expect(Object.values(TipoAjusteBC).sort()).toEqual([
+  it('TipoAjusteBCNt009 cobre TSRTCTpAjusteBC', () => {
+    expect(Object.values(TipoAjusteBCNt009).sort()).toEqual([
       '101',
       '102',
       '103',
@@ -66,7 +66,13 @@ describe('conformidade de enums com o bundle nt009 (20261020)', () => {
     ]);
   });
 
-  it('TipoAjusteBCLocImoveis cobre TSAjusteBCLocImoveis', () => {
-    expect(Object.values(TipoAjusteBCLocImoveis).sort()).toEqual(['01', '02', '03', '04', '99']);
+  it('TipoAjusteBCLocImoveisNt009 cobre TSAjusteBCLocImoveis', () => {
+    expect(Object.values(TipoAjusteBCLocImoveisNt009).sort()).toEqual([
+      '01',
+      '02',
+      '03',
+      '04',
+      '99',
+    ]);
   });
 });

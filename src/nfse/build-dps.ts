@@ -40,8 +40,8 @@ import {
   IndicadorDestinatario,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoChaveDFe,
   TipoOperacao,
   TipoRetISSQN,
@@ -228,9 +228,9 @@ export interface BuildDpsParamsNt004 extends BuildDpsParamsBase {
  * Documento que fundamenta um ajuste da base de cálculo (`TCDocAjusteBC`,
  * layout nt009). Vira um `valores/vAjusteBC/documentos/docAjusteBC`.
  */
-export interface DocumentoAjusteBCInput {
+export interface DocumentoAjusteBCInputNt009 {
   /** Tipo de ajuste (`tpAjusteBC`). */
-  readonly tipo: TipoAjusteBC;
+  readonly tipo: TipoAjusteBCNt009;
   /**
    * Descrição do ajuste (`xTpAjusteBC`). Obrigatória quando `tipo` é
    * `OutrasDeducoesIssqn` (99) ou `OutrosReembolsos` (199) — E0465 — e proibida
@@ -263,21 +263,21 @@ export interface DocumentoAjusteBCInput {
  * documentos são independentes e podem coexistir. A lib não calcula nada:
  * os valores vão como informados.
  */
-export interface AjusteBCInput {
+export interface AjusteBCInputNt009 {
   /**
    * Ajuste da BC do ISSQN: `percentual` → `pAjusteBCISSQN` (`> 0` e `<= 100`,
    * E0453) ou `valor` → `vAjusteBCISSQN`.
    */
   readonly issqn?: { readonly percentual: number } | { readonly valor: number };
   /** Documentos de ajuste (1 a 1000 no XSD; lista vazia equivale a omitir). */
-  readonly documentos?: readonly DocumentoAjusteBCInput[];
+  readonly documentos?: readonly DocumentoAjusteBCInputNt009[];
 }
 
 /**
  * Situação/classificação tributária do IBS/CBS (`IBSCBS/valores/trib`). Os
  * opcionais formam o grupo `gIBSCBS`, gerado só quando algum é informado.
  */
-export interface ClassificacaoIbsCbsInput {
+export interface ClassificacaoIbsCbsInputNt009 {
   /** CST do IBS/CBS (3 dígitos, `TSRTCCodSitTrib`) — não é o enum `CST` de PIS/COFINS. */
   readonly CST: string;
   /** Código de classificação tributária (6 dígitos, `TSRTCCodClassTrib`). */
@@ -299,10 +299,10 @@ export interface ClassificacaoIbsCbsInput {
  * forma de {@link TomadorInput}, sem `inscricaoMunicipal` — o `TCRTCInfoDest`
  * não tem IM, então informá-la é erro de compilação.
  */
-export type DestinatarioInput = Omit<TomadorInput, 'inscricaoMunicipal'>;
+export type DestinatarioInputNt009 = Omit<TomadorInput, 'inscricaoMunicipal'>;
 
 /** Unidade imobiliária (`IBSCBS/imovel/gUnidImob`). */
-export interface UnidadeImobiliariaInput {
+export interface UnidadeImobiliariaInputNt009 {
   /** Inscrição imobiliária fiscal (`inscImobFisc`). */
   readonly inscricaoImobiliaria?: string;
   /** `xs:choice`: código CIB ou endereço nacional do imóvel. */
@@ -319,14 +319,14 @@ export interface UnidadeImobiliariaInput {
       };
   /** Parcelas não integrantes da BC do IBS/CBS na locação (`gAjusteBCLocImoveis`). */
   readonly ajustesBC?: readonly {
-    readonly tipo: TipoAjusteBCLocImoveis;
+    readonly tipo: TipoAjusteBCLocImoveisNt009;
     readonly descricao?: string;
     readonly valor: number;
   }[];
 }
 
 /** Operação com bem imóvel, exceto obras (`IBSCBS/imovel`). */
-export interface ImovelInput {
+export interface ImovelInputNt009 {
   /** Código IBGE do município do imóvel (`cMun`). */
   readonly codMunicipio: string;
   /**
@@ -348,11 +348,11 @@ export interface ImovelInput {
     readonly dVencOrig?: Date;
   };
   /** Unidades imobiliárias (0 a 99; lista vazia equivale a omitir). */
-  readonly unidades?: readonly UnidadeImobiliariaInput[];
+  readonly unidades?: readonly UnidadeImobiliariaInputNt009[];
 }
 
 /** Bem móvel objeto de locação (`IBSCBS/bensMoveis`). */
-export interface BemMovelInput {
+export interface BemMovelInputNt009 {
   /** NCM do bem (8 dígitos). */
   readonly ncm: string;
   readonly descricao: string;
@@ -365,8 +365,8 @@ export interface BemMovelInput {
  * `destinatario` presente → `DestinatarioDistinto` + `dest`; ausente →
  * `TomadorEhDestinatario`. A lib não calcula tributo nenhum.
  */
-export interface IbsCbsInput {
-  readonly classificacao: ClassificacaoIbsCbsInput;
+export interface IbsCbsInputNt009 {
+  readonly classificacao: ClassificacaoIbsCbsInputNt009;
   readonly indFinal?: IndicadorFinal;
   /** Código indicador da operação (`cIndOp`, 6 dígitos). */
   readonly cIndOp?: string;
@@ -374,13 +374,13 @@ export interface IbsCbsInput {
   /** Chaves das NFS-e referenciadas (`gRefNFSe/refNFSe`; lista vazia equivale a omitir). */
   readonly nfseReferenciadas?: readonly string[];
   readonly tpEnteGov?: TipoEnteGovernamental;
-  readonly destinatario?: DestinatarioInput;
-  readonly imovel?: ImovelInput;
+  readonly destinatario?: DestinatarioInputNt009;
+  readonly imovel?: ImovelInputNt009;
   /**
    * Bens móveis (0 a 1000; lista vazia equivale a omitir) — só no cTribNac
    * 99.04.01, onde são obrigatórios (E0963/E0967).
    */
-  readonly bensMoveis?: readonly BemMovelInput[];
+  readonly bensMoveis?: readonly BemMovelInputNt009[];
 }
 
 /** Parâmetros de `buildDps` para o layout `nt009` (NT 009 release 1). */
@@ -388,9 +388,9 @@ export interface BuildDpsParamsNt009 extends BuildDpsParamsBase {
   /** Layout da DPS. Obrigatório — sem default. */
   readonly layout: 'nt009';
   /** Ajuste da base de cálculo (`valores/vAjusteBC`). */
-  readonly ajusteBC?: AjusteBCInput;
+  readonly ajusteBC?: AjusteBCInputNt009;
   /** Grupo IBS/CBS (`IBSCBS`). */
-  readonly ibsCbs?: IbsCbsInput;
+  readonly ibsCbs?: IbsCbsInputNt009;
 }
 
 /** Parâmetros de `buildDps` — discriminados por `layout` (obrigatório). */
@@ -570,8 +570,8 @@ function nonEmpty<T>(xs: readonly T[] | undefined): readonly T[] | undefined {
   return xs && xs.length > 0 ? xs : undefined;
 }
 
-/** `AjusteBCInput` → `valores/vAjusteBC`; `undefined` quando nada é informado. */
-function buildAjusteBCNt009(a: AjusteBCInput): InfoAjusteBCNt009 | undefined {
+/** `AjusteBCInputNt009` → `valores/vAjusteBC`; `undefined` quando nada é informado. */
+function buildAjusteBCNt009(a: AjusteBCInputNt009): InfoAjusteBCNt009 | undefined {
   const docs = nonEmpty(a.documentos);
   if (!a.issqn && !docs) return undefined;
   return {
@@ -587,7 +587,7 @@ function buildAjusteBCNt009(a: AjusteBCInput): InfoAjusteBCNt009 | undefined {
   };
 }
 
-function buildDocAjusteBCNt009(d: DocumentoAjusteBCInput): DocAjusteBCNt009 {
+function buildDocAjusteBCNt009(d: DocumentoAjusteBCInputNt009): DocAjusteBCNt009 {
   return {
     tpAjusteBC: d.tipo,
     ...(d.descricao !== undefined ? { xTpAjusteBC: d.descricao } : {}),
@@ -601,8 +601,8 @@ function buildDocAjusteBCNt009(d: DocumentoAjusteBCInput): DocAjusteBCNt009 {
   };
 }
 
-/** `IbsCbsInput` → `IBSCBS`. `indDest` é derivado da presença de `destinatario`. */
-function buildIbsCbsNt009(i: IbsCbsInput): RtcInfoIbsCbsNt009 {
+/** `IbsCbsInputNt009` → `IBSCBS`. `indDest` é derivado da presença de `destinatario`. */
+function buildIbsCbsNt009(i: IbsCbsInputNt009): RtcInfoIbsCbsNt009 {
   const refs = nonEmpty(i.nfseReferenciadas);
   const bens = nonEmpty(i.bensMoveis);
   return {
@@ -629,7 +629,7 @@ function buildIbsCbsNt009(i: IbsCbsInput): RtcInfoIbsCbsNt009 {
   };
 }
 
-function buildDestNt009(d: DestinatarioInput): RtcInfoDest {
+function buildDestNt009(d: DestinatarioInputNt009): RtcInfoDest {
   // TCRTCInfoDest não tem IM: `inscricaoMunicipal` não é serializada.
   return {
     identificador: toIdentificador(d.documento),
@@ -640,7 +640,7 @@ function buildDestNt009(d: DestinatarioInput): RtcInfoDest {
   };
 }
 
-function buildTribIbsCbsNt009(c: ClassificacaoIbsCbsInput): RtcInfoTribIbsCbsNt009 {
+function buildTribIbsCbsNt009(c: ClassificacaoIbsCbsInputNt009): RtcInfoTribIbsCbsNt009 {
   const temGrupo =
     c.cCredPres !== undefined || c.tributacaoRegular !== undefined || c.diferimento !== undefined;
   return {
@@ -658,7 +658,7 @@ function buildTribIbsCbsNt009(c: ClassificacaoIbsCbsInput): RtcInfoTribIbsCbsNt0
   };
 }
 
-function buildImovelNt009(i: ImovelInput): RtcInfoImovelNt009 {
+function buildImovelNt009(i: ImovelInputNt009): RtcInfoImovelNt009 {
   const unidades = nonEmpty(i.unidades);
   return {
     cMun: i.codMunicipio,
@@ -667,7 +667,7 @@ function buildImovelNt009(i: ImovelInput): RtcInfoImovelNt009 {
   };
 }
 
-function buildUnidadeImobiliariaNt009(u: UnidadeImobiliariaInput): RtcUnidadeImobiliariaNt009 {
+function buildUnidadeImobiliariaNt009(u: UnidadeImobiliariaInputNt009): RtcUnidadeImobiliariaNt009 {
   const ajustes = nonEmpty(u.ajustesBC);
   const id = u.identificacao;
   return {
@@ -767,19 +767,19 @@ function assertRegrasNt009(params: BuildDpsParamsNt009): void {
 }
 
 /** Tipos de ajuste de BC que exigem (e são os únicos que admitem) `xTpAjusteBC`. */
-const TIPOS_AJUSTE_BC_COM_DESCRICAO: ReadonlySet<TipoAjusteBC> = new Set([
-  TipoAjusteBC.OutrasDeducoesIssqn,
-  TipoAjusteBC.OutrosReembolsos,
+const TIPOS_AJUSTE_BC_COM_DESCRICAO: ReadonlySet<TipoAjusteBCNt009> = new Set([
+  TipoAjusteBCNt009.OutrasDeducoesIssqn,
+  TipoAjusteBCNt009.OutrosReembolsos,
 ]);
 
 /** Documentos de ajuste que dispensam E0435/E0445 (repasses/reembolsos 101–105 e 199). */
-const TIPOS_AJUSTE_BC_REPASSE: ReadonlySet<TipoAjusteBC> = new Set([
-  TipoAjusteBC.RepasseIntermediacaoImoveis,
-  TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
-  TipoAjusteBC.ReembolsoAgenciaPublicidadeProducaoExterna,
-  TipoAjusteBC.ReembolsoAgenciaPublicidadeMidia,
-  TipoAjusteBC.GlosaServicosSaude,
-  TipoAjusteBC.OutrosReembolsos,
+const TIPOS_AJUSTE_BC_REPASSE: ReadonlySet<TipoAjusteBCNt009> = new Set([
+  TipoAjusteBCNt009.RepasseIntermediacaoImoveis,
+  TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo,
+  TipoAjusteBCNt009.ReembolsoAgenciaPublicidadeProducaoExterna,
+  TipoAjusteBCNt009.ReembolsoAgenciaPublicidadeMidia,
+  TipoAjusteBCNt009.GlosaServicosSaude,
+  TipoAjusteBCNt009.OutrosReembolsos,
 ]);
 
 /**
@@ -787,29 +787,29 @@ const TIPOS_AJUSTE_BC_REPASSE: ReadonlySet<TipoAjusteBC> = new Set([
  * da coluna "regra" (2, 5, 6, 7, 8, 9, 99); a mensagem do Anexo I cita também o
  * 105, mas a regra não — fica de fora para não barrar uma DPS que a SEFIN aceite.
  */
-const TIPOS_AJUSTE_BC_SEM_AJUSTE_ISSQN: ReadonlySet<TipoAjusteBC> = new Set([
-  TipoAjusteBC.Materiais,
-  TipoAjusteBC.RepasseConsorciado,
-  TipoAjusteBC.RepassePlanoSaude,
-  TipoAjusteBC.Servicos,
-  TipoAjusteBC.SubempreitadaMaoObra,
-  TipoAjusteBC.ProfissionalParceiro,
-  TipoAjusteBC.OutrasDeducoesIssqn,
+const TIPOS_AJUSTE_BC_SEM_AJUSTE_ISSQN: ReadonlySet<TipoAjusteBCNt009> = new Set([
+  TipoAjusteBCNt009.Materiais,
+  TipoAjusteBCNt009.RepasseConsorciado,
+  TipoAjusteBCNt009.RepassePlanoSaude,
+  TipoAjusteBCNt009.Servicos,
+  TipoAjusteBCNt009.SubempreitadaMaoObra,
+  TipoAjusteBCNt009.ProfissionalParceiro,
+  TipoAjusteBCNt009.OutrasDeducoesIssqn,
 ]);
 
 /** E0479 — tipos que exigem documento fiscal (`dFeNacional`/`docFiscalOutro`, não `docOutro`). */
-const TIPOS_AJUSTE_BC_DOC_FISCAL: ReadonlySet<TipoAjusteBC> = new Set([
-  TipoAjusteBC.RepasseIntermediacaoImoveis,
-  TipoAjusteBC.ReembolsoAgenciaPublicidadeProducaoExterna,
-  TipoAjusteBC.ReembolsoAgenciaPublicidadeMidia,
-  TipoAjusteBC.OutrosReembolsos,
+const TIPOS_AJUSTE_BC_DOC_FISCAL: ReadonlySet<TipoAjusteBCNt009> = new Set([
+  TipoAjusteBCNt009.RepasseIntermediacaoImoveis,
+  TipoAjusteBCNt009.ReembolsoAgenciaPublicidadeProducaoExterna,
+  TipoAjusteBCNt009.ReembolsoAgenciaPublicidadeMidia,
+  TipoAjusteBCNt009.OutrosReembolsos,
 ]);
 
 /** E0463 — subitens 06.01/06.02 só admitem estes tipos. */
 const SUBITENS_SO_PARCEIRO_OU_REEMBOLSO: ReadonlySet<string> = new Set(['0601', '0602']);
-const TIPOS_AJUSTE_BC_PARCEIRO_OU_REEMBOLSO: ReadonlySet<TipoAjusteBC> = new Set([
-  TipoAjusteBC.ProfissionalParceiro,
-  TipoAjusteBC.OutrosReembolsos,
+const TIPOS_AJUSTE_BC_PARCEIRO_OU_REEMBOLSO: ReadonlySet<TipoAjusteBCNt009> = new Set([
+  TipoAjusteBCNt009.ProfissionalParceiro,
+  TipoAjusteBCNt009.OutrosReembolsos,
 ]);
 
 /** E0476 — `docFiscalOutro` só para competência anterior a esta data (`TSData`). */
@@ -820,7 +820,7 @@ const DOC_FISCAL_OUTRO_COMPETENCIA_LIMITE = '2026-01-01';
  * offline antes de montar a DPS. Datas comparadas como o serializer as emite
  * (`formatDate`, dia de Brasília) e valores como `comoSerializado`.
  */
-function assertAjusteBCNt009(a: AjusteBCInput, params: BuildDpsParamsNt009): void {
+function assertAjusteBCNt009(a: AjusteBCInputNt009, params: BuildDpsParamsNt009): void {
   const docs = a.documentos ?? [];
   if (!a.issqn && docs.length === 0) return;
   const { regime } = params.emitente;
@@ -958,7 +958,7 @@ const SUBITENS_COM_TP_OPER: ReadonlySet<string> = new Set(['2505', '1509', '1712
  * até 31/12/2026. As obrigatoriedades por serviço (E0937, E0963) só são
  * checadas quando `ibsCbs` é informado, pelo mesmo motivo.
  */
-function assertIbsCbsNt009(i: IbsCbsInput, params: BuildDpsParamsNt009): void {
+function assertIbsCbsNt009(i: IbsCbsInputNt009, params: BuildDpsParamsNt009): void {
   const { cTribNac, cNBS } = params.servico;
   // E0322 — com IBS/CBS, a DPS precisa de um item da NBS.
   if (!cNBS) {
@@ -1043,7 +1043,7 @@ function assertIbsCbsNt009(i: IbsCbsInput, params: BuildDpsParamsNt009): void {
           'E0939',
         );
       }
-      const outras = aj.tipo === TipoAjusteBCLocImoveis.Outras;
+      const outras = aj.tipo === TipoAjusteBCLocImoveisNt009.Outras;
       if (outras !== (aj.descricao !== undefined)) {
         throw new RuleViolationError(
           `${at}.descricao é obrigatória quando tipo é 99 e proibida nos demais (atual: ${aj.tipo}) — per E0949`,

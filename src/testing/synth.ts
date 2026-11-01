@@ -14,7 +14,7 @@ import type {
 import {
   AmbienteGerador,
   SituacaoNfse,
-  TipoAjusteBC,
+  TipoAjusteBCNt009,
   TipoEmissao,
   TipoRetISSQN,
   TipoRetPisCofins,
@@ -261,7 +261,7 @@ function synthValoresNt009(dps: DpsNt009): ValoresNFSeNt009 {
   const ajuste = vAjusteBC?.ajusteIssqn;
   // AJUSTE_BC_REPERCUSSÃO r18: tpAjusteBC 105 não ajusta a BC do ISSQN.
   const docs = (vAjusteBC?.documentos?.docAjusteBC ?? []).filter(
-    (d) => d.tpAjusteBC !== TipoAjusteBC.GlosaServicosSaude,
+    (d) => d.tpAjusteBC !== TipoAjusteBCNt009.GlosaServicosSaude,
   );
   const partes = [
     ...(ajuste && 'pAjusteBCISSQN' in ajuste ? [round2((base * ajuste.pAjusteBCISSQN) / 100)] : []),

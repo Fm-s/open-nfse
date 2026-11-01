@@ -95,7 +95,7 @@ await validatePedRegEventoXml(xml, { layout: 'nt004' });
 
 ## 4. Tipos renomeados
 
-Tipos que mudam entre os layouts ganharam sufixo, **sem alias sem sufixo**. Os principais:
+Tipos que mudam entre os layouts — ou que só existem em um deles — ganharam sufixo, **sem alias sem sufixo**. Os principais:
 
 | 0.11 | 0.12 |
 |------|------|
@@ -105,6 +105,8 @@ Tipos que mudam entre os layouts ganharam sufixo, **sem alias sem sufixo**. Os p
 | `ValoresNFSe` | `ValoresNFSeNt004` / `ValoresNFSeNt009` |
 | `InfDPS` | `InfDPSNt004` / `InfDPSNt009` |
 | `InfNFSe` | `InfNFSeNt004` / `InfNFSeNt009` |
+| `TipoDedRed` (enum, só no `nt004`) | `TipoDedRedNt004` |
+| `TipoReembolsoRepasse` (enum, só no `nt004`) | `TipoReembolsoRepasseNt004` |
 
 `DPS` e `NFSe` agora são uniões (`DpsNt004 | DpsNt009`, `NfseNt004 | NfseNt009`) com o discriminante sintético `layout`. Estreite com `if (nfse.layout === 'nt004')`. Para tipar por layout use `DpsFor<L>` / `NfseFor<L>`. Se o seu código acessa `vDedRed`, `gReeRepRes` etc., ele agora precisa estreitar para `nt004`.
 
@@ -125,7 +127,7 @@ const fake9 = new NfseClientFake({ layout: 'nt009', ambiente: TipoAmbiente.Homol
 - `parseNfseXml(xml, { logger? })` lê os dois leiautes; campos do outro leiaute geram `warn` `nfse.parse.unexpected_field` (e são ignorados); valores aceitos pelo XSD mas sempre rejeitados pelo Anexo I (nt009: E0031, E0034) são mantidos, com `warn` `nfse.parse.rule_violation`.
 - `cancelar` (função livre) ganhou `layout?` opcional ao final; `substituir` (função livre) ganhou `layout?` e, depois dele, `logger?` (recebe os `warn` do parser da substituta). Pelo `NfseClient` nada muda.
 - `PendingEvent.layout?` (opcional, observabilidade) — dados já persistidos continuam válidos.
-- Novos enums `TipoAjusteBC` e `TipoAjusteBCLocImoveis`, novos erros `InvalidLayoutError` e `LayoutMismatchError` (com `field` opcional).
+- Novos enums `TipoAjusteBCNt009` e `TipoAjusteBCLocImoveisNt009`, novos erros `InvalidLayoutError` e `LayoutMismatchError` (com `field` opcional).
 
 **Pré-checks novos em `cancelar`/`substituir` (os dois leiautes, antes de qualquer I/O):**
 

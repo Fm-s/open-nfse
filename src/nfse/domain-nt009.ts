@@ -33,8 +33,8 @@ import type {
   MotivoEmissaoTomadorIntermediario,
   ProcessoEmissao,
   SituacaoNfse,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
   TipoEmissao,
@@ -61,7 +61,7 @@ export type AjusteBCIssqnNt009 =
 
 /** `TCDocAjusteBC` — documento que fundamenta um ajuste da base de cálculo. */
 export interface DocAjusteBCNt009 {
-  readonly tpAjusteBC: TipoAjusteBC;
+  readonly tpAjusteBC: TipoAjusteBCNt009;
   readonly xTpAjusteBC?: string;
   readonly vTotDoc: number;
   readonly vAjusteAplic: number;
@@ -114,7 +114,7 @@ export interface EnderImovelNt009 {
 
 /** `TCRTCValoresBCImoveis` — parcela não integrante da BC do IBS/CBS na locação de imóveis. */
 export interface RtcValoresBCImoveisNt009 {
-  readonly tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis;
+  readonly tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009;
   readonly xTpAjusteBCLocImoveis?: string;
   readonly vAjusteBCLocImoveis: number;
 }

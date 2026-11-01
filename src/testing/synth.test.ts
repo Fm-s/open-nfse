@@ -19,9 +19,9 @@ import {
   IndicadorDestinatario,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBC,
-  TipoDedRed,
-  TipoReembolsoRepasse,
+  TipoAjusteBCNt009,
+  TipoDedRedNt004,
+  TipoReembolsoRepasseNt004,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -185,7 +185,7 @@ describe('synthNfse — valores (nt004)', () => {
 
     const doc = {
       referencia: { nDoc: '1' },
-      tpDedRed: TipoDedRed.Materiais,
+      tpDedRed: TipoDedRedNt004.Materiais,
       dtEmiDoc: new Date('2026-01-01'),
       vDedutivelRedutivel: 500,
     };
@@ -214,7 +214,7 @@ describe('synthNfse — valores (nt004)', () => {
       documento: { docOutro: { nDoc: 'REC-1', xDoc: 'Recibo' } },
       dtEmiDoc: new Date('2026-01-01'),
       dtCompDoc: new Date('2026-01-01'),
-      tpReeRepRes: TipoReembolsoRepasse.RepasseIntermediacaoImoveis,
+      tpReeRepRes: TipoReembolsoRepasseNt004.RepasseIntermediacaoImoveis,
     };
     const dps: DpsNt004 = {
       ...base,
@@ -283,7 +283,7 @@ describe('synthNfse — valores (nt009)', () => {
           vAjusteBC: {
             documentos: {
               docAjusteBC: [
-                { ...doc, tpAjusteBC: TipoAjusteBC.GlosaServicosSaude, vAjusteAplic: 300 },
+                { ...doc, tpAjusteBC: TipoAjusteBCNt009.GlosaServicosSaude, vAjusteAplic: 300 },
               ],
             },
           },

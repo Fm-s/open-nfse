@@ -218,7 +218,7 @@ export enum IndicadorTotalTributos {
   Nao = '0',
 }
 
-export enum TipoDedRed {
+export enum TipoDedRedNt004 {
   AlimentacaoBebidas = '1',
   Materiais = '2',
   ProducaoExterna = '3',
@@ -411,7 +411,7 @@ export enum TipoEnteGovernamental {
 }
 
 /** Tipo de reembolso/repasse/ressarcimento (`TSRTCTpReeRepRes`). */
-export enum TipoReembolsoRepasse {
+export enum TipoReembolsoRepasseNt004 {
   RepasseIntermediacaoImoveis = '01',
   RepasseFornecedorAgenciaTurismo = '02',
   ReembolsoAgenciaPublicidadeProducaoExterna = '03',
@@ -424,9 +424,9 @@ export enum TipoReembolsoRepasse {
  * `schemas/1.01-nt009/tiposSimples_v1.01.xsd`), campo
  * `valores/vAjusteBC/documentos/docAjusteBC/tpAjusteBC`. `99` = outras deduções
  * exclusivas do ISSQN; `101`–`104` e `199` correspondem aos reembolsos/repasses
- * que no nt004 iam em `IBSCBS/valores/gReeRepRes` (`TipoReembolsoRepasse`).
+ * que no nt004 iam em `IBSCBS/valores/gReeRepRes` (`TipoReembolsoRepasseNt004`).
  */
-export enum TipoAjusteBC {
+export enum TipoAjusteBCNt009 {
   Materiais = '2',
   RepasseConsorciado = '5',
   RepassePlanoSaude = '6',
@@ -448,7 +448,7 @@ export enum TipoAjusteBC {
  * `schemas/1.01-nt009/tiposSimples_v1.01.xsd`), campo
  * `IBSCBS/imovel/gUnidImob/gAjusteBCLocImoveis/tpAjusteBCLocImoveis`.
  */
-export enum TipoAjusteBCLocImoveis {
+export enum TipoAjusteBCLocImoveisNt009 {
   TributosInclusos = '01',
   Emolumentos = '02',
   Condominio = '03',

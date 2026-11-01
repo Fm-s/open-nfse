@@ -68,8 +68,8 @@ Tipos cujo `TCxxx` não mudou entre os bundles mantêm o nome (`InfoPrestador`, 
 
 `buildDps` e `emitir` aceitam, **só no `nt009`**, dois grupos declarativos (sem cálculo de tributo — o cálculo do IBS/CBS é do Sefin):
 
-- `ajusteBC` (`AjusteBCInput`): ajuste da base de cálculo do ISSQN (percentual **ou** valor) e documentos de ajuste;
-- `ibsCbs` (`IbsCbsInput`): classificação (`CST`, `cClassTrib`, crédito presumido, tributação regular, diferimento), destinatário, NFS-e referenciadas, imóvel (`ImovelInput`, `UnidadeImobiliariaInput`) e bens móveis (`BemMovelInput`).
+- `ajusteBC` (`AjusteBCInputNt009`): ajuste da base de cálculo do ISSQN (percentual **ou** valor) e documentos de ajuste;
+- `ibsCbs` (`IbsCbsInputNt009`): classificação (`CST`, `cClassTrib`, crédito presumido, tributação regular, diferimento), destinatário, NFS-e referenciadas, imóvel (`ImovelInputNt009`, `UnidadeImobiliariaInputNt009`) e bens móveis (`BemMovelInputNt009`).
 
 ```ts
 import { buildDps, OpcaoSimplesNacional, RegimeEspecialTributacao } from 'open-nfse';

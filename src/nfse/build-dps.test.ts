@@ -14,7 +14,7 @@ import {
   type BuildDpsParamsNt004,
   type BuildDpsParamsNt009,
   buildDps,
-  type DocumentoAjusteBCInput,
+  type DocumentoAjusteBCInputNt009,
 } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import type { DPS } from './domain.js';
@@ -27,8 +27,8 @@ import {
   OpcaoSimplesNacional,
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoAmbienteDps,
   TipoChaveDFe,
   TipoEnteGovernamental,
@@ -694,7 +694,7 @@ describe('nt009 inputs de alto nível', () => {
           {
             // 102: fora da lista do E0462 (convive com pAjusteBCISSQN) e do
             // E0479 (admite docOutro); dispensa o E0435 com tribISSQN=4.
-            tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+            tipo: TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo,
             valorTotal: 200,
             valorAplicado: 100.5,
             dataEmissao: new Date('2026-11-20T12:00:00Z'),
@@ -707,7 +707,7 @@ describe('nt009 inputs de alto nível', () => {
           },
           {
             // 199 exige documento fiscal (E0479).
-            tipo: TipoAjusteBC.OutrosReembolsos,
+            tipo: TipoAjusteBCNt009.OutrosReembolsos,
             descricao: 'Reembolso de despesas',
             valorTotal: 50,
             valorAplicado: 50,
@@ -759,8 +759,12 @@ describe('nt009 inputs de alto nível', () => {
               inscricaoImobiliaria: 'IMOB-1',
               identificacao: { cCIB: 'ABC12345' },
               ajustesBC: [
-                { tipo: TipoAjusteBCLocImoveis.Condominio, valor: 150 },
-                { tipo: TipoAjusteBCLocImoveis.Outras, descricao: 'Fundo de reserva', valor: 30 },
+                { tipo: TipoAjusteBCLocImoveisNt009.Condominio, valor: 150 },
+                {
+                  tipo: TipoAjusteBCLocImoveisNt009.Outras,
+                  descricao: 'Fundo de reserva',
+                  valor: 30,
+                },
               ],
             },
             {
@@ -801,19 +805,21 @@ describe('nt009 inputs de alto nível', () => {
     return nfse.infNFSe.DPS;
   }
 
-  type DocPatch = { [K in keyof DocumentoAjusteBCInput]?: DocumentoAjusteBCInput[K] | undefined };
+  type DocPatch = {
+    [K in keyof DocumentoAjusteBCInputNt009]?: DocumentoAjusteBCInputNt009[K] | undefined;
+  };
   function docCom(patch: DocPatch): {
-    readonly ajusteBC: { readonly documentos: readonly DocumentoAjusteBCInput[] };
+    readonly ajusteBC: { readonly documentos: readonly DocumentoAjusteBCInputNt009[] };
   } {
     const merged: Record<string, unknown> = {
-      tipo: TipoAjusteBC.Materiais,
+      tipo: TipoAjusteBCNt009.Materiais,
       valorTotal: 500,
       valorAplicado: 100,
       documento: { docOutro: { nDoc: '1', xDoc: 'Recibo' } },
       ...patch,
     };
     for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
-    return { ajusteBC: { documentos: [merged as unknown as DocumentoAjusteBCInput] } };
+    return { ajusteBC: { documentos: [merged as unknown as DocumentoAjusteBCInputNt009] } };
   }
 
   /** Campos `TSData` (date-only) do DTO da DPS nt009. */
@@ -870,7 +876,7 @@ describe('nt009 inputs de alto nível', () => {
       documentos: {
         docAjusteBC: [
           {
-            tpAjusteBC: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+            tpAjusteBC: TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo,
             vTotDoc: 200,
             vAjusteAplic: 100.5,
             dtEmiDoc: new Date('2026-11-20T12:00:00Z'),
@@ -887,7 +893,7 @@ describe('nt009 inputs de alto nível', () => {
             },
           },
           {
-            tpAjusteBC: TipoAjusteBC.OutrosReembolsos,
+            tpAjusteBC: TipoAjusteBCNt009.OutrosReembolsos,
             xTpAjusteBC: 'Reembolso de despesas',
             vTotDoc: 50,
             vAjusteAplic: 50,
@@ -930,9 +936,12 @@ describe('nt009 inputs de alto nível', () => {
             inscImobFisc: 'IMOB-1',
             identificacao: { cCIB: 'ABC12345' },
             gAjusteBCLocImoveis: [
-              { tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Condominio, vAjusteBCLocImoveis: 150 },
               {
-                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Outras,
+                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009.Condominio,
+                vAjusteBCLocImoveis: 150,
+              },
+              {
+                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009.Outras,
                 xTpAjusteBCLocImoveis: 'Fundo de reserva',
                 vAjusteBCLocImoveis: 30,
               },
@@ -1015,7 +1024,7 @@ describe('nt009 inputs de alto nível', () => {
         issqn: { percentual: 10 },
         documentos: [
           {
-            tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+            tipo: TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo,
             valorTotal: 200,
             valorAplicado: 100.5,
             dataEmissao: new Date('2026-11-20T12:00:00Z'),
@@ -1027,7 +1036,7 @@ describe('nt009 inputs de alto nível', () => {
             },
           },
           {
-            tipo: TipoAjusteBC.OutrosReembolsos,
+            tipo: TipoAjusteBCNt009.OutrosReembolsos,
             descricao: 'Reembolso de despesas',
             valorTotal: 50,
             valorAplicado: 50,
@@ -1053,7 +1062,7 @@ describe('nt009 inputs de alto nível', () => {
             {
               inscricaoImobiliaria: 'IMOB-1',
               identificacao: { cCIB: 'ABC12345' },
-              ajustesBC: [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 150 }],
+              ajustesBC: [{ tipo: TipoAjusteBCLocImoveisNt009.Condominio, valor: 150 }],
             },
             {
               identificacao: {
@@ -1145,8 +1154,8 @@ describe('nt009 inputs de alto nível', () => {
   it.each([
     ['E0453', { ajusteBC: { issqn: { percentual: 0 } } }],
     ['E0453', { ajusteBC: { issqn: { percentual: 100.01 } } }],
-    ['E0464', docCom({ tipo: TipoAjusteBC.Materiais, descricao: 'x' })],
-    ['E0465', docCom({ tipo: TipoAjusteBC.OutrosReembolsos, descricao: undefined })],
+    ['E0464', docCom({ tipo: TipoAjusteBCNt009.Materiais, descricao: 'x' })],
+    ['E0465', docCom({ tipo: TipoAjusteBCNt009.OutrosReembolsos, descricao: undefined })],
     [
       'E0472',
       docCom({ dataEmissao: new Date('2026-10-01'), dataCompetencia: new Date('2026-10-02') }),
@@ -1170,7 +1179,7 @@ describe('nt009 inputs de alto nível', () => {
       buildDps({
         ...paramsNt009Minimos(),
         ...docCom({
-          tipo: TipoAjusteBC.OutrasDeducoesIssqn,
+          tipo: TipoAjusteBCNt009.OutrasDeducoesIssqn,
           descricao: 'Outras',
           valorTotal: 1000,
           valorAplicado: 1000,
@@ -1271,8 +1280,8 @@ describe('nt009 inputs de alto nível', () => {
       },
     });
     /** Doc 199 com documento fiscal: dispensa E0435/E0445. */
-    const doc199 = (): DocumentoAjusteBCInput => ({
-      tipo: TipoAjusteBC.OutrosReembolsos,
+    const doc199 = (): DocumentoAjusteBCInputNt009 => ({
+      tipo: TipoAjusteBCNt009.OutrosReembolsos,
       descricao: 'Reembolso',
       valorTotal: 50,
       valorAplicado: 50,
@@ -1351,7 +1360,7 @@ describe('nt009 inputs de alto nível', () => {
         'tipo 199 com docOutro',
         () => ({
           ...paramsNt009Minimos(),
-          ...docCom({ tipo: TipoAjusteBC.OutrosReembolsos, descricao: 'Reembolso' }),
+          ...docCom({ tipo: TipoAjusteBCNt009.OutrosReembolsos, descricao: 'Reembolso' }),
         }),
       ],
       [
@@ -1363,7 +1372,7 @@ describe('nt009 inputs de alto nível', () => {
             fornecedor: {
               documento: { CNPJ: '11222333000181' },
               nome: 'F',
-            } as unknown as DocumentoAjusteBCInput['fornecedor'],
+            } as unknown as DocumentoAjusteBCInputNt009['fornecedor'],
           }),
         }),
       ],
@@ -1453,7 +1462,7 @@ describe('nt009 inputs de alto nível', () => {
               unidades: [
                 {
                   identificacao: { cCIB: 'ABC12345' },
-                  ajustesBC: [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 10 }],
+                  ajustesBC: [{ tipo: TipoAjusteBCLocImoveisNt009.Condominio, valor: 10 }],
                 },
               ],
             },
@@ -1463,18 +1472,20 @@ describe('nt009 inputs de alto nível', () => {
       [
         'E0949',
         'ajuste de locação tipo 99 sem descrição',
-        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Outras, valor: 10 }]),
+        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveisNt009.Outras, valor: 10 }]),
       ],
       [
         'E0949',
         'ajuste de locação tipo ≠ 99 com descrição',
         () =>
-          locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Condominio, descricao: 'x', valor: 10 }]),
+          locacaoCom({}, [
+            { tipo: TipoAjusteBCLocImoveisNt009.Condominio, descricao: 'x', valor: 10 },
+          ]),
       ],
       [
         'E0966',
         'ajuste de locação > vTotOper',
-        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveis.Condominio, valor: 1000.01 }]),
+        () => locacaoCom({}, [{ tipo: TipoAjusteBCLocImoveisNt009.Condominio, valor: 1000.01 }]),
       ],
       ['E0431', 'vDescIncond derivado ≥ vServ', () => locacaoCom({ vDescIncondTot: 1000 })],
       ['E0432', 'vDescCond derivado ≥ vServ', () => locacaoCom({ vDescCondTot: 1200 })],
@@ -1541,7 +1552,7 @@ describe('nt009 inputs de alto nível', () => {
           ...base,
           ajusteBC: {
             issqn: { percentual: 10 },
-            documentos: docCom({ tipo: TipoAjusteBC.RepasseFornecedorAgenciaTurismo }).ajusteBC
+            documentos: docCom({ tipo: TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo }).ajusteBC
               .documentos,
           },
         }),
@@ -1550,7 +1561,7 @@ describe('nt009 inputs de alto nível', () => {
       expect(() =>
         buildDps({
           ...comServico(base, { cTribNac: '060101' }),
-          ...docCom({ tipo: TipoAjusteBC.ProfissionalParceiro }),
+          ...docCom({ tipo: TipoAjusteBCNt009.ProfissionalParceiro }),
         }),
       ).not.toThrow();
       // dFeNacional Outro com descrição; 199 com docFiscalOutro de competência 2025
@@ -1562,7 +1573,7 @@ describe('nt009 inputs de alto nível', () => {
         buildDps({
           ...base,
           ...docCom({
-            tipo: TipoAjusteBC.OutrosReembolsos,
+            tipo: TipoAjusteBCNt009.OutrosReembolsos,
             descricao: 'Reembolso',
             documento: {
               docFiscalOutro: { cMunDocFiscal: '2111300', nDocFiscal: '1', xDocFiscal: 'NF' },
@@ -1615,7 +1626,7 @@ describe('nt009 inputs de alto nível', () => {
       expect(() =>
         buildDps(
           locacaoCom({ pCopropriedade: 100.004 }, [
-            { tipo: TipoAjusteBCLocImoveis.Condominio, valor: 1000.004 },
+            { tipo: TipoAjusteBCLocImoveisNt009.Condominio, valor: 1000.004 },
           ]),
         ),
       ).not.toThrow();
@@ -1666,7 +1677,7 @@ describe('nt009 inputs de alto nível', () => {
       ajusteBC: {
         documentos: [
           {
-            tipo: TipoAjusteBC.Materiais,
+            tipo: TipoAjusteBCNt009.Materiais,
             valorTotal: 100,
             valorAplicado: 50,
             documento: { docOutro: { nDoc: '1', xDoc: 'Recibo' } },

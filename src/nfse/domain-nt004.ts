@@ -34,12 +34,12 @@ import type {
   SituacaoNfse,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
-  TipoDedRed,
+  TipoDedRedNt004,
   TipoEmissao,
   TipoEmitenteDps,
   TipoEnteGovernamental,
   TipoOperacao,
-  TipoReembolsoRepasse,
+  TipoReembolsoRepasseNt004,
 } from './enums.js';
 
 export interface InfoPessoaNt004 {
@@ -74,7 +74,7 @@ export type ReferenciaDocDedRedNt004 =
 
 export interface DocDedRedNt004 {
   readonly referencia: ReferenciaDocDedRedNt004;
-  readonly tpDedRed: TipoDedRed;
+  readonly tpDedRed: TipoDedRedNt004;
   readonly xDescOutDed?: string;
   readonly dtEmiDoc: Date;
   readonly vDedutivelRedutivel: number;
@@ -137,7 +137,7 @@ export interface RtcListaDocNt004 {
   readonly fornec?: RtcListaDocFornec;
   readonly dtEmiDoc: Date;
   readonly dtCompDoc: Date;
-  readonly tpReeRepRes: TipoReembolsoRepasse;
+  readonly tpReeRepRes: TipoReembolsoRepasseNt004;
   readonly xTpReeRepRes?: string;
   readonly vlrReeRepRes: number;
 }

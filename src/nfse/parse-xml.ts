@@ -124,19 +124,19 @@ import type {
   RegimeApuracaoSimplesNacional,
   RegimeEspecialTributacao,
   SituacaoNfse,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoAmbienteDps,
   TipoBeneficioMunicipal,
   TipoChaveDFe,
-  TipoDedRed,
+  TipoDedRedNt004,
   TipoEmissao,
   TipoEmitenteDps,
   TipoEnteGovernamental,
   TipoExigSuspensa,
   TipoImunidadeISSQN,
   TipoOperacao,
-  TipoReembolsoRepasse,
+  TipoReembolsoRepasseNt004,
   TipoRetISSQN,
   TipoRetPisCofins,
   TipoTribISSQN,
@@ -451,7 +451,7 @@ function parseRtcListaDoc(node: XmlObject): RtcListaDocNt004 {
     ),
     dtEmiDoc: coerceDateOnly(requireText(node, 'dtEmiDoc')),
     dtCompDoc: coerceDateOnly(requireText(node, 'dtCompDoc')),
-    tpReeRepRes: requireText(node, 'tpReeRepRes') as TipoReembolsoRepasse,
+    tpReeRepRes: requireText(node, 'tpReeRepRes') as TipoReembolsoRepasseNt004,
     ...optionalAssign('xTpReeRepRes', optionalText(node, 'xTpReeRepRes')),
     vlrReeRepRes: coerceNumber(requireText(node, 'vlrReeRepRes')),
   };
@@ -777,7 +777,7 @@ function parseListaDocDedRed(node: XmlObject): ListaDocDedRedNt004 {
 function parseDocDedRed(node: XmlObject): DocDedRedNt004 {
   return {
     referencia: parseReferenciaDocDedRed(node),
-    tpDedRed: requireText(node, 'tpDedRed') as TipoDedRed,
+    tpDedRed: requireText(node, 'tpDedRed') as TipoDedRedNt004,
     ...optionalAssign('xDescOutDed', optionalText(node, 'xDescOutDed')),
     dtEmiDoc: coerceDateOnly(requireText(node, 'dtEmiDoc')),
     vDedutivelRedutivel: coerceNumber(requireText(node, 'vDedutivelRedutivel')),
@@ -1154,7 +1154,7 @@ function parseDocAjusteBCNt009(node: XmlObject): DocAjusteBCNt009 {
   const dtEmiDoc = optionalText(node, 'dtEmiDoc');
   const dtCompDoc = optionalText(node, 'dtCompDoc');
   return {
-    tpAjusteBC: requireText(node, 'tpAjusteBC') as TipoAjusteBC,
+    tpAjusteBC: requireText(node, 'tpAjusteBC') as TipoAjusteBCNt009,
     ...optionalAssign('xTpAjusteBC', optionalText(node, 'xTpAjusteBC')),
     vTotDoc: coerceNumber(requireText(node, 'vTotDoc')),
     vAjusteAplic: coerceNumber(requireText(node, 'vAjusteAplic')),
@@ -1258,7 +1258,7 @@ function parseEnderImovelNt009(node: XmlObject): EnderImovelNt009 {
 
 function parseRtcValoresBCImoveisNt009(node: XmlObject): RtcValoresBCImoveisNt009 {
   return {
-    tpAjusteBCLocImoveis: requireText(node, 'tpAjusteBCLocImoveis') as TipoAjusteBCLocImoveis,
+    tpAjusteBCLocImoveis: requireText(node, 'tpAjusteBCLocImoveis') as TipoAjusteBCLocImoveisNt009,
     ...optionalAssign('xTpAjusteBCLocImoveis', optionalText(node, 'xTpAjusteBCLocImoveis')),
     vAjusteBCLocImoveis: coerceNumber(requireText(node, 'vAjusteBCLocImoveis')),
   };

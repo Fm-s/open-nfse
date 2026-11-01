@@ -19,8 +19,8 @@ import {
   MotivoEmissaoTomadorIntermediario,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoAmbienteDps,
   TipoChaveDFe,
   TipoEmitenteDps,
@@ -112,7 +112,7 @@ export function dpsNt009Max(): DpsNt009 {
           documentos: {
             docAjusteBC: [
               {
-                tpAjusteBC: TipoAjusteBC.OutrasDeducoesIssqn,
+                tpAjusteBC: TipoAjusteBCNt009.OutrasDeducoesIssqn,
                 xTpAjusteBC: 'Outras deduções',
                 vTotDoc: 200,
                 vAjusteAplic: 30,
@@ -180,12 +180,12 @@ export function dpsNt009Max(): DpsNt009 {
               identificacao: { cCIB: 'ABC12345' },
               gAjusteBCLocImoveis: [
                 {
-                  tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Outras,
+                  tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009.Outras,
                   xTpAjusteBCLocImoveis: 'Fundo de reserva',
                   vAjusteBCLocImoveis: 40,
                 },
                 {
-                  tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Condominio,
+                  tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009.Condominio,
                   vAjusteBCLocImoveis: 150,
                 },
               ],

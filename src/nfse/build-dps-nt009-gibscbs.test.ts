@@ -5,7 +5,7 @@ import type { DpsNt009 } from './domain.js';
 import {
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
   TipoTribISSQN,
 } from './enums.js';
 
@@ -80,7 +80,11 @@ describe('buildDps nt009 — ajustes da BC na locação de imóveis', () => {
           {
             identificacao: { cCIB: 'ABC12345' },
             ajustesBC: [
-              { tipo: TipoAjusteBCLocImoveis.Outras, descricao: 'Fundo de reserva', valor: 40 },
+              {
+                tipo: TipoAjusteBCLocImoveisNt009.Outras,
+                descricao: 'Fundo de reserva',
+                valor: 40,
+              },
             ],
           },
         ],

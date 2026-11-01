@@ -12,8 +12,8 @@ import {
   IndicadorDestinatario,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
-  TipoAjusteBC,
-  TipoAjusteBCLocImoveis,
+  TipoAjusteBCLocImoveisNt009,
+  TipoAjusteBCNt009,
   TipoAmbienteDps,
   TipoChaveDFe,
   TipoEmitenteDps,
@@ -73,7 +73,7 @@ function infDPSNt009Completa(): InfDPSNt009 {
             {
               // 102: convive com pAjusteBCISSQN (E0462), admite docOutro (E0479)
               // e dispensa E0435 com tribISSQN=4.
-              tpAjusteBC: TipoAjusteBC.RepasseFornecedorAgenciaTurismo,
+              tpAjusteBC: TipoAjusteBCNt009.RepasseFornecedorAgenciaTurismo,
               vTotDoc: 200,
               vAjusteAplic: 100.5,
               dtEmiDoc: new Date('2026-11-20T12:00:00Z'),
@@ -92,7 +92,7 @@ function infDPSNt009Completa(): InfDPSNt009 {
             },
             {
               // 199 exige documento fiscal (E0479).
-              tpAjusteBC: TipoAjusteBC.OutrosReembolsos,
+              tpAjusteBC: TipoAjusteBCNt009.OutrosReembolsos,
               xTpAjusteBC: 'Reembolso de despesas',
               vTotDoc: 50,
               vAjusteAplic: 50,
@@ -131,7 +131,7 @@ function infDPSNt009Completa(): InfDPSNt009 {
             identificacao: { cCIB: 'ABC12345' },
             gAjusteBCLocImoveis: [
               {
-                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveis.Condominio,
+                tpAjusteBCLocImoveis: TipoAjusteBCLocImoveisNt009.Condominio,
                 vAjusteBCLocImoveis: 150,
               },
             ],
