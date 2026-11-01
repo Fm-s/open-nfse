@@ -118,6 +118,15 @@ describe('parseNfseXml — captured Simples Nacional sample', () => {
     expect(toma?.end?.xBairro).toBe('Vila conceição Matinha');
   });
 
+  it('decodifica referências numéricas nos campos de texto', () => {
+    const xml = readFileSync(SAMPLE_PATH, 'utf-8')
+      .replace('<xNome>Maria Ferreira', '<xNome>M&#225;ria Ferreira')
+      .replace('Vila conceição Matinha', 'Vila concei&#xE7;&#xE3;o Matinha');
+    const toma = parseNt004(xml).infNFSe.DPS.infDPS.toma;
+    expect(toma?.xNome).toBe('Mária Ferreira dos Santos de Jesus');
+    expect(toma?.end?.xBairro).toBe('Vila conceição Matinha');
+  });
+
   it('parses serv: locPrest (municipal) + cServ (tribNac + descrição)', () => {
     const serv = nfse.infNFSe.DPS.infDPS.serv;
     expect(serv.locPrest).toEqual({ cLocPrestacao: '2111300' });

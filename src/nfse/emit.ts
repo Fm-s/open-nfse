@@ -822,26 +822,16 @@ function dpsFingerprint(getDps: () => XmlObject | undefined): DpsFingerprint | u
     return undefined;
   }
   if (!dps) return undefined;
-  // O parser não decodifica referências numéricas (`&#13;`, `&#xD;`), que
-  // serializadores .NET/Java usam para o CR da quebra de linha do base64:
-  // decodifica-as antes de remover o whitespace, senão a mesma assinatura
-  // serializada de outro jeito pareceria outra DPS.
-  const signature = decodeCharRefs(textOf(asObject(dps.Signature)?.SignatureValue) ?? '').replace(
-    /\s+/g,
-    '',
-  );
+  // O parser já decodifica referências numéricas (`&#13;`, `&#xD;`), que
+  // serializadores .NET/Java usam para o CR da quebra de linha do base64; o
+  // whitespace (inclusive esse CR) é removido para que a mesma assinatura
+  // serializada de outro jeito não pareça outra DPS.
+  const signature = (textOf(asObject(dps.Signature)?.SignatureValue) ?? '').replace(/\s+/g, '');
   const dhEmi = textOf(asObject(dps.infDPS)?.dhEmi)?.trim();
   return {
     signatureValue: signature ? signature : undefined,
     dhEmi: dhEmi ? dhEmi : undefined,
   };
-}
-
-function decodeCharRefs(text: string): string {
-  return text.replace(/&#(?:x([0-9a-fA-F]+)|([0-9]+));/g, (ref, hex?: string, dec?: string) => {
-    const code = hex !== undefined ? Number.parseInt(hex, 16) : Number(dec);
-    return code <= 0x10ffff ? String.fromCodePoint(code) : ref;
-  });
 }
 
 function asObject(node: XmlNode | undefined): XmlObject | undefined {

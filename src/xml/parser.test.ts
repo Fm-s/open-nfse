@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ATTR_PREFIX, parseXml } from './parser.js';
+import { ATTR_PREFIX, decodeXmlEntities, parseXml } from './parser.js';
 
 const SAMPLE_PATH = join(
   __dirname,
@@ -75,5 +75,43 @@ describe('parseXml', () => {
 
     const prest = infDPS.prest as { regTrib: { opSimpNac: string } };
     expect(prest.regTrib.opSimpNac).toBe('3');
+  });
+});
+
+describe('referências de caractere e entidades', () => {
+  it.each([
+    ['decimal', 'Concei&#231;&#227;o', 'Conceição'],
+    ['hexadecimal', 'Concei&#xE7;&#xe3;o', 'Conceição'],
+    ['fora do BMP', '&#x1F600;', '\u{1F600}'],
+    ['CR', 'a&#13;b', 'a\rb'],
+    ['predefinidas', '&lt;b&gt; &amp; &quot;x&quot; &apos;y&apos;', '<b> & "x" \'y\''],
+    ['uma passada só', '&amp;#231; &amp;amp;', '&#231; &amp;'],
+  ])('decodifica %s no texto', (_rotulo, raw, esperado) => {
+    expect(parseXml(`<foo>${raw}</foo>`).foo).toBe(esperado);
+  });
+
+  it.each([
+    ['NUL', '&#0;'],
+    ['surrogate', '&#xD800;'],
+    ['acima de 0x10FFFF', '&#x110000;'],
+    ['FFFE', '&#xFFFE;'],
+    ['entidade HTML', '&nbsp;'],
+    ['sem ponto e vírgula', '&#231'],
+  ])('mantém literal referência inválida (%s)', (_rotulo, raw) => {
+    expect(decodeXmlEntities(raw)).toBe(raw);
+  });
+
+  it('decodifica em atributos', () => {
+    const tree = parseXml('<foo a="S&#227;o &amp; X"/>');
+    expect((tree.foo as Record<string, unknown>)[`${ATTR_PREFIX}a`]).toBe('São & X');
+  });
+
+  it('não decodifica dentro de CDATA', () => {
+    expect(parseXml('<foo><![CDATA[&#231; &amp;]]></foo>').foo).toBe('&#231; &amp;');
+  });
+
+  it('não expande entidades declaradas em DOCTYPE', () => {
+    const tree = parseXml('<!DOCTYPE foo [<!ENTITY x "expandida">]><foo>&x;</foo>');
+    expect(tree.foo).toBe('&x;');
   });
 });

@@ -38,6 +38,10 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
 - `specs/ruleset/nt009/` e `scripts/extract-ruleset.py --layout`. O extrator lê a regra da coluna E quando a D é um preâmbulo mesclado (E0427–E0429 nt004; E0427–E0429/E0433 nt009 saíam com o preâmbulo no lugar da fórmula), grava o preâmbulo no novo campo `contexto` e os dumps `_raw/` ganham `hiddenCols`.
 - Guias [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts) e [Migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12) (com o roteiro para drenar o `RetryStore` antes da virada de 01/12); `CLAUDE.md` com invariantes de layout e a receita para novos layouts.
 
+### Fixed
+
+- **Referências de caractere numéricas são decodificadas** (`&#231;`/`&#xE7;` → `ç`), nos dois layouts, em textos e atributos. Antes chegavam literais nos DTOs (ex.: `xNome: 'Concei&#231;&#227;o'`) — e, ao reserializar o DTO, viravam `&amp;#231;`. O parser usa um decoder próprio de uma passada (as 5 entidades predefinidas + referências numéricas): `&amp;#231;` continua sendo o texto `&#231;`, referências a code points inválidos no XML e entidades HTML (`&nbsp;`) ficam literais, entidades de DOCTYPE não são expandidas e CDATA não é tocado. Quem contornava o bug decodificando por conta própria deve remover esse passo. Piso de `fast-xml-parser` sobe para `^5.11.2`.
+
 ### Docs
 
 - Exemplos válidos pelas regras: `cNBS` real (115021000) em vez de `123456789` (E0316), `ibsCbs`/`cNBS` no exemplo `nt009`, `ajusteBC` com prestador Não Optante; o exemplo de lote (`emitir.md` §5 e `examples/emit-nfse/emit-bulk.ts`) compila na 0.12 e trata a NFS-e autorizada ilegível. As promessas de "dedup por `infDPS.Id` / replay idempotente" foram trocadas pelo que acontece (re-POST com o mesmo Id + reconciliação via `GET /dps/{id}`). Guia de testes: serviços tipados com `NfseClientLike<L>` e os limites da NFS-e sintetizada. Erros, cheatsheet e substituir/cancelar cobrem os status e erros novos e os códigos do 105102 do contribuinte (E0813, E0845) conforme o Anexo II.
