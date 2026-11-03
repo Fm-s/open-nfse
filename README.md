@@ -7,7 +7,9 @@ Cliente TypeScript/Node.js para o **Padrão Nacional de NFS-e** (nfse.gov.br) �
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
 
-**📚 Documentação:** [fm-s.github.io/open-nfse](https://fm-s.github.io/open-nfse/) · [API cheat sheet](https://fm-s.github.io/open-nfse/api-cheatsheet) · [API completa](https://fm-s.github.io/open-nfse/api/)
+**📚 Documentação:** [fm-s.github.io/open-nfse](https://fm-s.github.io/open-nfse/) · [API cheat sheet](https://github.com/Fm-s/open-nfse/blob/nt009/docs/api-cheatsheet.md) · [API completa](https://fm-s.github.io/open-nfse/api/)
+
+> O site documenta a **0.11** (`latest`) até a `0.12.0` final. A documentação da 0.12 RC está em [`docs/`](https://github.com/Fm-s/open-nfse/tree/nt009/docs) no branch `nt009` — os links deste README apontam para ela.
 
 ## Status
 
@@ -21,7 +23,7 @@ A **0.12** suporta **dois leiautes ao mesmo tempo**, escolhidos explicitamente p
 - **`'nt004'`** — leiaute vigente em produção (RTC v1.01, bundle XSD **20260727**: NT 004 + `tpRetPisCofins` da NT 007 + **CNPJ alfanumérico**). Vale até 30/11/2026.
 - **`'nt009'`** — **NT 009/2026 release 1** (bundle `esquemas_prod_restrita_20261020`), que entra em produção em **01/12/2026**: `vAjusteBC` no lugar de `vDedRed`/`gReeRepRes`, `finNFSe` na raiz da DPS, CST/cClassTrib reposicionados, imóvel reestruturado, bens móveis. Os tipos `*Nt009` e os inputs `ajusteBC`/`ibsCbs` podem mudar entre RCs (uma `0.12.0-rc.N` por novo bundle de Produção Restrita) até a `0.12.0` final.
 
-O parser lê NFS-e dos dois leiautes sem perda (detecta pelo `infDPS/finNFSe`), então notas antigas que chegam por consulta/DF-e depois da virada continuam legíveis. Quem vem da 0.11: [migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12) (inclui o roteiro para drenar o `RetryStore` antes de trocar para o `nt009`); detalhes em [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+O parser lê NFS-e dos dois leiautes sem perda (detecta pelo `infDPS/finNFSe`), então notas antigas que chegam por consulta/DF-e depois da virada continuam legíveis. Quem vem da 0.11: [migração 0.11 → 0.12](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md) (inclui o roteiro para drenar o `RetryStore` antes de trocar para o `nt009`); detalhes em [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md).
 
 Ciclo fiscal completo nos dois leiautes: consulta (chave + NSU), emissão segura com `DpsCounter` + `RetryStore`, cancelamento (101101) e substituição (DPS com `<subst>`; o Sistema Nacional gera o 105102), validações locais (XSD por leiaute / CPF+CNPJ com DV alfanumérico / CEP), guards fail-fast das regras fechadas do Anexo I, parâmetros municipais com cache, DANFSe em PDF (renderer local), `NfseClientFake` em `open-nfse/testing`. Pipeline de retry consciente de 429 (`TooManyRequestsError` → `retry_pending` com `notBefore` honrando `Retry-After`; `RetryPolicy` pluggable), com reconciliação via `GET /dps/{id}` antes de descartar uma emissão.
 
@@ -140,7 +142,7 @@ const r = await cliente009.emitir({
 // r.status === 'ok' → r.nfse.nfse é NfseNt009
 ```
 
-As regras de rejeição **fechadas** do Anexo I (as que dependem só dos inputs) são checadas antes de consumir o `nDPS` e lançam `RuleViolationError` com o código; as que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN. Os inputs (`ajusteBC`, imóvel/locação 99.03, bens móveis) e as regras que mudam o uso estão em [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+As regras de rejeição **fechadas** do Anexo I (as que dependem só dos inputs) são checadas antes de consumir o `nDPS` e lançam `RuleViolationError` com o código; as que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN. Os inputs (`ajusteBC`, imóvel/locação 99.03, bens móveis) e as regras que mudam o uso estão em [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md).
 
 Cron de retry (mesma função cobre `emitir`, `cancelar`, `substituir`):
 
@@ -159,24 +161,24 @@ for (const item of items) {
 }
 ```
 
-O store guarda o XML já assinado e o replay o reenvia como está — **drene o `RetryStore` com o cliente `nt004` antes de trocar para o `nt009`** ([roteiro](https://fm-s.github.io/open-nfse/guide/migracao-0.12#virada-retrystore)).
+O store guarda o XML já assinado e o replay o reenvia como está — **drene o `RetryStore` com o cliente `nt004` antes de trocar para o `nt009`** ([roteiro, seção 7](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md)).
 
-Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão completo de produção (persistência, bulk com counter+retry, reconciliação) em [Emitir NFS-e](https://fm-s.github.io/open-nfse/guide/emitir).
+Exemplos runnables em [`examples/emit-nfse/`](./examples/emit-nfse/). Padrão completo de produção (persistência, bulk com counter+retry, reconciliação) em [Emitir NFS-e](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/emitir.md).
 
 ## O que a lib cobre
 
 | Escopo                                  | Guia                                                                 |
 |-----------------------------------------|----------------------------------------------------------------------|
-| Leiautes `nt004` / `nt009` (NT 009)     | [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts) · [Migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12) |
-| Consulta por chave + distribuição por NSU | [Consultar](https://fm-s.github.io/open-nfse/guide/consultar)      |
-| Emissão segura com counter + retry store | [Emitir](https://fm-s.github.io/open-nfse/guide/emitir)             |
-| Cancelamento e substituição | [Substituir e cancelar](https://fm-s.github.io/open-nfse/guide/substituir-cancelar) |
-| Validações XSD + CPF/CNPJ + CEP         | [Validações](https://fm-s.github.io/open-nfse/guide/validacoes)     |
-| Parâmetros municipais com cache         | [Parâmetros](https://fm-s.github.io/open-nfse/guide/parametros)     |
-| DANFSe em PDF (renderer local)          | [DANFSe](https://fm-s.github.io/open-nfse/guide/danfse)             |
-| Dublê em memória para testes            | [Testing](https://fm-s.github.io/open-nfse/guide/testing)           |
-| Erros tipados e classificação de retry  | [Erros](https://fm-s.github.io/open-nfse/guide/erros)               |
-| Schema SQL sugerido para integração     | [Integração em serviços](https://fm-s.github.io/open-nfse/guide/integracao) |
+| Leiautes `nt004` / `nt009` (NT 009)     | [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md) · [Migração 0.11 → 0.12](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md) |
+| Consulta por chave + distribuição por NSU | [Consultar](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/consultar.md)      |
+| Emissão segura com counter + retry store | [Emitir](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/emitir.md)             |
+| Cancelamento e substituição | [Substituir e cancelar](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/substituir-cancelar.md) |
+| Validações XSD + CPF/CNPJ + CEP         | [Validações](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/validacoes.md)     |
+| Parâmetros municipais com cache         | [Parâmetros](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/parametros.md)     |
+| DANFSe em PDF (renderer local)          | [DANFSe](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/danfse.md)             |
+| Dublê em memória para testes            | [Testing](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/testing.md)           |
+| Erros tipados e classificação de retry  | [Erros](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/erros.md)               |
+| Schema SQL sugerido para integração     | [Integração em serviços](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/integracao.md) |
 
 ## Arquitetura
 
@@ -212,7 +214,7 @@ A API oficial está dividida em **quatro hosts distintos** (SEFIN Nacional, ADN 
 
 ## Princípios
 
-DTO in, DTO out. Erros tipados, uma classe por modo de falha (hierarquia sob `OpenNfseError`). Sem estado interno, com primitives de orquestração (`emitirEmLote`) e retry (`RetryStore` + `RetryPolicy` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais de cada leiaute (sufixo `Nt004`/`Nt009` só no que difere ou existe em um leiaute só); `xs:choice` vira discriminated union. `layout` sempre explícito. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://fm-s.github.io/open-nfse/guide/principios).
+DTO in, DTO out. Erros tipados, uma classe por modo de falha (hierarquia sob `OpenNfseError`). Sem estado interno, com primitives de orquestração (`emitirEmLote`) e retry (`RetryStore` + `RetryPolicy` + `replayPendingEvents`). Types derivados dos XSDs RTC v1.01 oficiais de cada leiaute (sufixo `Nt004`/`Nt009` só no que difere ou existe em um leiaute só); `xs:choice` vira discriminated union. `layout` sempre explícito. Identificadores fiscais como `string` para preservar zeros. Builder de DPS separável do transporte (dry-run). Detalhes em [Princípios de design](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/principios.md).
 
 ## Ambientes
 

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.12.0-rc.1] — 2026-10-31
 
-Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `nt004` (produção atual, bundle 20260727) e `nt009` (**NT 009/2026 release 1**, bundle `esquemas_prod_restrita_20261020`, produção em 01/12/2026). Os tipos e inputs `nt009` podem mudar entre RCs até a `0.12.0` final. Quem fica no `nt004` envia os mesmos XMLs da 0.11, mas recebe os pré-checks, resultados e mudanças do fake marcados como breaking abaixo — veja o [guia de migração](https://fm-s.github.io/open-nfse/guide/migracao-0.12).
+Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `nt004` (produção atual, bundle 20260727) e `nt009` (**NT 009/2026 release 1**, bundle `esquemas_prod_restrita_20261020`, produção em 01/12/2026). Os tipos e inputs `nt009` podem mudar entre RCs até a `0.12.0` final. Quem fica no `nt004` envia os mesmos XMLs da 0.11, mas recebe os pré-checks, resultados e mudanças do fake marcados como breaking abaixo — veja o [guia de migração](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md).
 
 ### Changed (breaking)
 
@@ -32,7 +32,7 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
   - `404` → `failed_permanent`;
   - **qualquer outra falha da consulta** → `still_pending`, entrada mantida (transiente ou corpo malformado: `warn` `nfse.replay.reconcile_pending`; 401/403/400: `warn` `nfse.replay.reconcile_failed`) — nunca se apaga sem saber se a nota existe.
 
-  `error` `nfse.emit.authorized_unreadable` só é logado depois de confirmar que a NFS-e é da DPS pendente — exceto quando `GET /dps` acha a nota mas o `GET /nfse/{chave}` falha de forma permanente: sem XML para comparar, a resposta do `GET /dps` é aceita e o item sai como `success_emission_unreadable` com a chave. Emissão de layout diferente do cliente gera `warn` `nfse.replay.layout_divergente`. Antes de trocar o cliente para `nt009`, drene o `RetryStore` com o cliente `nt004` ([roteiro](https://fm-s.github.io/open-nfse/guide/migracao-0.12#virada-retrystore)).
+  `error` `nfse.emit.authorized_unreadable` só é logado depois de confirmar que a NFS-e é da DPS pendente — exceto quando `GET /dps` acha a nota mas o `GET /nfse/{chave}` falha de forma permanente: sem XML para comparar, a resposta do `GET /dps` é aceita e o item sai como `success_emission_unreadable` com a chave. Emissão de layout diferente do cliente gera `warn` `nfse.replay.layout_divergente`. Antes de trocar o cliente para `nt009`, drene o `RetryStore` com o cliente `nt004` ([roteiro](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md)).
 
 **Eventos**
 
@@ -71,7 +71,7 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
 
 ### Docs
 
-- Guias novos [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts) e [Migração 0.11 → 0.12](https://fm-s.github.io/open-nfse/guide/migracao-0.12) (com o roteiro para drenar o `RetryStore` antes da virada de 01/12); `CLAUDE.md` com invariantes de layout e a receita para novos layouts.
+- Guias novos [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md) e [Migração 0.11 → 0.12](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md) (com o roteiro para drenar o `RetryStore` antes da virada de 01/12); `CLAUDE.md` com invariantes de layout e a receita para novos layouts.
 - Exemplos válidos pelas regras: `cNBS` real (115021000) em vez de `123456789` (E0316), `ibsCbs`/`cNBS` no exemplo `nt009`, `ajusteBC` com prestador Não Optante; o exemplo de lote (`emitir.md` §5 e `examples/emit-nfse/emit-bulk.ts`) compila na 0.12 e trata a NFS-e autorizada ilegível. As promessas de "dedup por `infDPS.Id` / replay idempotente" foram trocadas pelo que acontece (re-POST com o mesmo Id + reconciliação via `GET /dps/{id}`). Guia de testes: serviços tipados com `NfseClientLike<L>` e os limites da NFS-e sintetizada. Erros, cheatsheet e substituir/cancelar cobrem os status e erros novos e os códigos do 105102 do contribuinte (E0813, E0845) conforme o Anexo II.
 
 ## [0.11.1] — 2026-10-31
