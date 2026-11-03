@@ -1643,6 +1643,12 @@ describe('nt009 inputs de alto nível', () => {
       expect(() => buildDps(com(999.99))).not.toThrow();
       expect(() => buildDps(com(999.98))).toThrow(expect.objectContaining({ rule: 'E0433' }));
       expect(() => buildDps(com(1000.01))).toThrow(expect.objectContaining({ rule: 'E0433' }));
+      // Não finito: E0433 não roda; o serializer rejeita com erro tipado (TSDec).
+      for (const vServ of [Number.NaN, Number.POSITIVE_INFINITY]) {
+        expect(() => buildDpsXml(buildDps(com(vServ)))).toThrow(
+          expect.objectContaining({ rule: 'TSDec' }),
+        );
+      }
       // Produto exato: só um valor aceito (50% × 2000 = 1000).
       const exato = locacaoCom({ pCopropriedade: 50, vTotOper: 2000 });
       expect(() => buildDps(exato)).not.toThrow();
