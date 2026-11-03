@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.0-rc.1] — 2026-10-31
+## [0.12.0-rc.1] — 2026-11-03
 
 Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `nt004` (produção atual, bundle 20260727) e `nt009` (**NT 009/2026 release 1**, bundle `esquemas_prod_restrita_20261020`, produção em 01/12/2026). Os tipos e inputs `nt009` podem mudar entre RCs até a `0.12.0` final. Quem fica no `nt004` envia os mesmos XMLs da 0.11, mas recebe os pré-checks, resultados e mudanças do fake marcados como breaking abaixo — veja o [guia de migração](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/migracao-0.12.md).
 
