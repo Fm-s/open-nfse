@@ -1,3 +1,5 @@
+import { TipoAmbienteDps } from './nfse/enums.js';
+
 export enum Ambiente {
   ProducaoRestrita = 'PRODUCAO_RESTRITA',
   Producao = 'PRODUCAO',
@@ -29,3 +31,13 @@ export const AMBIENTE_ENDPOINTS = {
     parametrosMunicipais: 'https://adn.nfse.gov.br/parametrizacao',
   },
 } as const satisfies Record<Ambiente, AmbienteEndpoints>;
+
+/**
+ * `tpAmb` (DPS e pedido de evento) correspondente ao ambiente do cliente:
+ * Produção → `'1'`; Produção Restrita → `'2'` (Homologação). Aceita tanto
+ * `Ambiente` (`NfseClient`) quanto `TipoAmbiente` (`NfseClientFake`) — os dois
+ * usam o valor `'PRODUCAO'` para produção.
+ */
+export function tpAmbDoAmbiente(ambiente: Ambiente | TipoAmbiente): TipoAmbienteDps {
+  return ambiente === Ambiente.Producao ? TipoAmbienteDps.Producao : TipoAmbienteDps.Homologacao;
+}

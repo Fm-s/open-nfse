@@ -102,13 +102,13 @@ Se a NFS-e foi **autorizada** mas a resposta não pôde ser interpretada, `emiti
 
 ## Campos da DPS no exemplo
 
-O script cria uma DPS **mínima** de Homologação (`tpAmb='2'`, default do `buildDps`) com os params de alto nível do `emitir`. Para emitir em Produção real, você precisa ajustar ao menos:
+O script cria uma DPS **mínima** com os params de alto nível do `emitir` (o `tpAmb` segue o `ambiente` do cliente). Para emitir em Produção real, você precisa ajustar ao menos:
 
 - `servico.cTribNac` / `servico.cNBS` — códigos de tributação nacional e NBS corretos para o serviço
 - `emitente.regime` — regime tributário real do emitente (`opSimpNac`, `regApTribSN`, `regEspTrib`)
 - `valores` — o membro do `totTrib` que o regime exige (MEI `indTotTrib` / ME-EPP `pTotTribSN` / Não Optante `vTotTrib` ou `pTotTrib`) e, se for o caso, `aliqIss`, `tribISSQN`, `tpRetISSQN`
 - `tomador` — dados do tomador (CNPJ ou CPF), se aplicável
-- `tpAmb: TipoAmbienteDps.Producao` — o default `'2'` (Homologação) não acompanha o `ambiente` do cliente; sem isso a Receita rejeita com E0006
+- `ambiente: Ambiente.Producao` no cliente — o `tpAmb` da DPS acompanha (`'1'`)
 - `ibsCbs` / `ajusteBC` — só no `nt009`: grupo IBS/CBS e ajuste da base de cálculo, com as regras do Anexo I checadas offline
 
 O `verAplic` fica no default `open-nfse/<versão>`. Detalhes em [Emitir NFS-e](https://fm-s.github.io/open-nfse/guide/emitir).

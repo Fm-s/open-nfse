@@ -54,4 +54,4 @@ XSD, CEP e CPF/CNPJ rodam **por default** antes de qualquer round-trip. Desligar
 
 ## 9. Ambientes isolados
 
-`Ambiente.ProducaoRestrita` para homologação, `Ambiente.Producao` para valor fiscal. Feche o ciclo completo (emitir → consultar → cancelar → substituir) em homologação antes de trocar — inclusive o do `nt009`, já disponível em Produção Restrita antes da virada de 01/12/2026. O `ambiente` escolhe só os hosts: o `tpAmb` da DPS e do pedido de evento tem default `'2'` (Homologação) e, em produção, é passado explicitamente (`TipoAmbienteDps.Producao`) — veja [Emitir NFS-e](./emitir#setup).
+`Ambiente.ProducaoRestrita` para homologação, `Ambiente.Producao` para valor fiscal. Feche o ciclo completo (emitir → consultar → cancelar → substituir) em homologação antes de trocar — inclusive o do `nt009`, já disponível em Produção Restrita antes da virada de 01/12/2026. O `ambiente` escolhe os hosts e, em `emitir`/`cancelar`, o `tpAmb` omitido (Produção → `'1'`); só a DPS montada à parte com `buildDps` precisa do `tpAmb` explícito — veja [Emitir NFS-e](./emitir#setup).

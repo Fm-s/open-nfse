@@ -313,7 +313,6 @@ import {
   Ambiente,
   NfseClient,
   ReceitaRejectionError,
-  TipoAmbienteDps,
   UnreadableAuthorizedNfseError,
 } from 'open-nfse';
 
@@ -329,7 +328,6 @@ const cnpjEmitente = '00574753000100';
 try {
   const r = await cliente.emitir({
     emitente: { cnpj: cnpjEmitente, ... }, serie: '1', servico: {...}, valores: {...}, tomador: {...},
-    tpAmb: TipoAmbienteDps.Producao, // default '2' (Homologação) não segue o ambiente → E0006
   });
 
   if (r.status === 'ok') {

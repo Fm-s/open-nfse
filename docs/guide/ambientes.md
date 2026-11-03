@@ -159,6 +159,6 @@ endpoints.parametrosMunicipais;
 
 Só então troque `Ambiente.ProducaoRestrita` → `Ambiente.Producao`. **Cada emissão em produção é um documento fiscal oficial.**
 
-::: warning `tpAmb` não acompanha o `ambiente`
-O `ambiente` só escolhe os hosts. O `tpAmb` gravado na DPS e no pedido de cancelamento tem default `'2'` (Homologação) seja qual for o `ambiente` — em `Ambiente.Producao`, passe `tpAmb: TipoAmbienteDps.Producao` em cada `emitir`/`buildDps` e `cancelar`, senão a Receita rejeita com E0006 (DPS) ou E1845 (evento). Veja [Emitir — Setup](./emitir#setup).
+::: tip `tpAmb` acompanha o `ambiente`
+Em `emitir` e `cancelar`, o `tpAmb` omitido vem do `ambiente` (`Ambiente.Producao` → `'1'`). A exceção é a DPS montada à parte com `buildDps` (default `'2'`) para `emitirDpsPronta`/`emitirEmLote`/`substituir`: em produção passe `tpAmb: TipoAmbienteDps.Producao`, senão a Receita rejeita com E0006. Veja [Emitir — Setup](./emitir#setup).
 :::

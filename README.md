@@ -109,7 +109,7 @@ try {
 }
 ```
 
-Em `Ambiente.Producao`, passe também `tpAmb: TipoAmbienteDps.Producao` em cada emissão (e cancelamento): o default `'2'` (Homologação) não acompanha o `ambiente` do cliente, e a Receita rejeita a divergência (E0006).
+O `tpAmb` da DPS e do pedido de cancelamento segue o `ambiente` do cliente quando omitido (`Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'`). Só quem monta a DPS fora do cliente (`buildDps` + `emitirDpsPronta`/`emitirEmLote`/`substituir`) precisa passar `tpAmb: TipoAmbienteDps.Producao` em produção — o default do `buildDps` é `'2'`, e a Receita rejeita a divergência (E0006).
 
 No `nt009` o cliente é criado com `layout: 'nt009'` e a emissão aceita os inputs de alto nível `ibsCbs` (grupo IBS/CBS) e `ajusteBC` (ajuste da base de cálculo do ISSQN). Com `ibsCbs`, `servico.cNBS` é obrigatório (E0322); o Anexo I exige o grupo IBSCBS para competência ≥ 01/10/2026 (E0855), mas, como o CGNFS-e ainda tolera a omissão, a lib não aplica essa regra e emite sem `ibsCbs`:
 

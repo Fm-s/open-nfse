@@ -16,18 +16,17 @@ Ambos usam o mesmo `RetryStore` do `emitir` — falhas transientes entram no mes
 ### 1. Chamada básica
 
 ```typescript
-import { JustificativaCancelamento, TipoAmbienteDps } from 'open-nfse';
+import { JustificativaCancelamento } from 'open-nfse';
 
 const r = await cliente.cancelar({
   chaveAcesso: '21113002200574753000100000000000146726037032711025',
   autor: { CNPJ: '00574753000100' },
   cMotivo: JustificativaCancelamento.ErroEmissao,   // '1' erro | '2' não prestado | '9' outros
   xMotivo: 'Valor digitado incorretamente',          // obrigatório: 15 a 255 caracteres (TSMotivo)
-  tpAmb: TipoAmbienteDps.Producao,                   // default '2' (Homologação) — veja abaixo
 });
 ```
 
-Defaults do pedido: `tpAmb = '2'` (Homologação), `verAplic = 'open-nfse/<versão>'` (ex.: `open-nfse/0.12.0rc1`; override de 1 a 20 caracteres, senão `RuleViolationError` rule `TSVerAplic`) e `dhEvento = agora`. O `tpAmb` **não** vem do `ambiente` do cliente: em produção passe `tpAmb: TipoAmbienteDps.Producao`, senão a Sefin rejeita com E1845 (tipo de ambiente difere do ambiente utilizado).
+Defaults do pedido: `tpAmb` do `ambiente` do cliente (`Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'`), `verAplic = 'open-nfse/<versão>'` (ex.: `open-nfse/0.12.0rc1`; override de 1 a 20 caracteres, senão `RuleViolationError` rule `TSVerAplic`) e `dhEvento = agora`. Um `tpAmb` explícito prevalece; divergir do ambiente de recebimento é rejeitado pela Sefin com E1845. A free function `cancelar` (sem cliente) mantém o default `'2'`.
 
 O `Id` do pedido é **determinístico** — `PRE` + chave + tipoEvento — para que um reenvio não crie um segundo evento: com a NFS-e já cancelada, a Sefin rejeita o novo pedido (E0840).
 
@@ -39,7 +38,7 @@ Mesma estrutura do `emitir`: três cenários distintos.
 import { ReceitaRejectionError, RuleViolationError } from 'open-nfse';
 
 try {
-  const r = await cliente.cancelar({ chaveAcesso, autor, cMotivo, xMotivo, tpAmb });
+  const r = await cliente.cancelar({ chaveAcesso, autor, cMotivo, xMotivo });
 
   if (r.status === 'ok') {
     // Cancelamento aceito pela Sefin. Persista o evento.

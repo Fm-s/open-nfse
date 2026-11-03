@@ -42,8 +42,8 @@ Impls Postgres completas dos dois: [Integração em serviços](./integracao).
 
 `layout` é **obrigatório, sem default** (`'nt004'` = produção atual; `'nt009'` = NT 009, produção em 01/12/2026). Ele tipa o cliente: `new NfseClient({ layout: 'nt004', … })` é um `NfseClient<'nt004'>`, cujo `emitir` só aceita params do `nt004` (sem `ajusteBC`/`ibsCbs`) e devolve `NfseNt004`. Chamador JS com valor desconhecido recebe `InvalidLayoutError` no construtor; DPS/params de outro layout, `LayoutMismatchError` antes de consumir o contador. Detalhes em [Leiautes](./layouts).
 
-::: warning `tpAmb` não segue o `ambiente` do cliente
-O `tpAmb` da DPS tem default `'2'` (Homologação), seja qual for o `ambiente`. Em `Ambiente.Producao`, passe `tpAmb: TipoAmbienteDps.Producao` em cada `emitir` (ou `buildDps`) — senão a Receita rejeita com E0006 (ambiente da DPS diverge do ambiente de recebimento).
+::: tip `tpAmb` segue o `ambiente` do cliente
+Em `emitir` e `cancelar`, o `tpAmb` omitido vem do `ambiente`: `Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'` (Homologação). Um `tpAmb` explícito prevalece. O `buildDps` avulso não conhece o cliente e tem default `'2'` — ao montar a DPS para `emitirDpsPronta`/`emitirEmLote`/`substituir` em produção, passe `tpAmb: TipoAmbienteDps.Producao`, senão a Receita rejeita com E0006 (ambiente da DPS diverge do ambiente de recebimento).
 :::
 
 ## 1. Emissão mínima
@@ -497,7 +497,7 @@ const nfseAutorizada = await cliente.emitirDpsPronta(dps);
 console.log(nfseAutorizada.chaveAcesso);
 ```
 
-`buildDps` monta DPS completa a partir de ~10 campos semânticos (vs 50+ manuais) e tem um overload por layout: `layout: 'nt004'` devolve `DpsNt004`, `layout: 'nt009'` devolve `DpsNt009` (e aceita `ajusteBC`/`ibsCbs`). O campo `layout` do DTO é sintético — nunca vai para o XML (os dois layouts serializam `versao="1.01"`). Defaults aplicados: `versao='1.01'`, `tpAmb='2'` (Homologação — ver o aviso no [Setup](#setup)), `tpEmit='1'`, `dhEmi=now`, `dCompet=now`, `verAplic='open-nfse/<versão>'` (ex.: `open-nfse/0.12.0rc1`), `tribISSQN='1'`, `tpRetISSQN='1'`, `locPrest=emitente.codMunicipio` e, no `nt009`, `finNFSe='0'`.
+`buildDps` monta DPS completa a partir de ~10 campos semânticos (vs 50+ manuais) e tem um overload por layout: `layout: 'nt004'` devolve `DpsNt004`, `layout: 'nt009'` devolve `DpsNt009` (e aceita `ajusteBC`/`ibsCbs`). O campo `layout` do DTO é sintético — nunca vai para o XML (os dois layouts serializam `versao="1.01"`). Defaults aplicados: `versao='1.01'`, `tpAmb='2'` (Homologação; no `emitir` do cliente o default segue o `ambiente` — ver [Setup](#setup)), `tpEmit='1'`, `dhEmi=now`, `dCompet=now`, `verAplic='open-nfse/<versão>'` (ex.: `open-nfse/0.12.0rc1`), `tribISSQN='1'`, `tpRetISSQN='1'`, `locPrest=emitente.codMunicipio` e, no `nt009`, `finNFSe='0'`.
 
 **Total de tributos (`totTrib`) depende do regime** (`opSimpNac`) — o builder seleciona o membro válido e rejeita o inválido (E0710/E0712/E0713):
 

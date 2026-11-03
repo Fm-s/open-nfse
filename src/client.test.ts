@@ -23,9 +23,11 @@ import { buildDps } from './nfse/build-dps.js';
 import { buildDpsXml } from './nfse/build-xml.js';
 import { createInMemoryDpsCounter } from './nfse/dps-counter.js';
 import {
+  JustificativaCancelamento,
   JustificativaSubstituicao,
   OpcaoSimplesNacional,
   RegimeEspecialTributacao,
+  TipoAmbienteDps,
 } from './nfse/enums.js';
 import { parseNfseXml } from './nfse/parse-xml.js';
 import { validateDpsXml } from './nfse/validate-xml.js';
@@ -1127,6 +1129,55 @@ describe('NfseClient — layout', () => {
     const r = await clientNt009.emitir({ ...paramsBase, dryRun: true });
     expect(r.xmlDpsAssinado).toContain('<finNFSe>0</finNFSe>');
     await clientNt009.close();
+  });
+
+  it.each([
+    [Ambiente.Producao, '1'],
+    [Ambiente.ProducaoRestrita, '2'],
+  ])('emitir sem tpAmb em %s usa tpAmb=%s', async (ambiente, tpAmb) => {
+    const client = new NfseClient({ ...baseConfig(), ambiente, layout: 'nt004' });
+    const r = await client.emitir({ ...paramsBase, dryRun: true });
+    expect(r.xmlDpsAssinado).toContain(`<tpAmb>${tpAmb}</tpAmb>`);
+    await client.close();
+  });
+
+  it('emitir com tpAmb explícito ignora o ambiente do cliente', async () => {
+    const client = new NfseClient({
+      ...baseConfig(),
+      ambiente: Ambiente.Producao,
+      layout: 'nt004',
+    });
+    const r = await client.emitir({
+      ...paramsBase,
+      tpAmb: TipoAmbienteDps.Homologacao,
+      dryRun: true,
+    });
+    expect(r.xmlDpsAssinado).toContain('<tpAmb>2</tpAmb>');
+    await client.close();
+  });
+
+  it('cancelar sem tpAmb em Produção envia tpAmb=1', async () => {
+    mockAgent
+      .get('https://sefin.nfse.gov.br')
+      .intercept({ path: `/SefinNacional/nfse/${CHAVE}/eventos`, method: 'POST' })
+      .reply(503, {});
+    const store = createInMemoryRetryStore();
+    const client = new NfseClient({
+      ...baseConfig(),
+      ambiente: Ambiente.Producao,
+      layout: 'nt004',
+      retryStore: store,
+    });
+    const r = await client.cancelar({
+      chaveAcesso: CHAVE,
+      autor: { CNPJ: '00574753000100' },
+      cMotivo: JustificativaCancelamento.ErroEmissao,
+      xMotivo: 'Erro de teste na emissão',
+    });
+    expect(r.status).toBe('retry_pending');
+    const [entry] = await store.list();
+    expect(entry?.xmlAssinado).toContain('<tpAmb>1</tpAmb>');
+    await client.close();
   });
 
   it('emitir no client nt004 não produz finNFSe', async () => {

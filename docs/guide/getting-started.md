@@ -88,8 +88,8 @@ const cliente = new NfseClient({
 
 Em produção, troque as impls in-memory por impls que conversam com seu banco. Veja [Integração em serviços](./integracao) para o schema SQL.
 
-::: warning `ambiente` não define o `tpAmb`
-O `tpAmb` da DPS tem default `'2'` (Homologação), seja qual for o `ambiente`. Com `Ambiente.Producao`, passe `tpAmb: TipoAmbienteDps.Producao` em cada emissão, senão a Receita rejeita com E0006 (detalhes em [Emitir](./emitir#setup)).
+::: tip O `ambiente` também define o `tpAmb`
+Em `emitir` e `cancelar`, o `tpAmb` omitido segue o `ambiente` do cliente (`Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'`). Só a DPS montada à parte com `buildDps` (default `'2'`) precisa de `tpAmb: TipoAmbienteDps.Producao` explícito em produção (detalhes em [Emitir](./emitir#setup)).
 :::
 
 ## Primeira chamada — consulta

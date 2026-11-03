@@ -194,7 +194,10 @@ export interface BuildDpsParamsBase {
    * a convenção sem padding.
    */
   readonly nDPS: string;
-  /** Default `'2'` (Homologação). */
+  /**
+   * Default `'2'` (Homologação) no `buildDps` avulso. Em `NfseClient.emitir`
+   * (e no fake), omitido segue o `ambiente` do cliente (Produção → `'1'`).
+   */
   readonly tpAmb?: TipoAmbienteDps;
   /** Default `new Date()`. */
   readonly dhEmi?: Date;

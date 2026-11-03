@@ -1,5 +1,5 @@
 import { Agent, type Dispatcher } from 'undici';
-import { AMBIENTE_ENDPOINTS, type Ambiente } from './ambiente.js';
+import { AMBIENTE_ENDPOINTS, type Ambiente, tpAmbDoAmbiente } from './ambiente.js';
 import type { CepValidator } from './cep/types.js';
 import { normalizeProvider } from './certificate/provider.js';
 import type { A1Certificate, CertificateInput, CertificateProvider } from './certificate/types.js';
@@ -349,11 +349,16 @@ export class NfseClient<L extends Layout = Layout> {
     // descartável aplica também os guards do builder — inclusive `ajusteBC`/
     // `ibsCbs` num cliente nt004 — sem tocar rede nem counter.
     assertParamsLayout(this.layout, params);
-    buildDps({ ...params, layout: this.layout, nDPS: params.nDPS ?? '1' } as BuildDpsParams);
+    // `tpAmb` omitido segue o `ambiente` do cliente (Produção → '1').
+    const comTpAmb: EmitirParams<L> = {
+      ...params,
+      tpAmb: params.tpAmb ?? tpAmbDoAmbiente(this.ambiente),
+    };
+    buildDps({ ...comTpAmb, layout: this.layout, nDPS: params.nDPS ?? '1' } as BuildDpsParams);
     const state = await this.ensureState();
     const cepValidator = params.cepValidator ?? this.cepValidator;
     const mergedParams: EmitirParams<L> = {
-      ...params,
+      ...comTpAmb,
       ...(cepValidator ? { cepValidator } : {}),
     };
     const deps = {
@@ -504,6 +509,8 @@ export class NfseClient<L extends Layout = Layout> {
     const retryStore = params.retryStore ?? this.retryStore;
     const merged: CancelarParams = {
       ...params,
+      // `tpAmb` omitido segue o `ambiente` do cliente (Produção → '1').
+      tpAmb: params.tpAmb ?? tpAmbDoAmbiente(this.ambiente),
       ...(retryStore ? { retryStore } : {}),
     };
     return cancelarInternal(state.sefin, state.certificate, this.retryPolicy, merged, this.layout);

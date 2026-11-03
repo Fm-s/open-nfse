@@ -34,6 +34,10 @@ export interface CancelarParams {
   readonly autor: AutorEvento;
   readonly cMotivo: JustificativaCancelamento;
   readonly xMotivo: string;
+  /**
+   * Default `'2'` (Homologação) na free function. Em `NfseClient.cancelar`
+   * (e no fake), omitido segue o `ambiente` do cliente (Produção → `'1'`).
+   */
   readonly tpAmb?: TipoAmbienteDps;
   readonly verAplic?: string;
   readonly dhEvento?: Date;

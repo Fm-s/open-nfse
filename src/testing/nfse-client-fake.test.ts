@@ -166,6 +166,18 @@ describe('NfseClientFake.fetchByNsu', () => {
   });
 });
 
+describe('NfseClientFake — tpAmb segue o ambiente', () => {
+  it.each([
+    [TipoAmbiente.Producao, '1'],
+    [TipoAmbiente.Homologacao, '2'],
+  ])('emitir sem tpAmb em %s monta a DPS com tpAmb=%s', async (ambiente, tpAmb) => {
+    const fake = new NfseClientFake({ layout: 'nt004', ambiente });
+    const r = await fake.emitir(baseEmitirParams());
+    if (r.status !== 'ok') throw new Error(r.status);
+    expect(r.nfse.nfse.infNFSe.DPS.infDPS.tpAmb).toBe(tpAmb);
+  });
+});
+
 describe('NfseClientFake.cancelar', () => {
   it('registers the cancellation and returns ok with a fake evento', async () => {
     const fake = new NfseClientFake({ layout: 'nt004' });

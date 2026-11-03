@@ -1,4 +1,4 @@
-import { TipoAmbiente } from '../ambiente.js';
+import { TipoAmbiente, tpAmbDoAmbiente } from '../ambiente.js';
 import type { FetchByNsuParams, ReplayItem } from '../client.js';
 import { type GerarDanfseOptions, gerarDanfse as gerarDanfseLocal } from '../danfse/gerar.js';
 import type { NsuQueryResult } from '../dfe/types.js';
@@ -102,7 +102,9 @@ export class NfseClientFake<L extends Layout = Layout> {
 
   private montarDps(params: EmitirParams<L>, nDPS: string): DpsFor<L> {
     // buildDps com layout = L devolve a DPS de L.
-    return buildDps({ ...params, layout: this.layout, nDPS }) as DpsFor<L>;
+    // Como o real: `tpAmb` omitido segue o `ambiente` do fake.
+    const tpAmb = params.tpAmb ?? tpAmbDoAmbiente(this.ambiente);
+    return buildDps({ ...params, tpAmb, layout: this.layout, nDPS }) as DpsFor<L>;
   }
 
   // -------------------------------------------------------------------------
@@ -305,7 +307,7 @@ export class NfseClientFake<L extends Layout = Layout> {
     // POST): validarCancelamento + a montagem do pedido (TSIdPedRegEvt da
     // chave, TSVerAplic etc.) — pura, sem certificado.
     validarCancelamento(params);
-    buildCancelamentoXml(params);
+    buildCancelamentoXml({ ...params, tpAmb: params.tpAmb ?? tpAmbDoAmbiente(this.ambiente) });
     const failure = this.consumeFailure('cancel');
     this.throwIfRejection(failure);
     if (failure?.kind === 'transient') {
@@ -556,7 +558,7 @@ export class NfseClientFake<L extends Layout = Layout> {
             versao: '1.01',
             infPedReg: {
               Id: `PRE${chaveAcesso}${tipoEvento}`,
-              tpAmb: '2' as never,
+              tpAmb: tpAmbDoAmbiente(this.ambiente),
               verAplic: 'NfseClientFake/0.6',
               dhEvento: new Date(),
               autor: { CNPJAutor: '00000000000000' },
