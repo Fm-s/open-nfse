@@ -87,6 +87,10 @@ describe('NfseClient<L> — tipos', () => {
     const _compila = () => {
       void c4.emitirDpsPronta(dpsNt004);
       void c9.emitirDpsPronta(dpsNt009);
+      // Helper genérico em L que espalha EmitirParams<L> no buildDps compila.
+      const montar = <L extends 'nt004' | 'nt009'>(layout: L, p: EmitirParams<L>) =>
+        buildDps({ ...p, layout, nDPS: '1' });
+      void montar;
       const p4: EmitirParams<'nt004'> & { dryRun?: false } = { ...paramsBase };
       void c4.emitir(p4);
       const p9Comum: EmitirParams<'nt009'> & { dryRun?: false } = { ...paramsBase };
@@ -118,6 +122,7 @@ describe('NfseClient<L> — tipos', () => {
         layout: 'nt004',
         ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
       });
+      // @ts-expect-error destinatário (TCRTCInfoDest) não tem inscrição municipal
       void buildDps({
         ...paramsBase,
         layout: 'nt009',
@@ -126,7 +131,6 @@ describe('NfseClient<L> — tipos', () => {
           destinatario: {
             documento: { CNPJ: '00574753000100' },
             nome: 'Dest',
-            // @ts-expect-error destinatário (TCRTCInfoDest) não tem inscrição municipal
             inscricaoMunicipal: '123',
           },
         },

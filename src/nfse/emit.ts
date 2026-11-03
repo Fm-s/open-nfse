@@ -22,7 +22,7 @@ import {
 } from '../retry/store.js';
 import { defaultIsTransient } from '../retry/transient.js';
 import { parseXml, TEXT_NODE, type XmlNode, type XmlObject } from '../xml/parser.js';
-import { type BuildDpsParams, type BuildDpsParamsFor, buildDps } from './build-dps.js';
+import { type BuildDpsParamsFor, buildDps } from './build-dps.js';
 import { buildDpsXml } from './build-xml.js';
 import { collectCepsFromDps, collectIdentifiersFromDps } from './collect-from-dps.js';
 import type { DPS, DpsFor, NfseFor } from './domain.js';
@@ -580,8 +580,19 @@ export type EmitirParams<L extends Layout = Layout> =
            * distintos para o mesmo número sequencial.
            */
           readonly nDPS?: string;
-        }
+        } & (L extends 'nt004' ? EmitirParamsSemCamposNt009 : unknown)
     : never;
+
+/**
+ * Os inputs exclusivos do `nt009`, tipados `never` nos params do `nt004`: um
+ * `EmitirParams<'nt009'>` (ou a união `EmitirParams`) guardado numa variável —
+ * sem checagem de propriedade excedente — não compila num
+ * `NfseClient<'nt004'>`. Em runtime (JS, cast), `LayoutMismatchError`.
+ */
+interface EmitirParamsSemCamposNt009 {
+  readonly ajusteBC?: never;
+  readonly ibsCbs?: never;
+}
 
 /**
  * Resultado discriminado de `emitSeguro`.
@@ -623,9 +634,7 @@ export async function emitSeguro<L extends Layout>(
 ): Promise<EmitirResult<L> | DpsDryRunResult> {
   assertParamsLayout(deps.layout, params);
   const isTransient = deps.isTransient ?? defaultIsTransient;
-  // `assertParamsLayout` já garantiu que `params` é do layout do cliente.
-  const montarDps = (nDPS: string): DPS =>
-    buildDps({ ...params, layout: deps.layout, nDPS } as BuildDpsParams);
+  const montarDps = (nDPS: string): DPS => buildDps({ ...params, layout: deps.layout, nDPS });
 
   // 1. Monta DPS com nDPS placeholder para validação (XSD não distingue
   //    valor específico — só valida contra pattern [1-9][0-9]{0,14}).
