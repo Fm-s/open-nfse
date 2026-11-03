@@ -60,12 +60,37 @@ describe('NfseClient<L> — tipos', () => {
       void c9.emitirEmLote([dpsNt004]);
       // @ts-expect-error layout é obrigatório
       new NfseClient({ ...baseConfig });
+      // Params nt009 não-literais (sem checagem de propriedade excedente) com
+      // ajusteBC/ibsCbs não passam por um cliente nt004.
+      const p9: EmitirParams<'nt009'> & { dryRun?: false } = {
+        ...paramsBase,
+        ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
+      };
+      // @ts-expect-error ibsCbs só existe no nt009
+      void c4.emitir(p9);
+      const pa9: EmitirParams<'nt009'> & { dryRun?: false } = {
+        ...paramsBase,
+        ajusteBC: { issqn: { valor: 1 } },
+      };
+      // @ts-expect-error ajusteBC só existe no nt009
+      void c4.emitir(pa9);
+      const pUniao: EmitirParams & { dryRun?: false } = p9;
+      // @ts-expect-error a união dos layouts não passa por um cliente nt004
+      void c4.emitir(pUniao);
+      // Params tipados como nt009 não passam por um cliente nt004 (use EmitirParams<'nt004'>).
+      const p9Comum: EmitirParams<'nt009'> & { dryRun?: false } = { ...paramsBase };
+      // @ts-expect-error EmitirParams<'nt009'> num cliente nt004
+      void c4.emitir(p9Comum);
     };
     void _naoCompila;
 
     const _compila = () => {
       void c4.emitirDpsPronta(dpsNt004);
       void c9.emitirDpsPronta(dpsNt009);
+      const p4: EmitirParams<'nt004'> & { dryRun?: false } = { ...paramsBase };
+      void c4.emitir(p4);
+      const p9Comum: EmitirParams<'nt009'> & { dryRun?: false } = { ...paramsBase };
+      void c9.emitir(p9Comum);
     };
     void _compila;
   });
@@ -93,7 +118,6 @@ describe('NfseClient<L> — tipos', () => {
         layout: 'nt004',
         ibsCbs: { classificacao: { CST: '000', cClassTrib: '000001' } },
       });
-      // @ts-expect-error destinatário (TCRTCInfoDest) não tem inscrição municipal
       void buildDps({
         ...paramsBase,
         layout: 'nt009',
@@ -102,6 +126,7 @@ describe('NfseClient<L> — tipos', () => {
           destinatario: {
             documento: { CNPJ: '00574753000100' },
             nome: 'Dest',
+            // @ts-expect-error destinatário (TCRTCInfoDest) não tem inscrição municipal
             inscricaoMunicipal: '123',
           },
         },
@@ -133,7 +158,7 @@ describe('NfseClient<L> — tipos', () => {
     const ajusteBC = { issqn: { percentual: 10 } } as const;
     const ibsCbs = { classificacao: { CST: '000', cClassTrib: '000001' } } as const;
 
-    const p9: EmitirParams<'nt009'> = { ...paramsBase, ajusteBC, ibsCbs };
+    const p9: EmitirParams<'nt009'> & { dryRun?: false } = { ...paramsBase, ajusteBC, ibsCbs };
     expect(p9.ajusteBC?.issqn).toEqual({ percentual: 10 });
     expectTypeOf<EmitirParams<'nt009'>>().toHaveProperty('ajusteBC');
     expectTypeOf<EmitirParams<'nt009'>>().toHaveProperty('ibsCbs');

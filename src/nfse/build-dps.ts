@@ -225,6 +225,15 @@ export interface BuildDpsParamsBase {
 export interface BuildDpsParamsNt004 extends BuildDpsParamsBase {
   /** Layout da DPS. Obrigatório — sem default. */
   readonly layout: 'nt004';
+  /**
+   * Só existe no `nt009`. Tipado `never` para que params do `nt009` guardados
+   * numa variável (sem checagem de propriedade excedente) não passem por um
+   * `NfseClient<'nt004'>`/`buildDps` do nt004 — viram erro de compilação, não
+   * só `LayoutMismatchError` em runtime.
+   */
+  readonly ajusteBC?: never;
+  /** Só existe no `nt009` — ver `ajusteBC`. */
+  readonly ibsCbs?: never;
 }
 
 /**

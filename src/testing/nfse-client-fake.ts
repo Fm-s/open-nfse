@@ -21,7 +21,7 @@ import {
   InvalidDpsIdError,
   NotFoundError,
 } from '../index.js';
-import { buildDps } from '../nfse/build-dps.js';
+import { type BuildDpsParams, buildDps } from '../nfse/build-dps.js';
 import { REGEX_CHAVE_ACESSO } from '../nfse/chave-acesso.js';
 import type { DPS, DpsFor, NFSe, NfseFor } from '../nfse/domain.js';
 import type {
@@ -104,7 +104,7 @@ export class NfseClientFake<L extends Layout = Layout> {
     // buildDps com layout = L devolve a DPS de L.
     // Como o real: `tpAmb` omitido segue o `ambiente` do fake.
     const tpAmb = params.tpAmb ?? tpAmbDoAmbiente(this.ambiente);
-    return buildDps({ ...params, tpAmb, layout: this.layout, nDPS }) as DpsFor<L>;
+    return buildDps({ ...params, tpAmb, layout: this.layout, nDPS } as BuildDpsParams) as DpsFor<L>;
   }
 
   // -------------------------------------------------------------------------

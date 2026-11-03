@@ -26,7 +26,7 @@ const cliente = new NfseClient({
 // cliente: NfseClient<'nt004'>
 ```
 
-O cliente é genérico no layout (`NfseClient<'nt004'>`), e a emissão é tipada por ele. Em `emitirDpsPronta`/`emitirEmLote`/`substituir`, uma DPS de outro layout não compila (o `layout` do DTO discrimina); em `emitir`, o compilador barra os inputs do `nt009` (`ajusteBC`, `ibsCbs`) em literais, mas um objeto já tipado como `EmitirParams<'nt009'>` passa (os campos são opcionais) — em runtime, `ajusteBC`/`ibsCbs` num cliente `nt004` lançam `LayoutMismatchError` (com `field`). Para JS puro (ou casts), a checagem acontece em runtime: valor fora de `LAYOUTS` lança `InvalidLayoutError`; uma DPS de outro layout lança `LayoutMismatchError` **antes** de consumir o contador, assinar ou fazer qualquer I/O (`emitirEmLote` valida o lote inteiro antes do primeiro item).
+O cliente é genérico no layout (`NfseClient<'nt004'>`), e a emissão é tipada por ele. Em `emitirDpsPronta`/`emitirEmLote`/`substituir`, uma DPS de outro layout não compila (o `layout` do DTO discrimina); em `emitir`, o compilador barra os inputs do `nt009` (`ajusteBC`, `ibsCbs`) num cliente `nt004` — em literais e em objetos já tipados como `EmitirParams<'nt009'>` (no `nt004` esses campos são `never`); em runtime (JS ou cast), eles lançam `LayoutMismatchError` (com `field`). Para JS puro (ou casts), a checagem acontece em runtime: valor fora de `LAYOUTS` lança `InvalidLayoutError`; uma DPS de outro layout lança `LayoutMismatchError` **antes** de consumir o contador, assinar ou fazer qualquer I/O (`emitirEmLote` valida o lote inteiro antes do primeiro item).
 
 Funções livres seguem a mesma regra: as que recebem DTO leem `dps.layout`; as que recebem XML cru exigem `{ layout }`:
 

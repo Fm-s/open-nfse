@@ -429,7 +429,7 @@ describe('emitSeguro', () => {
     const counter = createInMemoryDpsCounter(10);
     const retryStore = createInMemoryRetryStore();
 
-    const p: EmitirParams & { dryRun: false } = { ...baseParams(), dryRun: false };
+    const p: EmitirParams<'nt004'> & { dryRun: false } = { ...baseParams(), dryRun: false };
     await emitSeguro(
       {
         httpClient,
