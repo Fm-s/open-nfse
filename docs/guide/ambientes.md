@@ -21,7 +21,7 @@ const cliente = new NfseClient({
 });
 ```
 
-Os hosts são os mesmos para os dois leiautes. O `nt009` está em Produção Restrita desde 20/10/2026 e entra em produção em 01/12/2026 (o `nt004` vale até 30/11/2026) — valide o `nt009` em `ProducaoRestrita` antes da virada. Detalhes em [Leiautes](./layouts).
+Os hosts são os mesmos para os dois leiautes. O `nt009` está em Produção Restrita desde 20/10/2026 e entra em produção em 01/12/2026 (o `nt004` vale até 30/11/2026) — valide o `nt009` em `ProducaoRestrita` antes da virada. Detalhes em [Leiautes](./layouts.md).
 
 ## Hosts por ambiente
 
@@ -57,7 +57,7 @@ A API oficial está **dividida em hosts distintos**. O `NfseClient` resolve auto
 | `consultarRegimesEspeciais`            | GET    | `/{codMunicipio}/{codServico}/{competencia}/regimes_especiais` | ADN Parâmetros Municipais  |
 | `consultarRetencoes`                   | GET    | `/{codMunicipio}/{competencia}/retencoes`                     | ADN Parâmetros Municipais   |
 
-`substituir` emite a DPS substituta (com `infDPS.subst`) no `POST /nfse`; o evento 105102 é gerado pelo Sistema Nacional. A reconciliação do replay roda quando o re-POST de uma emissão é rejeitado de forma permanente (E0014, ou E1235 depois da virada de leiaute) — veja [Integração](./integracao#cron-de-retry).
+`substituir` emite a DPS substituta (com `infDPS.subst`) no `POST /nfse`; o evento 105102 é gerado pelo Sistema Nacional. A reconciliação do replay roda quando o re-POST de uma emissão é rejeitado de forma permanente (E0014, ou E1235 depois da virada de leiaute) — veja [Integração](./integracao.md#cron-de-retry).
 
 ## `TipoAmbiente` — o enum do resultado
 
@@ -150,9 +150,9 @@ endpoints.parametrosMunicipais;
 1. ✅ Certificado A1 **do CNPJ real** (o de produção, não o de testes).
 2. ✅ CNPJ habilitado no Emissor Nacional com IM ativa no município aderente.
 3. ✅ Fechou ciclo completo em Produção Restrita **no `layout` que vai usar em produção**: emitir → consultar → cancelar → substituir → distribuição por NSU.
-4. ✅ Schema SQL de [integração](./integracao) implementado e testado.
+4. ✅ Schema SQL de [integração](./integracao.md) implementado e testado.
 5. ✅ Cron de `replayPendingEvents` rodando (emissões e eventos pendentes, com reconciliação via `GET /dps/{id}`). Nota **autorizada** com resposta ilegível — `UnreadableAuthorizedNfseError` (lançado por `emitir`/`emitirDpsPronta`/`substituir`), `success_unreadable` (`emitirEmLote`) e `success_emission_unreadable` (replay) — é persistida pela chave do erro, nunca reemitida.
-6. ✅ Plano para a virada de leiaute de 01/12/2026: [drenar o `RetryStore`](./migracao-0.12#virada-retrystore) com o cliente `nt004` antes de criar o cliente `nt009`.
+6. ✅ Plano para a virada de leiaute de 01/12/2026: [drenar o `RetryStore`](./migracao-0.12.md#virada-retrystore) com o cliente `nt004` antes de criar o cliente `nt009`.
 7. ✅ Monitoramento: taxa de rejeição por código, latência, alerta de expiração de certificado.
 8. ✅ Base legal LGPD documentada para retenção dos XMLs fiscais.
 9. ✅ Base encriptada / acesso ao PFX limitado.
@@ -160,5 +160,5 @@ endpoints.parametrosMunicipais;
 Só então troque `Ambiente.ProducaoRestrita` → `Ambiente.Producao`. **Cada emissão em produção é um documento fiscal oficial.**
 
 ::: tip `tpAmb` acompanha o `ambiente`
-Em `emitir` e `cancelar`, o `tpAmb` omitido vem do `ambiente` (`Ambiente.Producao` → `'1'`). A exceção é a DPS montada à parte com `buildDps` (default `'2'`) para `emitirDpsPronta`/`emitirEmLote`/`substituir`: em produção passe `tpAmb: TipoAmbienteDps.Producao`, senão a Receita rejeita com E0006. Veja [Emitir — Setup](./emitir#setup).
+Em `emitir` e `cancelar`, o `tpAmb` omitido vem do `ambiente` (`Ambiente.Producao` → `'1'`). A exceção é a DPS montada à parte com `buildDps` (default `'2'`) para `emitirDpsPronta`/`emitirEmLote`/`substituir`: em produção passe `tpAmb: TipoAmbienteDps.Producao`, senão a Receita rejeita com E0006. Veja [Emitir — Setup](./emitir.md#setup).
 :::

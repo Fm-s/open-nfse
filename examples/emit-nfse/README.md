@@ -2,7 +2,7 @@
 
 Demonstra a API de emissão síncrona (`POST /nfse`) do open-nfse: montagem de DPS, dry-run, emissão única e emissão em lote com concorrência controlada.
 
-Os dois scripts emitem no leiaute `nt004` (produção atual) por padrão; `NFSE_LAYOUT=nt009` troca para o NT 009, já disponível em Produção Restrita (produção em 01/12/2026). Ver [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+Os dois scripts emitem no leiaute `nt004` (produção atual) por padrão; `NFSE_LAYOUT=nt009` troca para o NT 009, já disponível em Produção Restrita (produção em 01/12/2026). Ver [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md).
 
 ## Requisitos
 
@@ -111,7 +111,7 @@ O script cria uma DPS **mínima** com os params de alto nível do `emitir` (o `t
 - `ambiente: Ambiente.Producao` no cliente — o `tpAmb` da DPS acompanha (`'1'`)
 - `ibsCbs` / `ajusteBC` — só no `nt009`: grupo IBS/CBS e ajuste da base de cálculo, com as regras do Anexo I checadas offline
 
-O `verAplic` fica no default `open-nfse/<versão>`. Detalhes em [Emitir NFS-e](https://fm-s.github.io/open-nfse/guide/emitir).
+O `verAplic` fica no default `open-nfse/<versão>`. Detalhes em [Emitir NFS-e](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/emitir.md).
 
 ## Segurança
 

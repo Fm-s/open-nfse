@@ -2,7 +2,7 @@
 
 Teste de integração real contra a API. Carrega um certificado A1, consulta uma NFS-e por chave (opcional), e puxa documentos da distribuição por NSU.
 
-O cliente é criado com `layout: 'nt004'` — o `layout` é obrigatório, mas só tipa a emissão. As leituras devolvem NFS-e dos dois leiautes (`nt004` e `nt009`): o parser detecta o leiaute pelo `infDPS/finNFSe` e o DTO traz o campo sintético `nfse.layout`. Ver [Leiautes](https://fm-s.github.io/open-nfse/guide/layouts).
+O cliente é criado com `layout: 'nt004'` — o `layout` é obrigatório, mas só tipa a emissão. As leituras devolvem NFS-e dos dois leiautes (`nt004` e `nt009`): o parser detecta o leiaute pelo `infDPS/finNFSe` e o DTO traz o campo sintético `nfse.layout`. Ver [Leiautes](https://github.com/Fm-s/open-nfse/blob/nt009/docs/guide/layouts.md).
 
 ## Requisitos
 

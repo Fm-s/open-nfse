@@ -8,7 +8,7 @@ Callers não veem XML, GZip, Base64, mTLS, XMLDSig — tudo entra e sai tipado. 
 
 ## 2. Erros tipados, uma classe por modo de falha
 
-`Error → OpenNfseError → grupo (HttpError/CertificateError/ValidationError) → concreto`. O ramo de status HTTP tem um nível a mais (`HttpError → HttpStatusError → NotFoundError`/`TooManyRequestsError`/…), e `ReceitaRejectionError` e `UnreadableAuthorizedNfseError` herdam direto de `OpenNfseError`. O caller escolhe a granularidade do catch (`ReceitaRejectionError` específico, `ServerError` para retry, `OpenNfseError` para re-throw com contexto). Hierarquia completa + exemplos em [Erros tipados](./erros).
+`Error → OpenNfseError → grupo (HttpError/CertificateError/ValidationError) → concreto`. O ramo de status HTTP tem um nível a mais (`HttpError → HttpStatusError → NotFoundError`/`TooManyRequestsError`/…), e `ReceitaRejectionError` e `UnreadableAuthorizedNfseError` herdam direto de `OpenNfseError`. O caller escolhe a granularidade do catch (`ReceitaRejectionError` específico, `ServerError` para retry, `OpenNfseError` para re-throw com contexto). Hierarquia completa + exemplos em [Erros tipados](./erros.md).
 
 ## 3. Sem estado interno, com primitives de orquestração e retry
 
@@ -19,7 +19,7 @@ Sem banco, cache global ou singleton. Mas a lib oferece:
 - **`RetryStore` + `replayPendingEvents`** — interface plugável para transientes + método cron-friendly. O re-POST reusa o mesmo `infDPS.Id` (emissão rejeitada com E0014/E1235 é reconciliada via `GET /dps/{id}`) e eventos deduplicam por `(chave, tipoEvento)`, então rodar o replay N vezes não cria documento novo.
 - **`DpsCounter`** — provider atômico de `nDPS`, consultado só depois das validações offline.
 
-Persistência durável, agendamento do replay e reconciliação com os seus próprios registros ficam com o consumidor. Schema SQL sugerido em [Integração em serviços](./integracao).
+Persistência durável, agendamento do replay e reconciliação com os seus próprios registros ficam com o consumidor. Schema SQL sugerido em [Integração em serviços](./integracao.md).
 
 ## 4. Schema-driven, um tipo por leiaute
 
@@ -54,4 +54,4 @@ XSD, CEP e CPF/CNPJ rodam **por default** antes de qualquer round-trip. Desligar
 
 ## 9. Ambientes isolados
 
-`Ambiente.ProducaoRestrita` para homologação, `Ambiente.Producao` para valor fiscal. Feche o ciclo completo (emitir → consultar → cancelar → substituir) em homologação antes de trocar — inclusive o do `nt009`, já disponível em Produção Restrita antes da virada de 01/12/2026. O `ambiente` escolhe os hosts e, em `emitir`/`cancelar`, o `tpAmb` omitido (Produção → `'1'`); só a DPS montada à parte com `buildDps` precisa do `tpAmb` explícito — veja [Emitir NFS-e](./emitir#setup).
+`Ambiente.ProducaoRestrita` para homologação, `Ambiente.Producao` para valor fiscal. Feche o ciclo completo (emitir → consultar → cancelar → substituir) em homologação antes de trocar — inclusive o do `nt009`, já disponível em Produção Restrita antes da virada de 01/12/2026. O `ambiente` escolhe os hosts e, em `emitir`/`cancelar`, o `tpAmb` omitido (Produção → `'1'`); só a DPS montada à parte com `buildDps` precisa do `tpAmb` explícito — veja [Emitir NFS-e](./emitir.md#setup).

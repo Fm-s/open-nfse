@@ -79,7 +79,7 @@ const nfse = parseNfseXml(xmlFromDatabase);   // NFSe — detecta nt004/nt009 so
 const pdf = await gerarDanfse(nfse, { observacoes: '...' });
 ```
 
-Útil pra regerar DANFSe a partir do XML salvo no seu banco (ver [integração](./integracao#minimo)) sem precisar de cliente configurado. Notas `nt004` antigas e `nt009` novas passam pelo mesmo caminho.
+Útil pra regerar DANFSe a partir do XML salvo no seu banco (ver [integração](./integracao.md#minimo)) sem precisar de cliente configurado. Notas `nt004` antigas e `nt009` novas passam pelo mesmo caminho.
 
 ## Layout do PDF local
 

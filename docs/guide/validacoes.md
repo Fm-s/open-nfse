@@ -21,7 +21,7 @@ layout + buildDps (regras do Anexo I, DV dos inputs) → CPF/CNPJ (DPS inteira)
 
 Mais barata primeiro para falhar rápido antes de gastar tempo. Tudo que falha antes do `DpsCounter` **não consome `nDPS`**.
 
-Em `emitirDpsPronta` / `emitirEmLote` / `substituir` a DPS já vem pronta: layout da DPS × layout do cliente (`emitirEmLote` checa o lote inteiro antes do primeiro envio; `substituir` roda antes os pré-checks da substituição — ver [Substituir e cancelar](./substituir-cancelar)) → CPF/CNPJ → serialização (campo do outro layout → `LayoutMismatchError`) → XSD → CEP → sign → POST.
+Em `emitirDpsPronta` / `emitirEmLote` / `substituir` a DPS já vem pronta: layout da DPS × layout do cliente (`emitirEmLote` checa o lote inteiro antes do primeiro envio; `substituir` roda antes os pré-checks da substituição — ver [Substituir e cancelar](./substituir-cancelar.md)) → CPF/CNPJ → serialização (campo do outro layout → `LayoutMismatchError`) → XSD → CEP → sign → POST.
 
 ## Regras do Anexo I
 
@@ -43,9 +43,9 @@ O conjunto de regras depende do layout (Anexo I `20260209` no `nt004`, `20261020
 
 - **Nos dois layouts:** regime do Simples (E0162, E0166), `aliqIss` acima de 5% (E0595), `aliqIss` com MEI ou com `tribISSQN` 2/3/4 (E0600, E0602), retenção com `tribISSQN` 2/3/4 (E0580), `vReceb` (E0424), total de tributos por regime (E0710, E0712, E0713), `cTribMun` `'000'` (E0315) e 20.01.01 em águas marítimas (E1402).
 - **Muda por layout:** E0532 (`tribISSQN: '4'` obrigatório) vale só para o 99.01.01 no `nt004` e para todo 99.XX.XX no `nt009`.
-- **Só no `nt009`:** E0313 (MEI sem `cTribMun`), as regras do `ajusteBC` e do `ibsCbs` e, numa DPS montada à mão, E0031/E0034 (`cMotivoEmisTI`, `chNFSeRej`). Lista completa em [Leiautes](./layouts#inputs-de-alto-nivel-do-nt009).
+- **Só no `nt009`:** E0313 (MEI sem `cTribMun`), as regras do `ajusteBC` e do `ibsCbs` e, numa DPS montada à mão, E0031/E0034 (`cMotivoEmisTI`, `chNFSeRej`). Lista completa em [Leiautes](./layouts.md#inputs-de-alto-nivel-do-nt009).
 
-Nem todo `err.rule` é um código E: os guards de formato usam o nome do tipo do XSD ou do campo — `'aliqIss'` (valor que parece fração, ex. `0.025` em vez de `2.5`), `'TSVerAplic'`, `'TSDec'` (decimal negativo/não finito), e nos eventos `'TSMotivo'`, `'e101101/xMotivo'`, `'TSChaveNFSe'`, `'infDPS/subst'` (além de E0078 e E0042 em `substituir` — ver [Substituir e cancelar](./substituir-cancelar)).
+Nem todo `err.rule` é um código E: os guards de formato usam o nome do tipo do XSD ou do campo — `'aliqIss'` (valor que parece fração, ex. `0.025` em vez de `2.5`), `'TSVerAplic'`, `'TSDec'` (decimal negativo/não finito), e nos eventos `'TSMotivo'`, `'e101101/xMotivo'`, `'TSChaveNFSe'`, `'infDPS/subst'` (além de E0078 e E0042 em `substituir` — ver [Substituir e cancelar](./substituir-cancelar.md)).
 
 ## CPF/CNPJ check-digit
 

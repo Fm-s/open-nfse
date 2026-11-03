@@ -10,7 +10,7 @@ Assinaturas compactas de toda a superfície pública. Para parâmetros completos
 new NfseClient<L extends Layout>(config: NfseClientConfig<L>): NfseClient<L>  // layout: 'nt004' | 'nt009' obrigatório
 ```
 
-O `layout` não tem default e tipa a emissão: num `NfseClient<'nt004'>`, `emitir`/`emitirDpsPronta`/`emitirEmLote`/`substituir` só aceitam params/DPS do `nt004` (chamador JS: `LayoutMismatchError` antes de consumir o `nDPS`, assinar ou tocar a rede; valor desconhecido → `InvalidLayoutError` no construtor). As leituras aceitam documentos dos dois layouts. Ver [Leiautes](/guide/layouts).
+O `layout` não tem default e tipa a emissão: num `NfseClient<'nt004'>`, `emitir`/`emitirDpsPronta`/`emitirEmLote`/`substituir` só aceitam params/DPS do `nt004` (chamador JS: `LayoutMismatchError` antes de consumir o `nDPS`, assinar ou tocar a rede; valor desconhecido → `InvalidLayoutError` no construtor). As leituras aceitam documentos dos dois layouts. Ver [Leiautes](./guide/layouts.md).
 
 Todos os métodos abaixo retornam `Promise<T>`. Referência: [`NfseClient`](/api/classes/NfseClient).
 
@@ -136,7 +136,7 @@ import { NfseClientFake, type NfseClientLike } from 'open-nfse/testing';
 const fake = new NfseClientFake({ layout: 'nt004' }); // ambiente? opcional
 ```
 
-Structurally compat com `NfseClient` via `NfseClientLike<L>`. Reaproveita os guards offline do cliente real (layout, regras do `buildDps`, cancelamento/substituição) antes de consumir a falha programada (`failNextEmit`/`failNextCancel`); a chave sintetizada para uma DPS segue a regra de formação oficial (`TSIdNFSe`). Exporta também `FakeSeed`, `synthNfse`, `synthChaveAcesso` e o tipo `ProgrammedFailure`. API de seeding documentada em [Testando com o fake](/guide/testing).
+Structurally compat com `NfseClient` via `NfseClientLike<L>`. Reaproveita os guards offline do cliente real (layout, regras do `buildDps`, cancelamento/substituição) antes de consumir a falha programada (`failNextEmit`/`failNextCancel`); a chave sintetizada para uma DPS segue a regra de formação oficial (`TSIdNFSe`). Exporta também `FakeSeed`, `synthNfse`, `synthChaveAcesso` e o tipo `ProgrammedFailure`. API de seeding documentada em [Testando com o fake](./guide/testing.md).
 
 ## Interfaces pluggable
 
@@ -213,7 +213,7 @@ Enums que só existem num layout levam o sufixo `Nt004`/`Nt009`. Lista completa 
 
 ## Erros
 
-Todos herdam de `OpenNfseError` — a maioria via os grupos `HttpError` (→ `HttpStatusError`), `CertificateError` e `ValidationError`; `ReceitaRejectionError`, `UnreadableAuthorizedNfseError` e `ClientClosedError` herdam direto. Árvore e comportamento por método em [Erros tipados](/guide/erros).
+Todos herdam de `OpenNfseError` — a maioria via os grupos `HttpError` (→ `HttpStatusError`), `CertificateError` e `ValidationError`; `ReceitaRejectionError`, `UnreadableAuthorizedNfseError` e `ClientClosedError` herdam direto. Árvore e comportamento por método em [Erros tipados](./guide/erros.md).
 
 | Classe                            | Quando é lançado                                                            |
 |-----------------------------------|------------------------------------------------------------------------------|

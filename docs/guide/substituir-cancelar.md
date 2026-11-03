@@ -8,7 +8,7 @@
 Ambos usam o mesmo `RetryStore` do `emitir` — falhas transientes entram no mesmo pipeline de replay (cron de `replayPendingEvents`).
 
 ::: info Layout
-`cancelar` não depende do layout: o pedido de evento (`tiposEventos_v1.01.xsd`) é idêntico no `nt004` e no `nt009`, e a lib não faz checagem de layout nele — o `layout` do cliente só é gravado no `PendingEvent` de uma falha transiente. `substituir` **emite uma DPS**, então segue as regras de [layout](./layouts) da emissão: a `novaDps` precisa ser do layout do cliente (`buildDps({ layout })` com o mesmo valor do `new NfseClient({ layout })`); outra → `LayoutMismatchError` antes de qualquer I/O.
+`cancelar` não depende do layout: o pedido de evento (`tiposEventos_v1.01.xsd`) é idêntico no `nt004` e no `nt009`, e a lib não faz checagem de layout nele — o `layout` do cliente só é gravado no `PendingEvent` de uma falha transiente. `substituir` **emite uma DPS**, então segue as regras de [layout](./layouts.md) da emissão: a `novaDps` precisa ser do layout do cliente (`buildDps({ layout })` com o mesmo valor do `new NfseClient({ layout })`); outra → `LayoutMismatchError` antes de qualquer I/O.
 :::
 
 ## `cancelar` — evento 101101
@@ -201,11 +201,11 @@ for (const item of items) {
 ```
 
 Rodar o replay N vezes não cria nota nem evento novos:
-- **Emissões** — o re-POST reusa o mesmo `infDPS.Id` (45 chars, único por município+CPF/CNPJ+série+nDPS), então o SEFIN não gera uma segunda NFS-e. Uma DPS que ele já autorizou volta como **rejeição** (`E0014`, ou `E1235` depois de uma virada de layout), não como sucesso: antes de remover a entrada, a lib consulta `GET /dps/{id}`. NFS-e encontrada que embute a DPS persistida → `success_emission` com `reconciledFrom`; NFS-e de **outra** DPS com o mesmo `Id` → `failed_permanent` (`warn` `nfse.replay.reconcile_mismatch`); **só um 404** → `failed_permanent`; qualquer outra falha da consulta → `still_pending`. Detalhes em [Emitir NFS-e §4](./emitir#_4-cron-de-replay).
+- **Emissões** — o re-POST reusa o mesmo `infDPS.Id` (45 chars, único por município+CPF/CNPJ+série+nDPS), então o SEFIN não gera uma segunda NFS-e. Uma DPS que ele já autorizou volta como **rejeição** (`E0014`, ou `E1235` depois de uma virada de layout), não como sucesso: antes de remover a entrada, a lib consulta `GET /dps/{id}`. NFS-e encontrada que embute a DPS persistida → `success_emission` com `reconciledFrom`; NFS-e de **outra** DPS com o mesmo `Id` → `failed_permanent` (`warn` `nfse.replay.reconcile_mismatch`); **só um 404** → `failed_permanent`; qualquer outra falha da consulta → `still_pending`. Detalhes em [Emitir NFS-e §4](./emitir.md#_4-cron-de-replay).
 - **Cancelamentos** — o reenvio usa o mesmo `Id` (`PRE` + chave + tipoEvento) e não cria segundo evento. Mas a lib **não reconcilia eventos**: se o POST original foi registrado antes do timeout, o re-POST volta rejeitado (id do evento já existe — E0802 — ou NFS-e já cancelada — E0840) e o item sai como `failed_permanent`. Antes de tratar como falha, confira se a NFS-e já está cancelada (eventos via distribuição por NSU).
 
 ::: warning Virada para o `nt009`
-O replay reenvia o XML assinado como está — não converte entre layouts. Drene as **emissões** pendentes com o cliente `nt004` antes de criar o cliente `nt009` (roteiro em [Migração 0.12 §7](./migracao-0.12#virada-retrystore)). Cancelamentos pendentes não são afetados: o pedido de evento é o mesmo nos dois layouts.
+O replay reenvia o XML assinado como está — não converte entre layouts. Drene as **emissões** pendentes com o cliente `nt004` antes de criar o cliente `nt009` (roteiro em [Migração 0.12 §7](./migracao-0.12.md#virada-retrystore)). Cancelamentos pendentes não são afetados: o pedido de evento é o mesmo nos dois layouts.
 :::
 
 ## Interface `RetryStore`
@@ -229,7 +229,7 @@ type PendingEvent = PendingEmission | PendingEventoCancelamento;
 // kind: 'rollback_cancelamento'          ← legado (idem)
 ```
 
-Todas as variantes carregam `layout?` (o layout do cliente que gerou o pendente; ausente em entradas gravadas até a 0.11). Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de cada variante. `createInMemoryRetryStore()` serve para testes e demos; produção precisa persistir durável — impl Postgres completa em [Integração em serviços](./integracao#nfse-pending-events).
+Todas as variantes carregam `layout?` (o layout do cliente que gerou o pendente; ausente em entradas gravadas até a 0.11). Use `isPendingEmission(e)` para narrow antes de acessar campos específicos de cada variante. `createInMemoryRetryStore()` serve para testes e demos; produção precisa persistir durável — impl Postgres completa em [Integração em serviços](./integracao.md#nfse-pending-events).
 
 ## Pré-checks locais
 
@@ -249,7 +249,7 @@ Rodam **antes** de assinar ou enviar qualquer coisa (e, no `NfseClientFake`, ant
 6. **`infDPS.Id` válido** (`TSIdDPS`) → senão `InvalidDpsIdError`.
 7. **A chave substituída é do mesmo emitente** (rule `E0042` do Anexo I): Cód.Mun., Tipo de Inscrição e Inscrição de `chaveOriginal` devem ser iguais aos do `infDPS.Id` da nova DPS. O DV da chave (a outra metade da E0042) fica com a Sefin.
 
-Depois disso valem as validações da emissão (XSD, DV de CPF/CNPJ, CEP — ver [Validações](./validacoes)), controladas pelas mesmas flags `skip*`.
+Depois disso valem as validações da emissão (XSD, DV de CPF/CNPJ, CEP — ver [Validações](./validacoes.md)), controladas pelas mesmas flags `skip*`.
 
 ## Regras que só a Sefin verifica
 
@@ -265,4 +265,4 @@ Por default (`defaultIsTransient`), `ReceitaRejectionError` é **permanente**. A
 - **E1217** — "Serviço paralisado para manutenção" (validação inicial da mensagem na API, Anexo IV).
 - **E1206** — "Certificado de Transmissão — Erro de acesso a LCR" (recepção da DPS, Anexo I).
 
-Ambos vão para o `RetryStore` e são retentados pelo cron de `replayPendingEvents`. Para sobrescrever a classificação, passe `isTransient: (err) => boolean` em `CancelarParams` ou `SubstituirParams`. Lista completa (rede, timeout, 5xx, 429) em [Erros tipados](./erros#classificacao-padrao-transiente-vs-permanente).
+Ambos vão para o `RetryStore` e são retentados pelo cron de `replayPendingEvents`. Para sobrescrever a classificação, passe `isTransient: (err) => boolean` em `CancelarParams` ou `SubstituirParams`. Lista completa (rede, timeout, 5xx, 429) em [Erros tipados](./erros.md#classificacao-padrao-transiente-vs-permanente).

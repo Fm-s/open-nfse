@@ -96,7 +96,7 @@ A falha simula a resposta do POST e é **consumida na próxima chamada que chega
 
 Como no cliente real, as validações offline rodam **antes** da falha programada — o fake chama as mesmas funções do real (`buildDps`, `validarCancelamento`, `buildCancelamentoXml`, `prepararSubstituicao`, a validação de CPF/CNPJ), não cópias. Params inválidos lançam o erro de validação e a falha continua programada:
 
-- `emitir`: layout dos params (`LayoutMismatchError`) e todos os guards do `buildDps` — regras do Anexo I do layout (`RuleViolationError` com `err.rule`, ex.: as de `ajusteBC`/`ibsCbs` no `nt009`) e DV de CPF/CNPJ (ver [Validações](./validacoes#regras-do-anexo-i)).
+- `emitir`: layout dos params (`LayoutMismatchError`) e todos os guards do `buildDps` — regras do Anexo I do layout (`RuleViolationError` com `err.rule`, ex.: as de `ajusteBC`/`ibsCbs` no `nt009`) e DV de CPF/CNPJ (ver [Validações](./validacoes.md#regras-do-anexo-i)).
 - `emitirDpsPronta` / `emitirEmLote` / `substituir`: DPS de outro layout ou com campo do outro layout (`LayoutMismatchError`; `emitirEmLote` checa o lote inteiro antes), E0031/E0034 numa DPS `nt009` e DV de CPF/CNPJ (respeitando `skipCpfCnpjValidation`).
 - `cancelar`: `xMotivo` obrigatório com `cMotivo` 9 e dentro de `TSMotivo`, chave/`verAplic` do pedido.
 - `substituir`: E0078, `TSMotivo`, `TSChaveNFSe`, E0042, `infDPS.subst` divergente dos params e `InvalidDpsIdError`.

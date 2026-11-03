@@ -160,7 +160,7 @@ class InvalidCepError extends ValidationError {
 - **`emitir(params)` não lança em transiente** — retorna `{ status: 'retry_pending', pending, error }`. Lança em permanente (rejeição) ou validação local.
 - **`emitirDpsPronta(dps)` lança em tudo** — escape hatch, sem `retryStore`.
 - **`UnreadableAuthorizedNfseError` — a nota existe.** O SEFIN respondeu 201 (NFS-e autorizada, `nDPS` consumido), mas a lib não conseguiu montar o DTO: XML que o parser rejeita ou NFS-e de layout diferente do da DPS enviada. Lançado por `emitir`, `emitirDpsPronta` e `substituir`; em `emitirEmLote` vira o item `success_unreadable` (conta em `successCount`, não aborta o lote); no replay vira `success_emission_unreadable`. Nunca é transiente e nunca vai para o `RetryStore` (o parsing roda fora do caminho de retry — nem um `isTransient` custom o captura). Persista `chaveAcesso`/`xmlNfse` e **não reemita**: uma nova emissão com outro `nDPS` gera uma segunda NFS-e para o mesmo serviço.
-- **`substituir`** — um único write (a DPS com `<subst>`); retorna `{ status: 'ok' | 'retry_pending' }` (transiente persistido) ou lança em rejeição permanente. Sem rollback. Os pré-checks locais (`infDPS/subst`, `E0078`, `TSMotivo`, `TSChaveNFSe`, `E0042` → `RuleViolationError`; `infDPS.Id` inválido → `InvalidDpsIdError`) estão em [Substituir e cancelar](./substituir-cancelar#pre-checks-locais).
+- **`substituir`** — um único write (a DPS com `<subst>`); retorna `{ status: 'ok' | 'retry_pending' }` (transiente persistido) ou lança em rejeição permanente. Sem rollback. Os pré-checks locais (`infDPS/subst`, `E0078`, `TSMotivo`, `TSChaveNFSe`, `E0042` → `RuleViolationError`; `infDPS.Id` inválido → `InvalidDpsIdError`) estão em [Substituir e cancelar](./substituir-cancelar.md#pre-checks-locais).
 - **`InvalidLayoutError`** — `layout` ausente ou fora de `'nt004' | 'nt009'` em `new NfseClient`, `new NfseClientFake`, `buildDps` ou `validate*Xml(xml, { layout })` (não há default), ou DPS cujo `layout` não é um desses (chamador JS, DTO persistido sem o campo).
 - **`LayoutMismatchError`** — DPS (ou `params` com `layout`) de um layout entregue a um cliente de outro, em `emitir`/`emitirDpsPronta`/`emitirEmLote`/`substituir`; ou DTO que carrega um campo exclusivo do outro layout (`field` preenchido; checado também em `buildDps`/`buildDpsXml`). Lançado antes de consumir o `DpsCounter`, assinar ou fazer I/O — `emitirEmLote` checa o lote inteiro antes do primeiro item.
 - **Leitura não lança por layout** — `fetchByChave`, `fetchByNsu` e `parseNfseXml` leem os dois layouts; campo inesperado para o layout detectado é ignorado com `warn` `nfse.parse.unexpected_field`.
@@ -209,7 +209,7 @@ const cliente = new NfseClient({ layout: 'nt004', /* ... */, retryPolicy: expone
 
 A lib embrulha a sua policy num wrapper defensivo: se `computeNotBefore` lançar, captura, loga `warn`, e cai para `notBefore: undefined` — a entrada permanece no store, elegível na próxima passada. Não confie no wrapper como rede de segurança; faça a sua policy à prova de bala.
 
-Signatures e parâmetros exatos: veja o [API cheat sheet](../api-cheatsheet) ou [API completa (TypeDoc)](../api/).
+Signatures e parâmetros exatos: veja o [API cheat sheet](../api-cheatsheet.md) ou [API completa (TypeDoc)](../api/).
 
 ## Relançando com contexto
 

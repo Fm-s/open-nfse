@@ -5,7 +5,7 @@ Este guia cobre instalação, escolha do leiaute, configuração de certificado 
 ::: tip Trilha recomendada
 1. **Configuração mínima** (abaixo) — escolha o `layout`; consulta e DANFSe já funcionam, sem banco de dados.
 2. **Primeira emissão** com stores in-memory — nada para instalar além da lib.
-3. **Produção** — troque os stores in-memory por 3 tabelas no seu banco + um cron de `replayPendingEvents`. O SQL pronto está em [Integração em serviços](./integracao#minimo).
+3. **Produção** — troque os stores in-memory por 3 tabelas no seu banco + um cron de `replayPendingEvents`. O SQL pronto está em [Integração em serviços](./integracao.md#minimo).
 :::
 
 ## Requisitos
@@ -31,7 +31,7 @@ yarn add --exact open-nfse@next
 :::
 
 ::: warning Release candidate
-`npm install open-nfse` (sem tag) instala a 0.11.x estável, que só conhece o leiaute vigente e não tem a opção `layout`. Na 0.12, os tipos `*Nt009` e os inputs `ajusteBC`/`ibsCbs` podem mudar entre RCs (uma `0.12.0-rc.N` por novo bundle de Produção Restrita) até a `0.12.0` final — por isso a versão exata. Vindo da 0.11: [Migração 0.11 → 0.12](./migracao-0.12).
+`npm install open-nfse` (sem tag) instala a 0.11.x estável, que só conhece o leiaute vigente e não tem a opção `layout`. Na 0.12, os tipos `*Nt009` e os inputs `ajusteBC`/`ibsCbs` podem mudar entre RCs (uma `0.12.0-rc.N` por novo bundle de Produção Restrita) até a `0.12.0` final — por isso a versão exata. Vindo da 0.11: [Migração 0.11 → 0.12](./migracao-0.12.md).
 :::
 
 ## Escolha do leiaute
@@ -44,10 +44,10 @@ A NT 009/2026 troca o leiaute da DPS e da NFS-e em **01/12/2026**. A lib suporta
 | `'nt009'` | NT 009/2026 release 1 — produção a partir de **01/12/2026**; já disponível em Produção Restrita | `esquemas_prod_restrita_20261020` |
 
 - `layout` é **obrigatório** em `new NfseClient`, `new NfseClientFake`, `buildDps` e nos validadores de XSD (`validateDpsXml(xml, { layout })`). Não há default nem troca automática por data.
-- O leiaute de um cliente não muda: na virada, crie um novo cliente com `layout: 'nt009'` — e **drene o `RetryStore` com o cliente `nt004` antes** ([roteiro](./migracao-0.12#virada-retrystore)).
+- O leiaute de um cliente não muda: na virada, crie um novo cliente com `layout: 'nt009'` — e **drene o `RetryStore` com o cliente `nt004` antes** ([roteiro](./migracao-0.12.md#virada-retrystore)).
 - A leitura independe do leiaute do cliente: `fetchByChave` devolve NFS-e dos dois formatos, e `parseNfseXml` lê os dois (inclusive o `xmlDocumento` cru que `fetchByNsu` devolve).
 
-Detalhes em [Leiautes](./layouts).
+Detalhes em [Leiautes](./layouts.md).
 
 ## Configuração mínima
 
@@ -86,10 +86,10 @@ const cliente = new NfseClient({
 });
 ```
 
-Em produção, troque as impls in-memory por impls que conversam com seu banco. Veja [Integração em serviços](./integracao) para o schema SQL.
+Em produção, troque as impls in-memory por impls que conversam com seu banco. Veja [Integração em serviços](./integracao.md) para o schema SQL.
 
 ::: tip O `ambiente` também define o `tpAmb`
-Em `emitir` e `cancelar`, o `tpAmb` omitido segue o `ambiente` do cliente (`Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'`). Só a DPS montada à parte com `buildDps` (default `'2'`) precisa de `tpAmb: TipoAmbienteDps.Producao` explícito em produção (detalhes em [Emitir](./emitir#setup)).
+Em `emitir` e `cancelar`, o `tpAmb` omitido segue o `ambiente` do cliente (`Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'`). Só a DPS montada à parte com `buildDps` (default `'2'`) precisa de `tpAmb: TipoAmbienteDps.Producao` explícito em produção (detalhes em [Emitir](./emitir.md#setup)).
 :::
 
 ## Primeira chamada — consulta
@@ -104,7 +104,7 @@ console.log(resultado.nfse.infNFSe.emit.xNome);       // "VOGA LTDA"
 console.log(resultado.nfse.infNFSe.valores.vLiq);     // 51.6
 ```
 
-Consulta não exige `dpsCounter` nem `retryStore` — a configuração mínima já basta. O resultado é a união `NFSe`, qualquer que seja o `layout` do cliente: campos comuns aos dois leiautes saem direto; para os exclusivos, estreite por `resultado.nfse.layout === 'nt009'` (veja [Leiautes](./layouts#leitura-os-dois-leiautes-sem-perda)).
+Consulta não exige `dpsCounter` nem `retryStore` — a configuração mínima já basta. O resultado é a união `NFSe`, qualquer que seja o `layout` do cliente: campos comuns aos dois leiautes saem direto; para os exclusivos, estreite por `resultado.nfse.layout === 'nt009'` (veja [Leiautes](./layouts.md#leitura-os-dois-leiautes-sem-perda)).
 
 ## Primeira emissão
 
@@ -195,7 +195,7 @@ const r = await cliente009.emitir({
 // r.status === 'ok' → r.nfse.nfse é NfseNt009
 ```
 
-O Anexo I do `nt009` exige o grupo IBS/CBS para competência a partir de 01/10/2026 (E0855), mas pela orientação do CGNFS-e de 07/08/2026 a omissão do grupo não rejeita a nota até 31/12/2026 (reafirmada em 29/10/2026, sem citar prazo final) — a lib também não checa a E0855 localmente. As regras de rejeição **fechadas** do Anexo I (as que dependem só dos inputs) lançam `RuleViolationError` com o código antes de consumir o `nDPS`. Exemplos com `ajusteBC`, locação (99.03) e bens móveis em [Leiautes](./layouts#inputs-de-alto-nivel-do-nt009).
+O Anexo I do `nt009` exige o grupo IBS/CBS para competência a partir de 01/10/2026 (E0855), mas pela orientação do CGNFS-e de 07/08/2026 a omissão do grupo não rejeita a nota até 31/12/2026 (reafirmada em 29/10/2026, sem citar prazo final) — a lib também não checa a E0855 localmente. As regras de rejeição **fechadas** do Anexo I (as que dependem só dos inputs) lançam `RuleViolationError` com o código antes de consumir o `nDPS`. Exemplos com `ajusteBC`, locação (99.03) e bens móveis em [Leiautes](./layouts.md#inputs-de-alto-nivel-do-nt009).
 
 ### O que garante o fluxo
 
@@ -206,7 +206,7 @@ Quatro coisas importantes sobre esse fluxo (nos dois leiautes):
 3. **Rejeição permanente da Receita consome o `nDPS`** — o número foi gasto, mas a nota não virou NFS-e. Registre para auditoria e siga.
 4. **Nota autorizada nunca vira falha** — se a resposta autorizada não puder ser lida (XML corrompido, NFS-e de outro leiaute), a lib lança `UnreadableAuthorizedNfseError` com `chaveAcesso`: a nota existe, não reemita. Esse erro nunca é transiente nem vai para o `RetryStore`.
 
-Produção em mais detalhe: [Emitir NFS-e](./emitir). Schema SQL do store: [Integração em serviços](./integracao).
+Produção em mais detalhe: [Emitir NFS-e](./emitir.md). Schema SQL do store: [Integração em serviços](./integracao.md).
 
 ## Fechando o cliente
 
@@ -265,15 +265,15 @@ Principais eventos (o primeiro argumento é o nome do evento):
 - `debug` `http.request` / `http.response` — `method`, `url`, `status`, `latencyMs`.
 - `warn` `nfse.parse.unexpected_field` / `nfse.parse.rule_violation` — o parser achou um campo de outro leiaute (ignorado) ou um valor que o Anexo I rejeita (mantido).
 - `error` `nfse.emit.authorized_unreadable` — nota autorizada cuja resposta não pôde ser lida.
-- `nfse.replay.*` — reconciliação e divergência de leiaute no `replayPendingEvents` (veja [Emitir NFS-e](./emitir)).
+- `nfse.replay.*` — reconciliação e divergência de leiaute no `replayPendingEvents` (veja [Emitir NFS-e](./emitir.md)).
 - `warn` `danfse.online.deprecated` / `danfse.online.fallback` — uso das estratégias online do DANFSe.
 
 ## Próximos passos
 
-- [Consultar NFS-e](./consultar) — fetch por chave + distribuição por NSU
-- [Emitir NFS-e](./emitir) — `emitir(params)` com counter + retry store
-- [Substituir e cancelar](./substituir-cancelar) — cancelar (101101) e substituir (DPS com `<subst>`)
-- [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio etc.
-- [Leiautes](./layouts) — `nt004` × `nt009`, virada de 01/12/2026
-- [DANFSe (PDF)](./danfse) — renderer local (NT 008/2026)
-- [Testando com o fake](./testing) — `NfseClientFake`
+- [Consultar NFS-e](./consultar.md) — fetch por chave + distribuição por NSU
+- [Emitir NFS-e](./emitir.md) — `emitir(params)` com counter + retry store
+- [Substituir e cancelar](./substituir-cancelar.md) — cancelar (101101) e substituir (DPS com `<subst>`)
+- [Parâmetros municipais](./parametros.md) — alíquotas, benefícios, convênio etc.
+- [Leiautes](./layouts.md) — `nt004` × `nt009`, virada de 01/12/2026
+- [DANFSe (PDF)](./danfse.md) — renderer local (NT 008/2026)
+- [Testando com o fake](./testing.md) — `NfseClientFake`

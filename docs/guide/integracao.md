@@ -364,7 +364,7 @@ try {
 }
 ```
 
-Com `layout: 'nt009'`, `emitir` aceita também os inputs `ajusteBC`/`ibsCbs` e devolve `NfseNt009` — veja [Layouts](./layouts). O schema acima serve aos dois layouts: as colunas usadas existem em ambos.
+Com `layout: 'nt009'`, `emitir` aceita também os inputs `ajusteBC`/`ibsCbs` e devolve `NfseNt009` — veja [Layouts](./layouts.md). O schema acima serve aos dois layouts: as colunas usadas existem em ambos.
 
 ### Cron de retry
 
@@ -414,14 +414,14 @@ O `id` de uma emissão é `emission:<idDps>` (de um evento, `<chave>:<tipoEvento
 
 - **Single-instance.** `replayPendingEvents` não é concorrência-safe — dois processos chamando ao mesmo tempo veriam a mesma lista e duplicariam o tráfego para o SEFIN. Garanta exclusão mútua: cron single-instance (Vercel/Railway cron, `node-cron` num worker dedicado), lock distribuído via Redis se múltiplos serviços compartilham o `RetryStore`, ou `SELECT pg_try_advisory_lock(987654321)` no início do cron (pule a rodada se vier `false`).
 - **`notBefore` é honrado.** Entradas com `notBefore > now` são puladas silenciosamente (não aparecem em `results`). 429 com `Retry-After: 120` fica invisível pro cron por 2 min, sem chamadas perdidas pro SEFIN.
-- **`attempts` cresce a cada falha transiente no replay.** Útil pra dashboards: pendente com `attempts > 10` provavelmente é problema de configuração, não rede (ou uma reconciliação presa em `reconcile_failed`). Veja [Erros tipados — RetryPolicy](./erros#429-e-retrypolicy) para backoff customizado baseado em `attempts`.
+- **`attempts` cresce a cada falha transiente no replay.** Útil pra dashboards: pendente com `attempts > 10` provavelmente é problema de configuração, não rede (ou uma reconciliação presa em `reconcile_failed`). Veja [Erros tipados — RetryPolicy](./erros.md#429-e-retrypolicy) para backoff customizado baseado em `attempts`.
 - **Drene antes de trocar o certificado ou o layout.** O XML persistido foi assinado com o certificado vigente na emissão original: se ele expirar antes do replay, o SEFIN rejeita a assinatura como permanente e o item sai como `failed_permanent` (emissões passam antes pela reconciliação) — a operação precisa ser refeita à mão. E o XML é re-POSTado no layout em que foi assinado — veja abaixo.
 
 ### Virada de layout (`nt004` → `nt009`) {#virada-layout}
 
 O `layout` é fixo por cliente (`new NfseClient({ layout })`, sem default e sem troca automática por data); o `nt009` entra em produção em **01/12/2026**. O `RetryStore` não muda de layout junto: uma emissão `nt004` pendente reenviada por um cliente `nt009` gera `warn` `nfse.replay.layout_divergente` e, como o XML `nt004` não tem `infDPS/finNFSe` (obrigatório no `nt009`), deve ser rejeitada por schema (E1235) — e cai na reconciliação acima. Eventos pendentes não são afetados (o leiaute de evento não muda no release 1).
 
-Roteiro: antes de 01/12, pare de emitir com o cliente `nt004`, drene o store com ele mesmo até não sobrar emissão (olhe `store.list()`, não os itens — entradas com `notBefore` no futuro não aparecem no resultado), e só então crie o cliente `nt009`. Passo a passo, com o laço de drenagem: [Migração 0.11 → 0.12 §7](./migracao-0.12#virada-retrystore).
+Roteiro: antes de 01/12, pare de emitir com o cliente `nt004`, drene o store com ele mesmo até não sobrar emissão (olhe `store.list()`, não os itens — entradas com `notBefore` no futuro não aparecem no resultado), e só então crie o cliente `nt009`. Passo a passo, com o laço de drenagem: [Migração 0.11 → 0.12 §7](./migracao-0.12.md#virada-retrystore).
 
 ### Reconciliação residual
 
@@ -490,4 +490,4 @@ Nunca disparam em operação normal. Se dispararem, investigue a infra entre seu
 4. Antes de 01/12/2026, repita o ciclo com um cliente `layout: 'nt009'` em Produção Restrita (bundle `esquemas_prod_restrita_20261020`) e ensaie a [drenagem do store](#virada-layout).
 5. Só vá para `Ambiente.Producao` depois do ciclo completo em homologação — cada nota em produção é documento fiscal oficial.
 
-Signatures e parâmetros exatos: [API cheat sheet](../api-cheatsheet) · [API completa (TypeDoc)](../api/).
+Signatures e parâmetros exatos: [API cheat sheet](../api-cheatsheet.md) · [API completa (TypeDoc)](../api/).

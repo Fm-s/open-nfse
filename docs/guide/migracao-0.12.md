@@ -1,6 +1,6 @@
 # Migração 0.11 → 0.12
 
-A `0.12.0` introduz o suporte a dois leiautes (`nt004` e `nt009`; veja [Leiautes](./layouts)). É uma versão com **breaking changes**; a `0.12.0-rc.1` é uma release candidate publicada sob o dist-tag `next`.
+A `0.12.0` introduz o suporte a dois leiautes (`nt004` e `nt009`; veja [Leiautes](./layouts.md)). É uma versão com **breaking changes**; a `0.12.0-rc.1` é uma release candidate publicada sob o dist-tag `next`.
 
 ## Checklist
 
@@ -11,7 +11,7 @@ A `0.12.0` introduz o suporte a dois leiautes (`nt004` e `nt009`; veja [Leiautes
 5. Use `NfseClientFake({ layout })` nos testes.
 6. Se você escreveu `NfseClientLike` próprio, revise a nova assinatura genérica.
 7. DTOs de `DPS` persistidos na 0.11 (sem `layout`) precisam de `layout: 'nt004'` antes de voltar à lib.
-8. `interface X extends EmitirParams` (ou `BuildDpsParams`) sem argumento não compila mais — use `EmitirParams<'nt004'>` / `BuildDpsParamsNt004`.
+8. `EmitirParams` sem argumento virou a união dos dois layouts: `interface X extends EmitirParams` (ou `BuildDpsParams`) não compila mais, e uma variável/retorno anotado `EmitirParams` não é aceito por um `NfseClient<'nt004'>` — use `EmitirParams<'nt004'>` / `BuildDpsParamsNt004` ([seção 1](#emitirparams-virou-alias-condicional)).
 9. Na virada para o `nt009`, drene o `RetryStore` com o cliente `nt004` antes de trocar ([seção 7](#virada-retrystore)).
 10. Revise os pré-checks novos de `cancelar`/`substituir`, os status novos (`success_unreadable`, `success_emission_unreadable`), o tratamento de `UnreadableAuthorizedNfseError` e as mudanças do `NfseClientFake` ([seção 6](#outras-mudancas)) — valem também no `nt004`.
 11. Se você decodificava referências de caractere (`&#231;`) nos DTOs por conta própria, remova esse passo: o parser agora decodifica.
@@ -58,6 +58,15 @@ async function emitirPedido<L extends Layout>(cliente: NfseClient<L>, p: EmitirP
 ```
 
 O `readonly dryRun?: false` é necessário para o valor ser aceito por `cliente.emitir(p)`: `EmitirParams` declara `dryRun?: boolean`, e os overloads de `emitir` pedem `dryRun: true` (→ `DpsDryRunResult`) **ou** `dryRun?: false` (→ `EmitirResult`) — um `boolean` aberto não casa com nenhum dos dois (`TS2769`). Para um tipo de preview, use `readonly dryRun: true`.
+
+Fixe o layout também em anotações simples: um valor tipado `EmitirParams` (sem argumento — a única forma na 0.11) é a união, e um `NfseClient<'nt004'>` rejeita a união porque os inputs exclusivos do `nt009` (`ajusteBC`, `ibsCbs`) são `never` nos params do `nt004`:
+
+```ts
+// antes (0.11)
+function paramsParaEmissao(p: Pedido): EmitirParams { /* … */ }
+// depois (0.12) — TS2769 com `EmitirParams` sem argumento num cliente nt004
+function paramsParaEmissao(p: Pedido): EmitirParams<'nt004'> { /* … */ }
+```
 
 ## 2. `buildDps` exige `layout`
 
@@ -127,7 +136,7 @@ Tipos que mudam entre os layouts — ou que só existem em um deles — ganharam
 | `TipoDedRed` (enum) | `TipoDedRedNt004` |
 | `TipoReembolsoRepasse` (enum) | `TipoReembolsoRepasseNt004` |
 
-Os que só ganharam a versão `Nt004` correspondem a grupos que o `nt009` removeu (`vDedRed`, `gReeRepRes`) ou reestruturou (imóvel). Os tipos novos do `nt009` já nascem com sufixo (`InfoAjusteBCNt009`, `RtcLocacaoImovelNt009`, `TipoAjusteBCNt009`, `AjusteBCInputNt009`, …; veja [Leiautes](./layouts#tipos)).
+Os que só ganharam a versão `Nt004` correspondem a grupos que o `nt009` removeu (`vDedRed`, `gReeRepRes`) ou reestruturou (imóvel). Os tipos novos do `nt009` já nascem com sufixo (`InfoAjusteBCNt009`, `RtcLocacaoImovelNt009`, `TipoAjusteBCNt009`, `AjusteBCInputNt009`, …; veja [Leiautes](./layouts.md#tipos)).
 
 `DPS` e `NFSe` agora são uniões (`DpsNt004 | DpsNt009`, `NfseNt004 | NfseNt009`) com o discriminante sintético `layout`. Estreite com `if (nfse.layout === 'nt004')`. Para tipar por layout use `DpsFor<L>` / `NfseFor<L>`. Se o seu código acessa `vDedRed`, `gReeRepRes` etc., ele agora precisa estreitar para `nt004`.
 

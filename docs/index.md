@@ -2,7 +2,7 @@
 
 Cliente TypeScript/Node.js para o **Padrão Nacional de NFS-e** (nfse.gov.br) — a API unificada da Receita Federal, obrigatória em todo o Brasil a partir de 1º de janeiro de 2026 (LC 214/2025). Fala direto na API oficial, sem gateway intermediário.
 
-Suporta os **dois leiautes** que convivem na virada da NT 009/2026: `nt004` (vigente em produção até 30/11/2026) e `nt009` (produção a partir de 01/12/2026). A escolha é explícita — `layout` é obrigatório. Veja [Leiautes](/guide/layouts).
+Suporta os **dois leiautes** que convivem na virada da NT 009/2026: `nt004` (vigente em produção até 30/11/2026) e `nt009` (produção a partir de 01/12/2026). A escolha é explícita — `layout` é obrigatório. Veja [Leiautes](./guide/layouts.md).
 
 [npm](https://www.npmjs.com/package/open-nfse) · [GitHub](https://github.com/fm-s/open-nfse) · [Changelog](https://github.com/fm-s/open-nfse/blob/main/CHANGELOG.md)
 
@@ -13,11 +13,11 @@ npm install open-nfse@next   # 0.12.0-rc.1 — leiautes nt004 + nt009 (o que est
 npm install open-nfse        # 0.11.x estável — só o leiaute vigente, sem a opção `layout`
 ```
 
-Requer Node.js 20+ e certificado digital A1 (ICP-Brasil) do CNPJ emitente. Vindo da 0.11? Veja [Migração 0.11 → 0.12](/guide/migracao-0.12).
+Requer Node.js 20+ e certificado digital A1 (ICP-Brasil) do CNPJ emitente. Vindo da 0.11? Veja [Migração 0.11 → 0.12](./guide/migracao-0.12.md).
 
 ## Exemplo mínimo
 
-Setup do cliente com `DpsCounter` (gera `nDPS` atomicamente) e `RetryStore` (persiste transientes). As versões in-memory cobrem testes; produção usa Postgres — [schema SQL sugerido](/guide/integracao). O `layout` fixa o leiaute do cliente (`NfseClient<'nt004'>` aqui) e as emissões só aceitam os tipos dele:
+Setup do cliente com `DpsCounter` (gera `nDPS` atomicamente) e `RetryStore` (persiste transientes). As versões in-memory cobrem testes; produção usa Postgres — [schema SQL sugerido](./guide/integracao.md). O `layout` fixa o leiaute do cliente (`NfseClient<'nt004'>` aqui) e as emissões só aceitam os tipos dele:
 
 ```typescript
 import { readFileSync } from 'node:fs';
@@ -78,24 +78,24 @@ try {
 }
 ```
 
-No `nt009` o cliente é criado com `layout: 'nt009'` e a emissão aceita também `ibsCbs` (grupo IBS/CBS, que exige `servico.cNBS` — E0322) e `ajusteBC`; exemplo em [Começando](/guide/getting-started#a-mesma-nota-no-nt009) e detalhes em [Leiautes](/guide/layouts). Para o ciclo completo (persistência, cron de replay, bulk com counter+retry), veja [Emitir NFS-e](/guide/emitir).
+No `nt009` o cliente é criado com `layout: 'nt009'` e a emissão aceita também `ibsCbs` (grupo IBS/CBS, que exige `servico.cNBS` — E0322) e `ajusteBC`; exemplo em [Começando](./guide/getting-started.md#a-mesma-nota-no-nt009) e detalhes em [Leiautes](./guide/layouts.md). Para o ciclo completo (persistência, cron de replay, bulk com counter+retry), veja [Emitir NFS-e](./guide/emitir.md).
 
 ## O que a lib cobre
 
 | Escopo                                   | Página                                                |
 |------------------------------------------|-------------------------------------------------------|
-| Dois leiautes (`nt004` / `nt009`)        | [Leiautes](/guide/layouts)                            |
-| Consulta por chave e distribuição por NSU| [Consultar NFS-e](/guide/consultar)                   |
-| Emissão segura com counter + retry store | [Emitir NFS-e](/guide/emitir)                         |
-| Cancelamento (101101) e substituição     | [Substituir e cancelar](/guide/substituir-cancelar)   |
-| Validações XSD + Anexo I + CPF/CNPJ + CEP| [Validações](/guide/validacoes)                       |
-| Parâmetros municipais com cache          | [Parâmetros municipais](/guide/parametros)            |
-| DANFSe em PDF (renderer local)           | [DANFSe](/guide/danfse)                               |
-| Dublê em memória para testes             | [Testing](/guide/testing)                             |
+| Dois leiautes (`nt004` / `nt009`)        | [Leiautes](./guide/layouts.md)                            |
+| Consulta por chave e distribuição por NSU| [Consultar NFS-e](./guide/consultar.md)                   |
+| Emissão segura com counter + retry store | [Emitir NFS-e](./guide/emitir.md)                         |
+| Cancelamento (101101) e substituição     | [Substituir e cancelar](./guide/substituir-cancelar.md)   |
+| Validações XSD + Anexo I + CPF/CNPJ + CEP| [Validações](./guide/validacoes.md)                       |
+| Parâmetros municipais com cache          | [Parâmetros municipais](./guide/parametros.md)            |
+| DANFSe em PDF (renderer local)           | [DANFSe](./guide/danfse.md)                               |
+| Dublê em memória para testes             | [Testing](./guide/testing.md)                             |
 
-**Operação:** [Integração em serviços](/guide/integracao) (schema SQL), [Erros tipados](/guide/erros), [Ambientes e endpoints](/guide/ambientes).
+**Operação:** [Integração em serviços](./guide/integracao.md) (schema SQL), [Erros tipados](./guide/erros.md), [Ambientes e endpoints](./guide/ambientes.md).
 
-**Referência:** [API cheat sheet](/api-cheatsheet) · [API completa (TypeDoc)](/api/).
+**Referência:** [API cheat sheet](./api-cheatsheet.md) · [API completa (TypeDoc)](/api/).
 
 ## Status
 

@@ -40,7 +40,7 @@ if (nfse.layout === 'nt009') {
 }
 ```
 
-O parser é leniente e sem perdas: um campo exclusivo do outro leiaute é ignorado com `warn` `nfse.parse.unexpected_field` (nunca lança). Os avisos vão para o `logger` do cliente. Detalhes em [Leiautes](./layouts#leitura-os-dois-leiautes-sem-perda).
+O parser é leniente e sem perdas: um campo exclusivo do outro leiaute é ignorado com `warn` `nfse.parse.unexpected_field` (nunca lança). Os avisos vão para o `logger` do cliente. Detalhes em [Leiautes](./layouts.md#leitura-os-dois-leiautes-sem-perda).
 
 ### Navegando o `NFSe` parseado
 

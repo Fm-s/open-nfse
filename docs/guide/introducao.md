@@ -13,7 +13,7 @@ O leiaute do Padrão Nacional muda com a Reforma Tributária, por Notas Técnica
 | `'nt004'` | Vigente em produção (NT 004 + `tpRetPisCofins` da NT 007 + CNPJ alfanumérico) | `20260727` |
 | `'nt009'` | NT 009/2026 release 1 | `esquemas_prod_restrita_20261020` |
 
-`layout` é **obrigatório** e explícito em `new NfseClient`, `new NfseClientFake`, `buildDps` e nos validadores de XSD — sem default e sem seleção automática por data. Detalhes em [Leiautes](./layouts).
+`layout` é **obrigatório** e explícito em `new NfseClient`, `new NfseClientFake`, `buildDps` e nos validadores de XSD — sem default e sem seleção automática por data. Detalhes em [Leiautes](./layouts.md).
 
 ## O que esta lib cobre
 
@@ -34,7 +34,7 @@ O leiaute do Padrão Nacional muda com a Reforma Tributária, por Notas Técnica
 
 Escopo deliberadamente limitado para manter a biblioteca focada e auditável:
 
-- ❌ **Não tem persistência durável** — a lib provê `RetryStore`, `DpsCounter` e `ParametrosCache` (interfaces pluggable) + `replayPendingEvents` (cron-friendly), mas **os backing stores são seus**. Também não trazemos ORM ou esquema próprio. [Esquema SQL sugerido aqui](./integracao).
+- ❌ **Não tem persistência durável** — a lib provê `RetryStore`, `DpsCounter` e `ParametrosCache` (interfaces pluggable) + `replayPendingEvents` (cron-friendly), mas **os backing stores são seus**. Também não trazemos ORM ou esquema próprio. [Esquema SQL sugerido aqui](./integracao.md).
 - ❌ **Não cobre NF-e** (nota de produto) — padrão totalmente diferente, outro projeto.
 - ❌ **Não integra com ERPs específicos** (Bling, Omie, Tiny) — construa um wrapper sobre `open-nfse` no seu próprio projeto.
 - ❌ **Não orquestra cron/scheduler** — você chama `replayPendingEvents` em whatever job runner preferir (node-cron, BullMQ, Temporal, Lambda scheduled, etc).
@@ -68,13 +68,13 @@ Escopo deliberadamente limitado para manter a biblioteca focada e auditável:
 
 ## Próximos passos
 
-- [Começando](./getting-started) — instalar, escolher o layout, configurar certificado, primeira chamada.
-- [Princípios de design](./principios) — o que a API promete e como ela se mantém compacta.
-- [Leiautes](./layouts) — `nt004` × `nt009`, virada de 01/12/2026, inputs `ajusteBC`/`ibsCbs`.
-- [Migração 0.11 → 0.12](./migracao-0.12) — checklist de breaking changes e roteiro para drenar o `RetryStore` antes da virada.
-- [Emissão](./emitir) — `emitir(params)` com `DpsCounter` + `RetryStore` end-to-end.
-- [Substituir e cancelar](./substituir-cancelar) — 101101 e a substituição dirigida pela DPS (105102 gerado pelo sistema).
-- [Parâmetros municipais](./parametros) — alíquotas, benefícios, convênio, regimes, retenções.
-- [DANFSe (PDF)](./danfse) — renderer local (NT 008/2026).
-- [Testando com o fake](./testing) — `NfseClientFake` + `NfseClientLike`.
-- [Integração em serviços](./integracao) — schema SQL sugerido e fluxo recomendado para persistência.
+- [Começando](./getting-started.md) — instalar, escolher o layout, configurar certificado, primeira chamada.
+- [Princípios de design](./principios.md) — o que a API promete e como ela se mantém compacta.
+- [Leiautes](./layouts.md) — `nt004` × `nt009`, virada de 01/12/2026, inputs `ajusteBC`/`ibsCbs`.
+- [Migração 0.11 → 0.12](./migracao-0.12.md) — checklist de breaking changes e roteiro para drenar o `RetryStore` antes da virada.
+- [Emissão](./emitir.md) — `emitir(params)` com `DpsCounter` + `RetryStore` end-to-end.
+- [Substituir e cancelar](./substituir-cancelar.md) — 101101 e a substituição dirigida pela DPS (105102 gerado pelo sistema).
+- [Parâmetros municipais](./parametros.md) — alíquotas, benefícios, convênio, regimes, retenções.
+- [DANFSe (PDF)](./danfse.md) — renderer local (NT 008/2026).
+- [Testando com o fake](./testing.md) — `NfseClientFake` + `NfseClientLike`.
+- [Integração em serviços](./integracao.md) — schema SQL sugerido e fluxo recomendado para persistência.

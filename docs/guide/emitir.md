@@ -15,7 +15,7 @@ throw UnreadableAuthorizedNfseError    ← AUTORIZADA, resposta ilegível (não 
 
 Os guards do `buildDps` (layout, regras fechadas do Anexo I — `RuleViolationError`) rodam antes de qualquer I/O, inclusive antes de carregar o certificado.
 
-Erros transientes cobrem `NetworkError`, `TimeoutError`, `ServerError` (5xx) e `TooManyRequestsError` (429). O 429 respeita o cabeçalho `Retry-After` do servidor — a entrada fica no `RetryStore` com `notBefore` calculado pela `RetryPolicy` configurada e o cron de replay só toca nela quando elegível. Detalhes em [Erros tipados](./erros#429-e-retrypolicy).
+Erros transientes cobrem `NetworkError`, `TimeoutError`, `ServerError` (5xx) e `TooManyRequestsError` (429). O 429 respeita o cabeçalho `Retry-After` do servidor — a entrada fica no `RetryStore` com `notBefore` calculado pela `RetryPolicy` configurada e o cron de replay só toca nela quando elegível. Detalhes em [Erros tipados](./erros.md#429-e-retrypolicy).
 
 **Não envolva esta chamada em retry loop próprio para 429/5xx.** Cada `emitir()` consome um `nDPS` antes do POST; um wrapper externo que recapta e retenta queima números da série e cria buracos permanentes no sequencial. A lib já persiste o pendente — use `replayPendingEvents` (ver seção 4).
 
@@ -38,9 +38,9 @@ const cliente = new NfseClient({
 });
 ```
 
-Impls Postgres completas dos dois: [Integração em serviços](./integracao).
+Impls Postgres completas dos dois: [Integração em serviços](./integracao.md).
 
-`layout` é **obrigatório, sem default** (`'nt004'` = produção atual; `'nt009'` = NT 009, produção em 01/12/2026). Ele tipa o cliente: `new NfseClient({ layout: 'nt004', … })` é um `NfseClient<'nt004'>`, cujo `emitir` só aceita params do `nt004` (sem `ajusteBC`/`ibsCbs`) e devolve `NfseNt004`. Chamador JS com valor desconhecido recebe `InvalidLayoutError` no construtor; DPS/params de outro layout, `LayoutMismatchError` antes de consumir o contador. Detalhes em [Leiautes](./layouts).
+`layout` é **obrigatório, sem default** (`'nt004'` = produção atual; `'nt009'` = NT 009, produção em 01/12/2026). Ele tipa o cliente: `new NfseClient({ layout: 'nt004', … })` é um `NfseClient<'nt004'>`, cujo `emitir` só aceita params do `nt004` (sem `ajusteBC`/`ibsCbs`) e devolve `NfseNt004`. Chamador JS com valor desconhecido recebe `InvalidLayoutError` no construtor; DPS/params de outro layout, `LayoutMismatchError` antes de consumir o contador. Detalhes em [Leiautes](./layouts.md).
 
 ::: tip `tpAmb` segue o `ambiente` do cliente
 Em `emitir` e `cancelar`, o `tpAmb` omitido vem do `ambiente`: `Ambiente.Producao` → `'1'`, `Ambiente.ProducaoRestrita` → `'2'` (Homologação). Um `tpAmb` explícito prevalece. O `buildDps` avulso não conhece o cliente e tem default `'2'` — ao montar a DPS para `emitirDpsPronta`/`emitirEmLote`/`substituir` em produção, passe `tpAmb: TipoAmbienteDps.Producao`, senão a Receita rejeita com E0006 (ambiente da DPS diverge do ambiente de recebimento).
@@ -141,7 +141,7 @@ const r9 = await cliente9.emitir({
 });
 ```
 
-As regras de rejeição **fechadas** do Anexo I `20261020` — as que dependem só dos inputs — são checadas antes de consumir o `nDPS` e lançam `RuleViolationError` com o código em `err.rule` (`'E0322'`, `'E0532'`…). As que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN. Lista completa e regras de contexto do ajuste de BC: [Leiautes](./layouts#inputs-de-alto-nivel-do-nt009).
+As regras de rejeição **fechadas** do Anexo I `20261020` — as que dependem só dos inputs — são checadas antes de consumir o `nDPS` e lançam `RuleViolationError` com o código em `err.rule` (`'E0322'`, `'E0532'`…). As que dependem de cadastro, parametrização municipal ou da calculadora do IBS/CBS ficam com a SEFIN. Lista completa e regras de contexto do ajuste de BC: [Leiautes](./layouts.md#inputs-de-alto-nivel-do-nt009).
 
 ### Locação de imóvel (99.03) — descontos derivados
 
@@ -265,7 +265,7 @@ Tudo que cai em `retry_pending` (de `emitir`, `cancelar` ou `substituir`) é per
 
 O `infDPS.Id` só codifica município, CNPJ/CPF, série e `nDPS`. Se a numeração colidiu (contador em memória reiniciado, `nDPS` explícito reaproveitado), o E0014 é legítimo e o `GET /dps/{id}` devolve a nota **antiga**. Por isso a lib confere a DPS embutida na NFS-e baixada contra a persistida — `SignatureValue` da DPS, ou `dhEmi` quando a persistida não tem assinatura — e, se divergem, devolve `failed_permanent`: o serviço pendente **não** foi faturado; reemita com um `nDPS` novo.
 
-Resposta 201 que o parser não consegue ler vira `success_emission_unreadable` (`error` = `UnreadableAuthorizedNfseError` com `chaveAcesso`/`xmlNfse`): a nota existe e a entrada sai do store. O mesmo status sai quando o `GET /dps/{id}` acha a nota mas o `GET /nfse/{chave}` falha de forma permanente — aí `error.xmlNfse` vem `undefined` (baixe depois com `fetchByChave`). `ReplayItem` usa a união `NFSe` (o store pode ter pendentes de outro layout — antes de trocar o cliente para `nt009`, drene o store: [Migração 0.12 §7](./migracao-0.12#virada-retrystore)).
+Resposta 201 que o parser não consegue ler vira `success_emission_unreadable` (`error` = `UnreadableAuthorizedNfseError` com `chaveAcesso`/`xmlNfse`): a nota existe e a entrada sai do store. O mesmo status sai quando o `GET /dps/{id}` acha a nota mas o `GET /nfse/{chave}` falha de forma permanente — aí `error.xmlNfse` vem `undefined` (baixe depois com `fetchByChave`). `ReplayItem` usa a união `NFSe` (o store pode ter pendentes de outro layout — antes de trocar o cliente para `nt009`, drene o store: [Migração 0.12 §7](./migracao-0.12.md#virada-retrystore)).
 
 Entradas com `notBefore` no futuro (caso clássico: 429 com `Retry-After: 120`) são puladas silenciosamente — não aparecem no resultado e ficam no store até `notBefore <= now`. A cada falha transiente no replay, `notBefore` é recalculado pela `RetryPolicy` e `attempts` incrementado. **`replayPendingEvents` é single-threaded** — dois processos chamando concorrentemente duplicariam o tráfego para o SEFIN. Garanta exclusão mútua no caller (cron single-instance ou lock distribuído).
 
@@ -417,7 +417,7 @@ await cliente.emitir({
 });
 ```
 
-Validações rodam nesta ordem: layout + regras do `buildDps` (sempre) → CPF/CNPJ (sync) → XSD (WASM) → CEP (HTTP). Desligar é útil em cenários específicos (alta-frequência com cache próprio, debug) — mais detalhes em [Validações](./validacoes).
+Validações rodam nesta ordem: layout + regras do `buildDps` (sempre) → CPF/CNPJ (sync) → XSD (WASM) → CEP (HTTP). Desligar é útil em cenários específicos (alta-frequência com cache próprio, debug) — mais detalhes em [Validações](./validacoes.md).
 
 ## Errors de validação local (throw imediato)
 
@@ -436,7 +436,7 @@ Com defaults, essas falhas **nem chegam** à Receita:
 | `MissingDpsCounterError`       | `emitir(params)` sem `params.nDPS` e sem `dpsCounter` configurado |
 | `MissingRetryStoreError`       | Transiente no POST sem `retryStore` para persistir — o único da tabela que ocorre **depois** do envio (`nDPS` já consumido) |
 
-Todos herdam de `OpenNfseError` — [hierarquia completa](./erros).
+Todos herdam de `OpenNfseError` — [hierarquia completa](./erros.md).
 
 ::: tip IBS / CBS e data de competência
 Regra E0850 do Anexo I (nos dois layouts): o grupo `IBSCBS` só é aceito com `dCompet ≥ 2026-01-01`. Se você está emitindo retroativamente para competência anterior, omita-o (no `nt009`, não passe `ibsCbs`) — a Receita rejeita com E0850, que não é checada localmente. O espelho, para documentos de dedução/redução: `docFiscalOutro` só com competência do documento (`dtCompDoc`) anterior a 2026 (E0942 no `nt004`, cujo texto diz "anterior a 31/12/2025"; no `nt009`, E0476 no `ajusteBC`, checada pelo `buildDps`).
