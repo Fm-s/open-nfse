@@ -174,7 +174,7 @@ await cliente9.emitir({
 ```
 
 - `vDescIncond = pCopropriedade/100 × vDescIncondTot` (idem `vDescCond`), em 2 casas, meio centavo para cima. Desconto derivado zero não é emitido; derivado `>= vServ` lança E0431/E0432.
-- `vTotOper` é o valor **total** da operação, não a parte do coproprietário; `vServ` deve ser `pCopropriedade × vTotOper`.
+- `vTotOper` é o valor **total** da operação, não a parte do coproprietário; `vServ` deve ser `pCopropriedade × vTotOper` — o `buildDps` confere (E0433), aceitando o produto truncado ou arredondado para cima em centavos.
 - `locacao` fora do 99.03 lança E0936; bens móveis (`ibsCbs.bensMoveis`) só no 99.04.01, onde são obrigatórios (E0963/E0967).
 - E0902 (`cIndOp` 02XXXX) e E0938 (`unidades` obrigatórias) **não** são checadas pelo `buildDps` — quem rejeita é a SEFIN.
 

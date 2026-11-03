@@ -1469,6 +1469,7 @@ describe('nt009 inputs de alto nível', () => {
           }),
       ],
       ['E0940', 'pCopropriedade > 100', () => locacaoCom({ pCopropriedade: 150 })],
+      ['E0433', 'vServ ≠ pCopropriedade × vTotOper', () => locacaoCom({ pCopropriedade: 50 })],
       [
         'E0949',
         'ajuste de locação tipo 99 sem descrição',
@@ -1632,9 +1633,33 @@ describe('nt009 inputs de alto nível', () => {
       ).not.toThrow();
     });
 
+    it('E0433: vServ aceita o produto truncado ou arredondado para cima, e só eles', () => {
+      // 33,33% × 3000,30 = 999,99999 → 999,99 ou 1000,00.
+      const com = (vServ: number) => {
+        const p = locacaoCom({ pCopropriedade: 33.33, vTotOper: 3000.3 });
+        return { ...p, valores: { ...p.valores, vServ } };
+      };
+      expect(() => buildDps(com(1000))).not.toThrow();
+      expect(() => buildDps(com(999.99))).not.toThrow();
+      expect(() => buildDps(com(999.98))).toThrow(expect.objectContaining({ rule: 'E0433' }));
+      expect(() => buildDps(com(1000.01))).toThrow(expect.objectContaining({ rule: 'E0433' }));
+      // Produto exato: só um valor aceito (50% × 2000 = 1000).
+      const exato = locacaoCom({ pCopropriedade: 50, vTotOper: 2000 });
+      expect(() => buildDps(exato)).not.toThrow();
+      expect(() => buildDps({ ...exato, valores: { ...exato.valores, vServ: 1000.01 } })).toThrow(
+        expect.objectContaining({ rule: 'E0433' }),
+      );
+    });
+
     it('E0434/E0443: vDescIncond/vDescCond derivados de pCopropriedade × vDesc*Tot (2 casas)', async () => {
+      // vTotOper 3000,30 × 33,33% = 999,99999 → vServ 1000 (E0433).
       const dps = buildDps(
-        locacaoCom({ pCopropriedade: 33.33, vDescIncondTot: 100, vDescCondTot: 10.01 }),
+        locacaoCom({
+          pCopropriedade: 33.33,
+          vTotOper: 3000.3,
+          vDescIncondTot: 100,
+          vDescCondTot: 10.01,
+        }),
       );
       // 33,33% × 100 = 33,33; 33,33% × 10,01 = 3,336333 → 3,34.
       expect(dps.infDPS.valores.vDescCondIncond).toEqual({ vDescIncond: 33.33, vDescCond: 3.34 });
@@ -1648,11 +1673,11 @@ describe('nt009 inputs de alto nível', () => {
 
       // Meio centavo arredonda para cima: 50% × 10,01 = 5,005 → 5,01.
       expect(
-        buildDps(locacaoCom({ pCopropriedade: 50, vDescIncondTot: 10.01 })).infDPS.valores
-          .vDescCondIncond,
+        buildDps(locacaoCom({ pCopropriedade: 50, vTotOper: 2000, vDescIncondTot: 10.01 })).infDPS
+          .valores.vDescCondIncond,
       ).toEqual({ vDescIncond: 5.01 });
       // Sem *Tot, ou derivado zero (vDesc* tem de ser > 0 — E0431/E0432), o grupo é omitido.
-      for (const locacao of [{}, { pCopropriedade: 0, vDescIncondTot: 100 }, { vDescCondTot: 0 }]) {
+      for (const locacao of [{}, { vDescIncondTot: 0.004 }, { vDescCondTot: 0 }]) {
         const v = buildDps(locacaoCom(locacao)).infDPS.valores;
         expect('vDescCondIncond' in v).toBe(false);
       }

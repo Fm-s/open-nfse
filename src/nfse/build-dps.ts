@@ -335,6 +335,8 @@ export interface ImovelInputNt009 {
   /**
    * Locação, cessão ou arrendamento (`gLocacao`) — só no subitem 99.03, onde é
    * obrigatória (E0936/E0937). `pCopropriedade` em percentual (0 a 100, E0940).
+   * `valores.vServ` deve ser `pCopropriedade/100 × vTotOper` (E0433; aceita o
+   * produto truncado ou arredondado para cima em centavos).
    *
    * `vDescIncondTot`/`vDescCondTot` são os descontos totais da locação; o
    * `buildDps` deriva deles os descontos da DPS (`valores/vDescCondIncond`),
@@ -1036,6 +1038,7 @@ function assertIbsCbsNt009(i: IbsCbsInputNt009, params: BuildDpsParamsNt009): vo
         'E0940',
       );
     }
+    assertVServLocacaoNt009(params.valores.vServ, locacao.pCopropriedade, locacao.vTotOper);
   }
   for (const [u, unidade] of (i.imovel?.unidades ?? []).entries()) {
     for (const [j, aj] of (unidade.ajustesBC ?? []).entries()) {
@@ -1082,6 +1085,30 @@ function assertIbsCbsNt009(i: IbsCbsInputNt009, params: BuildDpsParamsNt009): vo
         'E0974',
       );
     }
+  }
+}
+
+/**
+ * E0433 (subitem 99.03): `vServ = pCopropriedade × vTotOper`, com
+ * `pCopropriedade` em percentual. O Anexo I não diz como a SEFIN arredonda o
+ * produto, então aceita os dois centavos vizinhos do valor exato (truncado ou
+ * arredondado para cima) — nunca rejeita uma DPS que algum arredondamento
+ * aceitaria, e pega o `vServ` que não corresponde à copropriedade. Em centavos
+ * inteiros (`BigInt`) sobre os valores serializados.
+ */
+function assertVServLocacaoNt009(vServ: number, pCopropriedade: number, vTotOper: number): void {
+  const centavos = (v: number) => BigInt(Math.round(comoSerializado(v) * 100));
+  // pCentesimos × vTotOperCentavos está em 1/10000 de centavo.
+  const produto = centavos(pCopropriedade) * centavos(vTotOper);
+  const piso = produto / 10_000n;
+  const teto = produto % 10_000n === 0n ? piso : piso + 1n;
+  const vServCentavos = centavos(vServ);
+  if (vServCentavos !== piso && vServCentavos !== teto) {
+    const esperado = (Number(piso) / 100).toFixed(2);
+    throw new RuleViolationError(
+      `valores.vServ=${vServ} deve ser pCopropriedade × vTotOper (${pCopropriedade}% × ${vTotOper} = ${esperado}${teto !== piso ? ` ou ${(Number(teto) / 100).toFixed(2)}` : ''}) na locação (subitem 99.03) — per E0433`,
+      'E0433',
+    );
   }
 }
 

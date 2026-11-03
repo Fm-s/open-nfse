@@ -54,7 +54,7 @@ Release candidate (dist-tag `next`). Suporte a **dois leiautes simultâneos**: `
   - gerais: **E0313** (MEI não informa `cTribMun`), **E0322** (`ibsCbs` exige `cNBS`), **E0532** por layout (nt004: só 99.01.01; nt009: todo 99.XX.XX exige `tribISSQN: '4'`);
   - ajuste de BC: **E0435/E0436/E0445, E0453, E0462–E0465, E0467, E0469, E0470, E0472, E0476, E0479, E0492** (fornecedor exige endereço);
   - IBS/CBS: **E0903, E0905/E0906, E0936/E0937, E0939, E0940, E0949, E0959, E0963, E0966/E0967, E0970, E0974**;
-  - locação 99.03: `vDescIncond`/`vDescCond` derivados de `pCopropriedade` (**E0434/E0443**, arredondamento half-up; derivado `>= vServ` lança **E0431/E0432**).
+  - locação 99.03: `vServ = pCopropriedade × vTotOper` conferido (**E0433**, aceita o produto truncado ou arredondado para cima em centavos); `vDescIncond`/`vDescCond` derivados de `pCopropriedade` (**E0434/E0443**, arredondamento half-up; derivado `>= vServ` lança **E0431/E0432**).
 
   Os guards comparam valores e datas como o serializer os emite. DV de fornecedor/destinatário e texto do E0424 conforme o Anexo I de cada layout. `DestinatarioInputNt009` não aceita `inscricaoMunicipal` (ausente em `TCRTCInfoDest`).
 - `cancelar` (função livre) aceita `layout?` opcional ao final (gravado no `PendingEvent`); `substituir` (função livre) aceita `layout?` e `logger?`. Pelo `NfseClient` nada muda.
